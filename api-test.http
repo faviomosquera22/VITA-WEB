@@ -1,0 +1,15 @@
+### Ver todos los casos actuales
+GET http://localhost:3000/api/cases
+Accept: application/json
+
+
+### Crear un nuevo caso desde REST Client
+POST http://localhost:3000/api/cases
+Content-Type: application/json
+
+{
+  "triage": "amarillo",
+  "patientName": "Paciente REST Client",
+  "age": 45,
+  "reason": "Dolor abdominal progresivo"
+}
