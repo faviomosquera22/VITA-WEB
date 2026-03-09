@@ -95,7 +95,9 @@ interface UpdateAlertInput {
   comment?: string;
 }
 
-const DATA_DIR = path.join(process.cwd(), ".vita-data");
+const DATA_DIR = process.env.VERCEL
+  ? "/tmp/vita-data"
+  : path.join(process.cwd(), ".vita-data");
 const DATA_FILE = path.join(DATA_DIR, "clinical-store.json");
 
 const initialData: ClinicalStoreData = {
@@ -186,26 +188,41 @@ const initialData: ClinicalStoreData = {
   audit: [],
 };
 
-function ensureStoreFile() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
+let memoryStore: ClinicalStoreData = cloneData(initialData);
 
-  if (!fs.existsSync(DATA_FILE)) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2), "utf8");
+function ensureStoreFile() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+
+    if (!fs.existsSync(DATA_FILE)) {
+      fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2), "utf8");
+    }
+  } catch {
+    // In serverless/read-only environments, we keep operating with in-memory data.
   }
 }
 
 function readStore(): ClinicalStoreData {
-  ensureStoreFile();
-
-  const fileContent = fs.readFileSync(DATA_FILE, "utf8");
-  return JSON.parse(fileContent) as ClinicalStoreData;
+  try {
+    ensureStoreFile();
+    const fileContent = fs.readFileSync(DATA_FILE, "utf8");
+    return JSON.parse(fileContent) as ClinicalStoreData;
+  } catch {
+    return cloneData(memoryStore);
+  }
 }
 
 function writeStore(data: ClinicalStoreData) {
-  ensureStoreFile();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
+  memoryStore = cloneData(data);
+
+  try {
+    ensureStoreFile();
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
+  } catch {
+    // Ignore persistence errors; memory fallback remains available.
+  }
 }
 
 function nowLabel() {
@@ -217,6 +234,10 @@ function nowLabel() {
 
 function newId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function cloneData<T>(value: T) {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 export function appendAuditEvent(input: Omit<AuditEvent, "id" | "timestamp">) {

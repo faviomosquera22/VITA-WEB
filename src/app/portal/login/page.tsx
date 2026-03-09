@@ -51,10 +51,13 @@ function PortalLoginContent() {
         }),
       });
 
-      const result = (await response.json()) as { error?: string; redirectTo?: string };
+      const contentType = response.headers.get("content-type") ?? "";
+      const result: { error?: string; redirectTo?: string } = contentType.includes("application/json")
+        ? ((await response.json()) as { error?: string; redirectTo?: string })
+        : { error: `Error del servidor (${response.status})` };
 
       if (!response.ok) {
-        setErrorMessage(result.error ?? "No se pudo iniciar sesion");
+        setErrorMessage(result.error ?? `No se pudo iniciar sesion (HTTP ${response.status})`);
         return;
       }
 
