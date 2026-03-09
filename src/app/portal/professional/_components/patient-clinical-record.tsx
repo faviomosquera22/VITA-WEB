@@ -107,6 +107,31 @@ const invasiveProcedureLabels = [
   "Otros",
 ];
 
+type ProfessionalAuditRecord = {
+  id: string;
+  tab: PatientTabId;
+  timestamp: string;
+  professional: string;
+  title: string;
+  details: string;
+};
+
+type NutritionPlanRecord = {
+  id: string;
+  date: string;
+  dietName: string;
+  dietType: string;
+  allowedFoods: string;
+  restrictedFoods: string;
+  recommendedIntake: string;
+  hydrationPlan: string;
+  supplements: string;
+  mealSchedule: string;
+  objectives: string;
+  observations: string;
+  professional: string;
+};
+
 export default function PatientClinicalRecord({ patient }: { patient: PatientRecord }) {
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
@@ -117,9 +142,111 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   const [selectedNursingShiftReportId, setSelectedNursingShiftReportId] = useState<string | null>(
     null
   );
+  const [currentProfessional, setCurrentProfessional] = useState(patient.assignedProfessional);
+
+  const [addedVitals, setAddedVitals] = useState<VitalSignRecord[]>([]);
+  const [addedFluidBalances, setAddedFluidBalances] = useState<PatientRecord["fluidBalances"]>([]);
+  const [addedNursingNotes, setAddedNursingNotes] = useState<PatientRecord["nursingNotes"]>([]);
+  const [addedMedicalNotes, setAddedMedicalNotes] = useState<PatientRecord["medicalNotes"]>([]);
+  const [addedNursingShiftReports, setAddedNursingShiftReports] = useState<
+    PatientRecord["nursingShiftReports"]
+  >([]);
+  const [nutritionPlans, setNutritionPlans] = useState<NutritionPlanRecord[]>([
+    createInitialNutritionPlan(patient),
+  ]);
+  const [auditRecords, setAuditRecords] = useState<ProfessionalAuditRecord[]>([]);
+
+  const [vitalForm, setVitalForm] = useState({
+    hour: "7:00",
+    heartRate: "",
+    respiratoryRate: "",
+    pas: "",
+    pad: "",
+    temperature: "",
+    spo2: "",
+    glucose: "",
+    painScale: "",
+  });
+  const [fluidForm, setFluidForm] = useState({
+    shift: "Manana",
+    intakeTotal: "",
+    outputTotal: "",
+    diuresis: "",
+    observations: "",
+  });
+  const [nursingNoteDraft, setNursingNoteDraft] = useState("");
+  const [medicalNoteDraft, setMedicalNoteDraft] = useState("");
+  const [nursingReportForm, setNursingReportForm] = useState<{
+    shift: string;
+    service: string;
+    generalStatus: string;
+    proceduresDone: string;
+    incidents: string;
+    carePlan: string;
+  }>({
+    shift: "Manana",
+    service: patient.serviceArea ?? "Observacion",
+    generalStatus: "",
+    proceduresDone: "",
+    incidents: "",
+    carePlan: "",
+  });
+  const [nutritionForm, setNutritionForm] = useState({
+    dietName: patient.nutrition.diet,
+    dietType: patient.nutrition.nutritionalStatus,
+    allowedFoods: patient.nutrition.recommendations.join("; "),
+    restrictedFoods: "Azucares refinados, bebidas azucaradas, ultraprocesados.",
+    recommendedIntake: patient.nutrition.estimatedIntake,
+    hydrationPlan: "Agua fraccionada durante el dia, objetivo 2 L/24h salvo contraindicacion.",
+    supplements: "Suplemento segun tolerancia y evaluacion nutricional.",
+    mealSchedule: "Desayuno, media manana, almuerzo, media tarde, cena y colacion nocturna.",
+    objectives: patient.nutrition.evolution,
+    observations: "",
+  });
+  const [moduleRecordForm, setModuleRecordForm] = useState({
+    title: "",
+    details: "",
+  });
+
   const activeTab = isTab(requestedTab) ? requestedTab : selectedTab;
 
-  const latestVital = patient.vitalSigns[0] ?? null;
+  const effectiveVitals = useMemo(
+    () =>
+      [...addedVitals, ...patient.vitalSigns].sort((a, b) =>
+        b.recordedAt.localeCompare(a.recordedAt)
+      ),
+    [addedVitals, patient.vitalSigns]
+  );
+  const effectiveFluidBalances = useMemo(
+    () =>
+      [...addedFluidBalances, ...patient.fluidBalances].sort((a, b) =>
+        `${b.date}-${b.shift}`.localeCompare(`${a.date}-${a.shift}`)
+      ),
+    [addedFluidBalances, patient.fluidBalances]
+  );
+  const effectiveNursingNotes = useMemo(
+    () =>
+      [...addedNursingNotes, ...patient.nursingNotes].sort((a, b) =>
+        b.datetime.localeCompare(a.datetime)
+      ),
+    [addedNursingNotes, patient.nursingNotes]
+  );
+  const effectiveMedicalNotes = useMemo(
+    () =>
+      [...addedMedicalNotes, ...patient.medicalNotes].sort((a, b) =>
+        b.datetime.localeCompare(a.datetime)
+      ),
+    [addedMedicalNotes, patient.medicalNotes]
+  );
+  const effectiveNursingShiftReports = useMemo(
+    () =>
+      [...addedNursingShiftReports, ...patient.nursingShiftReports].sort((a, b) =>
+        `${b.date}-${b.shift}`.localeCompare(`${a.date}-${a.shift}`)
+      ),
+    [addedNursingShiftReports, patient.nursingShiftReports]
+  );
+
+  const latestVital = effectiveVitals[0] ?? null;
   const functionalPatterns = getPatientFunctionalPatterns(patient);
 
   const timelineSorted = useMemo(
@@ -130,22 +257,312 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   const medicationAllergies = patient.antecedentes.allergies.filter(
     (item) => !isNoKnownAllergy(item)
   );
-  const vitalsByHour = groupVitalsByHour(patient.vitalSigns);
-  const latestVitalDate = splitDateTime(patient.vitalSigns[0]?.recordedAt ?? patient.admissionDate).date;
+  const vitalsByHour = groupVitalsByHour(effectiveVitals);
+  const latestVitalDate = splitDateTime(effectiveVitals[0]?.recordedAt ?? patient.admissionDate).date;
   const invasiveRows = buildInvasiveProcedureRows(patient);
-  const fluidBalanceSheet = buildFluidBalanceSheet(patient);
+  const fluidBalanceSheet = buildFluidBalanceSheet(effectiveFluidBalances, patient.admissionDate);
   const selectedNursingNote =
-    patient.nursingNotes.find((note) => note.id === selectedNursingNoteId) ??
-    patient.nursingNotes[0] ??
+    effectiveNursingNotes.find((note) => note.id === selectedNursingNoteId) ??
+    effectiveNursingNotes[0] ??
     null;
   const selectedMedicalNote =
-    patient.medicalNotes.find((note) => note.id === selectedMedicalNoteId) ??
-    patient.medicalNotes[0] ??
+    effectiveMedicalNotes.find((note) => note.id === selectedMedicalNoteId) ??
+    effectiveMedicalNotes[0] ??
     null;
   const selectedNursingShiftReport =
-    patient.nursingShiftReports.find((report) => report.id === selectedNursingShiftReportId) ??
-    patient.nursingShiftReports[0] ??
+    effectiveNursingShiftReports.find((report) => report.id === selectedNursingShiftReportId) ??
+    effectiveNursingShiftReports[0] ??
     null;
+  const activeTabLabel = patientTabs.find((tab) => tab.id === activeTab)?.label ?? activeTab;
+  const tabAuditRecords = auditRecords.filter((record) => record.tab === activeTab);
+
+  const addAuditRecord = (tab: PatientTabId, title: string, details: string) => {
+    const professional = currentProfessional.trim() || patient.assignedProfessional;
+    const tabLabel = patientTabs.find((tabItem) => tabItem.id === tab)?.label ?? activeTabLabel;
+
+    setAuditRecords((prev) => [
+      {
+        id: `audit-${tab}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        tab,
+        timestamp: getCurrentDateTimeLabel(),
+        professional,
+        title: title.trim() || `Actualizacion en ${tabLabel}`,
+        details: details.trim(),
+      },
+      ...prev,
+    ]);
+  };
+
+  const registerVitalRecord = () => {
+    if (
+      !vitalForm.heartRate ||
+      !vitalForm.respiratoryRate ||
+      !vitalForm.pas ||
+      !vitalForm.pad ||
+      !vitalForm.temperature ||
+      !vitalForm.spo2 ||
+      !vitalForm.glucose
+    ) {
+      return;
+    }
+
+    const numeric = {
+      heartRate: Number(vitalForm.heartRate),
+      respiratoryRate: Number(vitalForm.respiratoryRate),
+      pas: Number(vitalForm.pas),
+      pad: Number(vitalForm.pad),
+      temperature: Number(vitalForm.temperature),
+      spo2: Number(vitalForm.spo2),
+      glucose: Number(vitalForm.glucose),
+      painScale: Number(vitalForm.painScale || 0),
+    };
+    if (Object.values(numeric).some((value) => !Number.isFinite(value))) {
+      return;
+    }
+
+    const flags = computeVitalFlags(numeric);
+    const hourForRecord = vitalForm.hour === "24:00" ? "00:00" : vitalForm.hour;
+
+    setAddedVitals((prev) => [
+      {
+        recordedAt: `${latestVitalDate} ${hourForRecord}`,
+        bloodPressure: `${numeric.pas}/${numeric.pad}`,
+        heartRate: numeric.heartRate,
+        respiratoryRate: numeric.respiratoryRate,
+        temperature: numeric.temperature,
+        spo2: numeric.spo2,
+        glucose: numeric.glucose,
+        painScale: numeric.painScale,
+        weightKg: latestVital?.weightKg ?? 0,
+        heightCm: latestVital?.heightCm ?? 0,
+        bmi: latestVital?.bmi ?? 0,
+        professional: currentProfessional.trim() || patient.assignedProfessional,
+        outOfRangeFlags: flags,
+      },
+      ...prev,
+    ]);
+
+    addAuditRecord(
+      "vitals",
+      "Registro de signos vitales",
+      `Hora ${vitalForm.hour}. FC ${numeric.heartRate}, FR ${numeric.respiratoryRate}, TA ${numeric.pas}/${numeric.pad}, T ${numeric.temperature}, SO2 ${numeric.spo2}, HGT ${numeric.glucose}.`
+    );
+    setVitalForm((prev) => ({
+      ...prev,
+      heartRate: "",
+      respiratoryRate: "",
+      pas: "",
+      pad: "",
+      temperature: "",
+      spo2: "",
+      glucose: "",
+      painScale: "",
+    }));
+  };
+
+  const registerFluidBalance = () => {
+    if (!fluidForm.intakeTotal || !fluidForm.outputTotal || !fluidForm.diuresis) {
+      return;
+    }
+
+    const intakeTotal = Number(fluidForm.intakeTotal);
+    const outputTotal = Number(fluidForm.outputTotal);
+    const diuresis = Number(fluidForm.diuresis);
+    if (![intakeTotal, outputTotal, diuresis].every((value) => Number.isFinite(value))) {
+      return;
+    }
+
+    setAddedFluidBalances((prev) => [
+      {
+        id: `fb-local-${Date.now()}`,
+        shift: fluidForm.shift,
+        date: latestVitalDate,
+        intake: {
+          oral: Math.round(intakeTotal * 0.25),
+          intravenous: Math.round(intakeTotal * 0.55),
+          dilutedMedication: Math.round(intakeTotal * 0.1),
+          enteralParenteral: Math.round(intakeTotal * 0.05),
+          other: Math.max(
+            0,
+            intakeTotal -
+              (Math.round(intakeTotal * 0.25) +
+                Math.round(intakeTotal * 0.55) +
+                Math.round(intakeTotal * 0.1) +
+                Math.round(intakeTotal * 0.05))
+          ),
+        },
+        output: {
+          diuresis,
+          vomiting: Math.round(Math.max(0, outputTotal - diuresis) * 0.2),
+          drains: Math.round(Math.max(0, outputTotal - diuresis) * 0.25),
+          liquidStools: Math.round(Math.max(0, outputTotal - diuresis) * 0.15),
+          aspiration: Math.round(Math.max(0, outputTotal - diuresis) * 0.1),
+          insensibleLoss: Math.round(Math.max(0, outputTotal - diuresis) * 0.2),
+          other: Math.max(
+            0,
+            outputTotal -
+              (diuresis +
+                Math.round(Math.max(0, outputTotal - diuresis) * 0.2) +
+                Math.round(Math.max(0, outputTotal - diuresis) * 0.25) +
+                Math.round(Math.max(0, outputTotal - diuresis) * 0.15) +
+                Math.round(Math.max(0, outputTotal - diuresis) * 0.1) +
+                Math.round(Math.max(0, outputTotal - diuresis) * 0.2))
+          ),
+        },
+        observations: fluidForm.observations || "Registro manual de balance por turno.",
+      },
+      ...prev,
+    ]);
+
+    addAuditRecord(
+      "fluid_balance",
+      "Registro de balance hidrico",
+      `Turno ${fluidForm.shift}. Ingreso ${intakeTotal} ml, egreso ${outputTotal} ml, diuresis ${diuresis} ml. ${fluidForm.observations}`
+    );
+    setFluidForm((prev) => ({
+      ...prev,
+      intakeTotal: "",
+      outputTotal: "",
+      diuresis: "",
+      observations: "",
+    }));
+  };
+
+  const registerNursingNote = () => {
+    if (!nursingNoteDraft.trim()) {
+      return;
+    }
+
+    const datetime = getCurrentDateTimeLabel();
+    setAddedNursingNotes((prev) => [
+      {
+        id: `nn-local-${Date.now()}`,
+        datetime,
+        professional: currentProfessional.trim() || patient.assignedProfessional,
+        specialty: "Enfermeria",
+        note: nursingNoteDraft.trim(),
+      },
+      ...prev,
+    ]);
+    addAuditRecord("nursing_notes", "Nota de enfermeria", nursingNoteDraft.trim());
+    setNursingNoteDraft("");
+  };
+
+  const registerMedicalNote = () => {
+    if (!medicalNoteDraft.trim()) {
+      return;
+    }
+
+    const datetime = getCurrentDateTimeLabel();
+    setAddedMedicalNotes((prev) => [
+      {
+        id: `mn-local-${Date.now()}`,
+        datetime,
+        professional: currentProfessional.trim() || patient.assignedProfessional,
+        specialty: "Medicina",
+        note: medicalNoteDraft.trim(),
+      },
+      ...prev,
+    ]);
+    addAuditRecord("medical_notes", "Nota medica", medicalNoteDraft.trim());
+    setMedicalNoteDraft("");
+  };
+
+  const registerNursingShiftReport = () => {
+    if (
+      !nursingReportForm.generalStatus.trim() ||
+      !nursingReportForm.proceduresDone.trim() ||
+      !nursingReportForm.carePlan.trim()
+    ) {
+      return;
+    }
+
+    const reference = selectedNursingShiftReport;
+    setAddedNursingShiftReports((prev) => [
+      {
+        id: `nsr-local-${Date.now()}`,
+        shift: nursingReportForm.shift,
+        service: nursingReportForm.service,
+        date: latestVitalDate,
+        generalStatus: nursingReportForm.generalStatus.trim(),
+        consciousness: reference?.consciousness ?? "Alerta",
+        breathing: reference?.breathing ?? "Sin dificultad respiratoria",
+        pain: reference?.pain ?? "0/10",
+        oralTolerance: reference?.oralTolerance ?? "Adecuada",
+        elimination: reference?.elimination ?? "Conservada",
+        mobility: reference?.mobility ?? "Asistida",
+        skin: reference?.skin ?? "Integra",
+        proceduresDone: nursingReportForm.proceduresDone.trim(),
+        patientResponse: reference?.patientResponse ?? "Cooperador/a",
+        incidents: nursingReportForm.incidents.trim() || "Sin incidencias",
+        carePlan: nursingReportForm.carePlan.trim(),
+      },
+      ...prev,
+    ]);
+    addAuditRecord(
+      "nursing_report",
+      "Reporte de enfermeria",
+      `Turno ${nursingReportForm.shift}. ${nursingReportForm.generalStatus}. Procedimientos: ${nursingReportForm.proceduresDone}. Plan: ${nursingReportForm.carePlan}.`
+    );
+    setNursingReportForm((prev) => ({
+      ...prev,
+      generalStatus: "",
+      proceduresDone: "",
+      incidents: "",
+      carePlan: "",
+    }));
+  };
+
+  const registerNutritionPlan = () => {
+    if (
+      !nutritionForm.dietName.trim() ||
+      !nutritionForm.dietType.trim() ||
+      !nutritionForm.allowedFoods.trim() ||
+      !nutritionForm.objectives.trim()
+    ) {
+      return;
+    }
+
+    const newPlan: NutritionPlanRecord = {
+      id: `nut-local-${Date.now()}`,
+      date: getCurrentDateLabel(),
+      dietName: nutritionForm.dietName.trim(),
+      dietType: nutritionForm.dietType.trim(),
+      allowedFoods: nutritionForm.allowedFoods.trim(),
+      restrictedFoods: nutritionForm.restrictedFoods.trim(),
+      recommendedIntake: nutritionForm.recommendedIntake.trim(),
+      hydrationPlan: nutritionForm.hydrationPlan.trim(),
+      supplements: nutritionForm.supplements.trim(),
+      mealSchedule: nutritionForm.mealSchedule.trim(),
+      objectives: nutritionForm.objectives.trim(),
+      observations: nutritionForm.observations.trim(),
+      professional: currentProfessional.trim() || patient.assignedProfessional,
+    };
+
+    setNutritionPlans((prev) => [newPlan, ...prev]);
+    addAuditRecord(
+      "nutrition",
+      "Plan nutricional",
+      `Dieta ${newPlan.dietName} (${newPlan.dietType}). Objetivo: ${newPlan.objectives}.`
+    );
+    setNutritionForm((prev) => ({
+      ...prev,
+      observations: "",
+    }));
+  };
+
+  const registerModuleEntry = () => {
+    if (!moduleRecordForm.details.trim()) {
+      return;
+    }
+
+    addAuditRecord(
+      activeTab,
+      moduleRecordForm.title.trim() || `Actualizacion ${activeTabLabel}`,
+      moduleRecordForm.details.trim()
+    );
+    setModuleRecordForm({ title: "", details: "" });
+  };
 
   const groupedTabs = useMemo(() => {
     return patientTabs.reduce<Record<string, Array<{ id: PatientTabId; label: string }>>>(
@@ -453,7 +870,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                 <HeaderField
                   className="col-span-2"
                   label="Peso"
-                  value={`${patient.vitalSigns[0]?.weightKg ?? "-"} kg`}
+                  value={`${latestVital?.weightKg ?? "-"} kg`}
                 />
               </div>
 
@@ -578,6 +995,79 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                 <HeaderField className="border-r border-slate-300" label="Revisado por" value="-" />
                 <HeaderField label="Aprobado por" value="-" />
               </div>
+
+              <div className="border-t border-slate-300 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Registrar nuevo control de signos vitales
+                </p>
+                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-5">
+                  <InputText
+                    label="Hora"
+                    value={vitalForm.hour}
+                    onChange={(value) => setVitalForm((prev) => ({ ...prev, hour: value }))}
+                    placeholder="7:00"
+                  />
+                  <InputText
+                    label="FC"
+                    value={vitalForm.heartRate}
+                    onChange={(value) => setVitalForm((prev) => ({ ...prev, heartRate: value }))}
+                    placeholder="88"
+                  />
+                  <InputText
+                    label="FR"
+                    value={vitalForm.respiratoryRate}
+                    onChange={(value) =>
+                      setVitalForm((prev) => ({ ...prev, respiratoryRate: value }))
+                    }
+                    placeholder="18"
+                  />
+                  <InputText
+                    label="PAS"
+                    value={vitalForm.pas}
+                    onChange={(value) => setVitalForm((prev) => ({ ...prev, pas: value }))}
+                    placeholder="120"
+                  />
+                  <InputText
+                    label="PAD"
+                    value={vitalForm.pad}
+                    onChange={(value) => setVitalForm((prev) => ({ ...prev, pad: value }))}
+                    placeholder="70"
+                  />
+                  <InputText
+                    label="Temperatura"
+                    value={vitalForm.temperature}
+                    onChange={(value) => setVitalForm((prev) => ({ ...prev, temperature: value }))}
+                    placeholder="36.8"
+                  />
+                  <InputText
+                    label="SO2"
+                    value={vitalForm.spo2}
+                    onChange={(value) => setVitalForm((prev) => ({ ...prev, spo2: value }))}
+                    placeholder="98"
+                  />
+                  <InputText
+                    label="HGT"
+                    value={vitalForm.glucose}
+                    onChange={(value) => setVitalForm((prev) => ({ ...prev, glucose: value }))}
+                    placeholder="140"
+                  />
+                  <InputText
+                    label="Dolor"
+                    value={vitalForm.painScale}
+                    onChange={(value) => setVitalForm((prev) => ({ ...prev, painScale: value }))}
+                    placeholder="2"
+                  />
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={registerVitalRecord}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      Guardar control
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </Panel>
@@ -635,7 +1125,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                 Fechas de registro
               </p>
               <div className="space-y-1">
-                {patient.nursingNotes.map((note) => (
+                {effectiveNursingNotes.map((note) => (
                   <button
                     key={note.id}
                     type="button"
@@ -668,6 +1158,26 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                   className="min-h-[180px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
                 />
               </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-2">
+                <p className="mb-1 text-[11px] font-semibold text-slate-600">
+                  Agregar nota de enfermeria
+                </p>
+                <textarea
+                  value={nursingNoteDraft}
+                  onChange={(event) => setNursingNoteDraft(event.target.value)}
+                  placeholder="Escribe la evolucion de enfermeria, procedimientos y respuesta del paciente..."
+                  className="min-h-[110px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                />
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={registerNursingNote}
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    Guardar nota
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </Panel>
@@ -681,7 +1191,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                 Fechas de registro
               </p>
               <div className="space-y-1">
-                {patient.medicalNotes.map((note) => (
+                {effectiveMedicalNotes.map((note) => (
                   <button
                     key={note.id}
                     type="button"
@@ -714,6 +1224,26 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                   className="min-h-[180px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
                 />
               </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-2">
+                <p className="mb-1 text-[11px] font-semibold text-slate-600">
+                  Agregar nota medica
+                </p>
+                <textarea
+                  value={medicalNoteDraft}
+                  onChange={(event) => setMedicalNoteDraft(event.target.value)}
+                  placeholder="Escribe valoracion medica, conducta y plan terapeutico..."
+                  className="min-h-[110px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                />
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={registerMedicalNote}
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    Guardar nota
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </Panel>
@@ -724,7 +1254,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
           title="Reporte de enfermeria"
           subtitle="Vista narrativa del turno con estructura tipo nota clinica"
         >
-          {patient.nursingShiftReports.length === 0 ? (
+          {effectiveNursingShiftReports.length === 0 ? (
             <p className="text-xs text-slate-500">Sin reportes estructurados registrados.</p>
           ) : (
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)]">
@@ -733,7 +1263,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                   Reportes por turno
                 </p>
                 <div className="space-y-1">
-                  {patient.nursingShiftReports.map((report) => (
+                  {effectiveNursingShiftReports.map((report) => (
                     <button
                       key={report.id}
                       type="button"
@@ -771,6 +1301,72 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                     className="min-h-[220px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
                   />
                 </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-2">
+                  <p className="mb-1 text-[11px] font-semibold text-slate-600">
+                    Registrar reporte de turno
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                    <InputSelect
+                      label="Turno"
+                      value={nursingReportForm.shift}
+                      onChange={(value) =>
+                        setNursingReportForm((prev) => ({ ...prev, shift: value }))
+                      }
+                      options={["Manana", "Tarde", "Noche"]}
+                    />
+                    <InputText
+                      label="Servicio"
+                      value={nursingReportForm.service}
+                      onChange={(value) =>
+                        setNursingReportForm((prev) => ({ ...prev, service: value }))
+                      }
+                      placeholder="Observacion / Emergencia"
+                    />
+                    <InputText
+                      label="Estado general"
+                      value={nursingReportForm.generalStatus}
+                      onChange={(value) =>
+                        setNursingReportForm((prev) => ({ ...prev, generalStatus: value }))
+                      }
+                      placeholder="Paciente estable, en observacion..."
+                    />
+                    <InputText
+                      label="Procedimientos"
+                      value={nursingReportForm.proceduresDone}
+                      onChange={(value) =>
+                        setNursingReportForm((prev) => ({ ...prev, proceduresDone: value }))
+                      }
+                      placeholder="Control signos, curacion, medicacion..."
+                    />
+                  </div>
+                  <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                    <InputText
+                      label="Incidencias"
+                      value={nursingReportForm.incidents}
+                      onChange={(value) =>
+                        setNursingReportForm((prev) => ({ ...prev, incidents: value }))
+                      }
+                      placeholder="Sin incidencias / eventos..."
+                    />
+                    <InputText
+                      label="Plan de cuidados"
+                      value={nursingReportForm.carePlan}
+                      onChange={(value) =>
+                        setNursingReportForm((prev) => ({ ...prev, carePlan: value }))
+                      }
+                      placeholder="Continuar vigilancia y plan..."
+                    />
+                  </div>
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={registerNursingShiftReport}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      Guardar reporte
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -782,7 +1378,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
           title="Balance hidrico"
           subtitle="Formato de hoja de balance con control por horas, 12 horas y 24 horas"
         >
-          {patient.fluidBalances.length === 0 ? (
+          {effectiveFluidBalances.length === 0 ? (
             <p className="text-xs text-slate-500">No hay registros de balance hidrico.</p>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -889,6 +1485,61 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                       Balance 24h: {fluidBalanceSheet.balance24} ml
                     </p>
                     <p className="text-[11px]">Diuresis horaria: {fluidBalanceSheet.hourlyDiuresis} ml/h</p>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-300 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Registrar balance por turno
+                  </p>
+                  <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-5">
+                    <InputSelect
+                      label="Turno"
+                      value={fluidForm.shift}
+                      onChange={(value) => setFluidForm((prev) => ({ ...prev, shift: value }))}
+                      options={["Manana", "Tarde", "Noche"]}
+                    />
+                    <InputText
+                      label="Ingreso total (ml)"
+                      value={fluidForm.intakeTotal}
+                      onChange={(value) =>
+                        setFluidForm((prev) => ({ ...prev, intakeTotal: value }))
+                      }
+                      placeholder="1200"
+                    />
+                    <InputText
+                      label="Egreso total (ml)"
+                      value={fluidForm.outputTotal}
+                      onChange={(value) =>
+                        setFluidForm((prev) => ({ ...prev, outputTotal: value }))
+                      }
+                      placeholder="980"
+                    />
+                    <InputText
+                      label="Diuresis (ml)"
+                      value={fluidForm.diuresis}
+                      onChange={(value) =>
+                        setFluidForm((prev) => ({ ...prev, diuresis: value }))
+                      }
+                      placeholder="620"
+                    />
+                    <InputText
+                      label="Observaciones"
+                      value={fluidForm.observations}
+                      onChange={(value) =>
+                        setFluidForm((prev) => ({ ...prev, observations: value }))
+                      }
+                      placeholder="Paciente tolera via oral..."
+                    />
+                  </div>
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={registerFluidBalance}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      Guardar balance
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1139,16 +1790,178 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       )}
 
       {activeTab === "nutrition" && (
-        <Panel title="Nutricion" subtitle="Estado nutricional, dieta y evolucion">
-          <div className="grid grid-cols-1 gap-3 text-xs text-slate-700 md:grid-cols-2">
-            <SummaryRow label="Estado nutricional" value={patient.nutrition.nutritionalStatus} />
-            <SummaryRow label="Dieta indicada" value={patient.nutrition.diet} />
-            <SummaryRow label="Tolerancia alimentaria" value={patient.nutrition.oralTolerance} />
-            <SummaryRow label="Ingesta estimada" value={patient.nutrition.estimatedIntake} />
-            <SummaryRow label="Riesgo nutricional" value={patient.nutrition.nutritionalRisk} />
-            <SummaryRow label="Evolucion" value={patient.nutrition.evolution} />
+        <Panel
+          title="Plan nutricional"
+          subtitle="Registro de dieta terapeutica, tipo de dieta, consumo indicado y seguimiento profesional"
+        >
+          <div className="space-y-3">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+                Plan vigente
+              </p>
+              <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-slate-700 md:grid-cols-2">
+                <SummaryRow label="Dieta" value={nutritionPlans[0]?.dietName ?? "-"} />
+                <SummaryRow label="Tipo de dieta" value={nutritionPlans[0]?.dietType ?? "-"} />
+                <SummaryRow
+                  label="Ingesta recomendada"
+                  value={nutritionPlans[0]?.recommendedIntake ?? "-"}
+                />
+                <SummaryRow
+                  label="Profesional responsable"
+                  value={nutritionPlans[0]?.professional ?? "-"}
+                />
+                <SummaryRow
+                  label="Horario alimentario"
+                  value={nutritionPlans[0]?.mealSchedule ?? "-"}
+                />
+                <SummaryRow label="Fecha de plan" value={nutritionPlans[0]?.date ?? "-"} />
+              </div>
+              <p className="mt-2 text-[11px] text-emerald-800">
+                <span className="font-semibold">Debe consumir:</span>{" "}
+                {nutritionPlans[0]?.allowedFoods ?? "-"}
+              </p>
+              <p className="text-[11px] text-emerald-800">
+                <span className="font-semibold">Evitar:</span>{" "}
+                {nutritionPlans[0]?.restrictedFoods ?? "-"}
+              </p>
+              <p className="text-[11px] text-emerald-800">
+                <span className="font-semibold">Objetivo:</span>{" "}
+                {nutritionPlans[0]?.objectives ?? "-"}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Registrar nuevo plan nutricional
+              </p>
+              <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
+                <InputText
+                  label="Dieta"
+                  value={nutritionForm.dietName}
+                  onChange={(value) => setNutritionForm((prev) => ({ ...prev, dietName: value }))}
+                  placeholder="Ej. Dieta diabetica hipocalorica"
+                />
+                <InputText
+                  label="Tipo de dieta"
+                  value={nutritionForm.dietType}
+                  onChange={(value) => setNutritionForm((prev) => ({ ...prev, dietType: value }))}
+                  placeholder="Blanda / liquida / hipoproteica..."
+                />
+                <InputText
+                  label="Ingesta recomendada"
+                  value={nutritionForm.recommendedIntake}
+                  onChange={(value) =>
+                    setNutritionForm((prev) => ({ ...prev, recommendedIntake: value }))
+                  }
+                  placeholder="1800 kcal/dia fraccionadas"
+                />
+              </div>
+              <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-slate-600">
+                    Debe consumir
+                  </label>
+                  <textarea
+                    value={nutritionForm.allowedFoods}
+                    onChange={(event) =>
+                      setNutritionForm((prev) => ({ ...prev, allowedFoods: event.target.value }))
+                    }
+                    className="min-h-[80px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-slate-600">
+                    Evitar consumo
+                  </label>
+                  <textarea
+                    value={nutritionForm.restrictedFoods}
+                    onChange={(event) =>
+                      setNutritionForm((prev) => ({
+                        ...prev,
+                        restrictedFoods: event.target.value,
+                      }))
+                    }
+                    className="min-h-[80px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                  />
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
+                <InputText
+                  label="Hidratacion"
+                  value={nutritionForm.hydrationPlan}
+                  onChange={(value) =>
+                    setNutritionForm((prev) => ({ ...prev, hydrationPlan: value }))
+                  }
+                  placeholder="2 litros/dia salvo indicacion"
+                />
+                <InputText
+                  label="Suplementos"
+                  value={nutritionForm.supplements}
+                  onChange={(value) =>
+                    setNutritionForm((prev) => ({ ...prev, supplements: value }))
+                  }
+                  placeholder="Modulos proteicos / fibra..."
+                />
+                <InputText
+                  label="Horario"
+                  value={nutritionForm.mealSchedule}
+                  onChange={(value) =>
+                    setNutritionForm((prev) => ({ ...prev, mealSchedule: value }))
+                  }
+                  placeholder="6 tiempos de comida"
+                />
+              </div>
+              <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                <InputText
+                  label="Objetivos del plan"
+                  value={nutritionForm.objectives}
+                  onChange={(value) =>
+                    setNutritionForm((prev) => ({ ...prev, objectives: value }))
+                  }
+                  placeholder="Control glucemico y mejora de tolerancia"
+                />
+                <InputText
+                  label="Observaciones"
+                  value={nutritionForm.observations}
+                  onChange={(value) =>
+                    setNutritionForm((prev) => ({ ...prev, observations: value }))
+                  }
+                  placeholder="Seguimiento semanal por nutricion"
+                />
+              </div>
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={registerNutritionPlan}
+                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Guardar plan nutricional
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {nutritionPlans.map((plan) => (
+                <article key={plan.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {plan.date} · {plan.dietName}
+                  </p>
+                  <p className="text-[11px] text-slate-600">
+                    Tipo: {plan.dietType} · Profesional: {plan.professional}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-600">
+                    Debe consumir: {plan.allowedFoods}
+                  </p>
+                  <p className="text-[11px] text-slate-600">
+                    Evitar: {plan.restrictedFoods}
+                  </p>
+                  <p className="text-[11px] text-slate-600">
+                    Objetivo: {plan.objectives}
+                  </p>
+                </article>
+              ))}
+            </div>
           </div>
-          <ListBlock title="Recomendaciones" items={patient.nutrition.recommendations} />
         </Panel>
       )}
 
@@ -1319,6 +2132,71 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
         </Panel>
       )}
 
+      <Panel
+        title={`Registro profesional · ${activeTabLabel}`}
+        subtitle="Cada registro queda trazado con profesional, fecha y detalle en este modulo"
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            <InputText
+              label="Profesional que registra"
+              value={currentProfessional}
+              onChange={setCurrentProfessional}
+              placeholder="Ej. Dra. Camila Rojas"
+            />
+            <InputText
+              label="Titulo del registro"
+              value={moduleRecordForm.title}
+              onChange={(value) => setModuleRecordForm((prev) => ({ ...prev, title: value }))}
+              placeholder={`Actualizacion de ${activeTabLabel}`}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-slate-600">
+              Detalle del registro
+            </label>
+            <textarea
+              value={moduleRecordForm.details}
+              onChange={(event) =>
+                setModuleRecordForm((prev) => ({ ...prev, details: event.target.value }))
+              }
+              placeholder={`Detalle de la actualizacion en ${activeTabLabel.toLowerCase()}...`}
+              className="min-h-[96px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] text-slate-500">
+              Registros visibles del modulo actual: {tabAuditRecords.length}
+            </p>
+            <button
+              type="button"
+              onClick={registerModuleEntry}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Guardar registro
+            </button>
+          </div>
+          {tabAuditRecords.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+              Aun no hay registros de este modulo.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {tabAuditRecords.map((record) => (
+                <article key={record.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-slate-900">{record.title}</p>
+                    <span className="text-[11px] text-slate-500">{record.timestamp}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-700">{record.details}</p>
+                  <p className="mt-1 text-[11px] text-slate-500">Profesional: {record.professional}</p>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      </Panel>
+
       <footer className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3">
         <p className="text-[11px] text-slate-500">
           Ficha clinica digital preparada para integracion con backend y flujos multirol.
@@ -1332,6 +2210,140 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       </footer>
     </div>
   );
+}
+
+function InputText({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: "text" | "number";
+}) {
+  return (
+    <label>
+      <span className="mb-1 block text-[11px] font-semibold text-slate-600">{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none focus:border-sky-300 focus:bg-white"
+      />
+    </label>
+  );
+}
+
+function InputSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+}) {
+  return (
+    <label>
+      <span className="mb-1 block text-[11px] font-semibold text-slate-600">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none focus:border-sky-300 focus:bg-white"
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function createInitialNutritionPlan(patient: PatientRecord): NutritionPlanRecord {
+  return {
+    id: `nut-base-${patient.id}`,
+    date: splitDateTime(patient.lastControlAt).date,
+    dietName: patient.nutrition.diet,
+    dietType: patient.nutrition.nutritionalStatus,
+    allowedFoods: patient.nutrition.recommendations.join("; "),
+    restrictedFoods: "Azucares refinados, bebidas azucaradas, ultraprocesados.",
+    recommendedIntake: patient.nutrition.estimatedIntake,
+    hydrationPlan: "Agua fraccionada durante el dia, objetivo 2 L/24h salvo contraindicacion.",
+    supplements: "Suplemento segun tolerancia y evaluacion nutricional.",
+    mealSchedule: "Desayuno, media manana, almuerzo, media tarde, cena y colacion nocturna.",
+    objectives: patient.nutrition.evolution,
+    observations: "Plan inicial importado desde ficha clinica.",
+    professional: patient.assignedProfessional,
+  };
+}
+
+function getCurrentDateTimeLabel() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const hour = String(now.getHours()).padStart(2, "0");
+  const minute = String(now.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hour}:${minute}`;
+}
+
+function getCurrentDateLabel() {
+  return getCurrentDateTimeLabel().split(" ")[0] ?? "-";
+}
+
+function computeVitalFlags({
+  heartRate,
+  respiratoryRate,
+  pas,
+  pad,
+  temperature,
+  spo2,
+  glucose,
+  painScale,
+}: {
+  heartRate: number;
+  respiratoryRate: number;
+  pas: number;
+  pad: number;
+  temperature: number;
+  spo2: number;
+  glucose: number;
+  painScale: number;
+}) {
+  const flags: string[] = [];
+
+  if (heartRate < 50 || heartRate > 110) {
+    flags.push("FC alterada");
+  }
+  if (respiratoryRate < 10 || respiratoryRate > 24) {
+    flags.push("FR alterada");
+  }
+  if (pas < 90 || pas > 160 || pad < 50 || pad > 100) {
+    flags.push("TA fuera de rango");
+  }
+  if (temperature < 36 || temperature > 38) {
+    flags.push("Temperatura alterada");
+  }
+  if (spo2 < 92) {
+    flags.push("Desaturacion");
+  }
+  if (glucose < 70 || glucose > 180) {
+    flags.push("Glucosa alterada");
+  }
+  if (painScale >= 7) {
+    flags.push("Dolor intenso");
+  }
+
+  return flags;
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
@@ -1524,29 +2536,51 @@ function buildInvasiveProcedureRows(patient: PatientRecord) {
   });
 }
 
-function buildFluidBalanceSheet(patient: PatientRecord) {
+function buildFluidBalanceSheet(
+  balances: PatientRecord["fluidBalances"],
+  fallbackDate: string
+) {
+  const fallback = splitDateTime(fallbackDate).date;
   const latestDate =
-    [...patient.fluidBalances]
+    [...balances]
       .map((entry) => entry.date)
       .sort((a, b) => a.localeCompare(b))
-      .at(-1) ?? patient.admissionDate;
-  const balancesOnDate = patient.fluidBalances.filter((entry) => entry.date === latestDate);
+      .at(-1) ?? fallback;
+  const balancesOnDate = balances.filter((entry) => entry.date === latestDate);
+  const morningEntries = balancesOnDate.filter((entry) => /manana|mañana|morning/i.test(entry.shift));
+  const nightEntries = balancesOnDate.filter((entry) => !/manana|mañana|morning/i.test(entry.shift));
 
-  const morning =
-    balancesOnDate.find((entry) => /manana|mañana/i.test(entry.shift)) ??
-    balancesOnDate[0] ??
-    null;
-  const night =
-    balancesOnDate.find((entry) => /noche|tarde/i.test(entry.shift)) ??
-    balancesOnDate[1] ??
-    null;
+  const summarizeShift = (entries: PatientRecord["fluidBalances"]) =>
+    entries.reduce(
+      (acc, entry) => {
+        acc.intake += sumObjectValues(entry.intake);
+        acc.output += sumObjectValues(entry.output);
+        acc.diuresis += entry.output.diuresis;
+        acc.insensible += entry.output.insensibleLoss;
+        acc.vomiting += entry.output.vomiting;
+        acc.drains += entry.output.drains;
+        acc.otherOutput += entry.output.other;
+        return acc;
+      },
+      {
+        intake: 0,
+        output: 0,
+        diuresis: 0,
+        insensible: 0,
+        vomiting: 0,
+        drains: 0,
+        otherOutput: 0,
+      }
+    );
 
-  const morningIntake = morning ? sumObjectValues(morning.intake) : 0;
-  const nightIntake = night ? sumObjectValues(night.intake) : 0;
-  const morningOutput = morning ? sumObjectValues(morning.output) : 0;
-  const nightOutput = night ? sumObjectValues(night.output) : 0;
-  const morningDiuresis = morning?.output.diuresis ?? 0;
-  const nightDiuresis = night?.output.diuresis ?? 0;
+  const morning = summarizeShift(morningEntries);
+  const night = summarizeShift(nightEntries);
+  const morningIntake = morning.intake;
+  const nightIntake = night.intake;
+  const morningOutput = morning.output;
+  const nightOutput = night.output;
+  const morningDiuresis = morning.diuresis;
+  const nightDiuresis = night.diuresis;
 
   const intakeByHour = Array.from({ length: criticalHourSlots.length }, () => "-");
   const outputByHour = Array.from({ length: criticalHourSlots.length }, () => "-");
@@ -1579,14 +2613,14 @@ function buildFluidBalanceSheet(patient: PatientRecord) {
     nightOutput,
     morningDiuresis,
     nightDiuresis,
-    morningInsensible: morning?.output.insensibleLoss ?? 0,
-    nightInsensible: night?.output.insensibleLoss ?? 0,
-    morningVomiting: morning?.output.vomiting ?? 0,
-    nightVomiting: night?.output.vomiting ?? 0,
-    morningDrains: morning?.output.drains ?? 0,
-    nightDrains: night?.output.drains ?? 0,
-    morningOtherOutput: morning?.output.other ?? 0,
-    nightOtherOutput: night?.output.other ?? 0,
+    morningInsensible: morning.insensible,
+    nightInsensible: night.insensible,
+    morningVomiting: morning.vomiting,
+    nightVomiting: night.vomiting,
+    morningDrains: morning.drains,
+    nightDrains: night.drains,
+    morningOtherOutput: morning.otherOutput,
+    nightOtherOutput: night.otherOutput,
     morningBalance: morningIntake - morningOutput,
     nightBalance: nightIntake - nightOutput,
     intake24,
