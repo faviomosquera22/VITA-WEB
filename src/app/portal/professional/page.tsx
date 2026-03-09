@@ -14,6 +14,7 @@ import {
   nursingReportRecords,
   type PatientRecord,
 } from "./_data/clinical-mock-data";
+import { listAuditEvents } from "@/lib/clinical-store";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default function ProfessionalHomePage() {
   const prioritizedPatients = getPatientsByTriagePriority().slice(0, 6);
   const activity = getRecentClinicalActivity();
   const pendingTasks = getDailyPendingTasks();
+  const auditEvents = listAuditEvents(6);
 
   const todayLabel = new Intl.DateTimeFormat("es-EC", {
     dateStyle: "full",
@@ -130,6 +132,29 @@ export default function ProfessionalHomePage() {
           </div>
         </Panel>
       </div>
+
+      <Panel title="Auditoria reciente" subtitle="Eventos de acceso y acciones clinicas registradas">
+        <div className="space-y-2">
+          {auditEvents.length ? (
+            auditEvents.map((event) => (
+              <article key={event.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-slate-900">
+                    {event.actorName} · {event.action}
+                  </p>
+                  <span className="text-[11px] text-slate-500">{event.timestamp}</span>
+                </div>
+                <p className="text-[11px] text-slate-600">
+                  {event.targetType}:{event.targetId}
+                </p>
+                <p className="text-[11px] text-slate-500">{event.detail}</p>
+              </article>
+            ))
+          ) : (
+            <p className="text-xs text-slate-500">Aun no hay eventos en la bitacora.</p>
+          )}
+        </div>
+      </Panel>
     </ModulePage>
   );
 }

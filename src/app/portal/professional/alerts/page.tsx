@@ -1,12 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ModulePage, Panel, StatCard } from "../_components/clinical-ui";
-import { mockPatients } from "../_data/clinical-mock-data";
 
 type AlertState = "Activa" | "En seguimiento" | "Resuelta";
+
+interface AlertComment {
+  id: string;
+  author: string;
+  text: string;
+  datetime: string;
+}
 
 interface AlertRow {
   id: string;
@@ -26,86 +32,84 @@ interface AlertRow {
     | "Riesgo alto de triaje"
     | "Riesgo nutricional"
     | "Alerta emocional";
+  comments: AlertComment[];
 }
 
 export default function AlertsPage() {
   const [stateFilter, setStateFilter] = useState<"all" | AlertState>("all");
+  const [rows, setRows] = useState<AlertRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const alertRows = useMemo<AlertRow[]>(() => {
-    return mockPatients.flatMap((patient) => {
-      const clinicalAlerts = patient.activeAlerts.map((alert, index) => {
-        const severity: AlertRow["severity"] =
-          patient.riskLevel === "alto"
-            ? "Critica"
-            : patient.riskLevel === "medio"
-            ? "Moderada"
-            : "Leve";
+  const loadAlerts = async () => {
+    setLoading(true);
+    setErrorMessage("");
 
-        return {
-          id: `${patient.id}-alert-${index}`,
-          patientId: patient.id,
-          patientName: patient.fullName,
-          detail: alert,
-          severity,
-          datetime: patient.lastControlAt,
-          state: (index === 0 ? "Activa" : "En seguimiento") as AlertState,
-          type: "Signos vitales alterados" as const,
-        };
+    try {
+      const response = await fetch("/api/alerts", {
+        cache: "no-store",
       });
 
-      const vaccineAlert = patient.vaccination.pending.length
-        ? [
-            {
-              id: `${patient.id}-vac-pending`,
-              patientId: patient.id,
-              patientName: patient.fullName,
-              detail: `Vacuna pendiente: ${patient.vaccination.pending[0]?.vaccine}`,
-              severity: "Moderada" as const,
-              datetime: patient.lastControlAt,
-              state: "Activa" as AlertState,
-              type: "Vacuna pendiente" as const,
-            },
-          ]
-        : [];
+      if (!response.ok) {
+        throw new Error("No se pudo cargar la central de alertas.");
+      }
 
-      const emotionalAlert = patient.emotionalHealth.emotionalAlerts.length
-        ? [
-            {
-              id: `${patient.id}-emo-alert`,
-              patientId: patient.id,
-              patientName: patient.fullName,
-              detail: patient.emotionalHealth.emotionalAlerts[0],
-              severity: "Moderada" as const,
-              datetime: patient.lastControlAt,
-              state: "En seguimiento" as AlertState,
-              type: "Alerta emocional" as const,
-            },
-          ]
-        : [];
+      const result = (await response.json()) as AlertRow[];
+      setRows(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error desconocido";
+      setErrorMessage(message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      const medicationAlert = patient.medicationRecords.some(
-        (record) => record.administrationStatus !== "Administrado"
-      )
-        ? [
-            {
-              id: `${patient.id}-med-alert`,
-              patientId: patient.id,
-              patientName: patient.fullName,
-              detail: "Medicacion pendiente u omitida",
-              severity: "Critica" as const,
-              datetime: patient.lastControlAt,
-              state: "Activa" as AlertState,
-              type: "Medicacion omitida" as const,
-            },
-          ]
-        : [];
-
-      return [...clinicalAlerts, ...vaccineAlert, ...emotionalAlert, ...medicationAlert];
-    });
+  useEffect(() => {
+    void loadAlerts();
   }, []);
 
-  const visibleRows =
-    stateFilter === "all" ? alertRows : alertRows.filter((row) => row.state === stateFilter);
+  const visibleRows = useMemo(
+    () => (stateFilter === "all" ? rows : rows.filter((row) => row.state === stateFilter)),
+    [rows, stateFilter]
+  );
+
+  const updateRow = async (row: AlertRow, state: AlertState, comment?: string) => {
+    setUpdatingId(row.id);
+
+    try {
+      const response = await fetch(`/api/alerts/${encodeURIComponent(row.id)}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ state, comment }),
+      });
+
+      const updated = (await response.json()) as AlertRow | { error: string };
+
+      if (!response.ok || "error" in updated) {
+        throw new Error("error" in updated ? updated.error : "No se pudo actualizar alerta");
+      }
+
+      setRows((prev) => prev.map((item) => (item.id === row.id ? updated : item)));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error desconocido";
+      setErrorMessage(message);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleAddComment = async (row: AlertRow) => {
+    const comment = window.prompt("Escribe un comentario para la alerta:");
+
+    if (!comment || !comment.trim()) {
+      return;
+    }
+
+    await updateRow(row, row.state, comment);
+  };
 
   return (
     <ModulePage
@@ -144,6 +148,14 @@ export default function AlertsPage() {
       </div>
 
       <Panel title="Central de alertas" subtitle="Severidad, estado y acciones rapidas por paciente">
+        {loading ? <p className="text-xs text-slate-500">Cargando alertas...</p> : null}
+
+        {errorMessage ? (
+          <p className="mb-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            {errorMessage}
+          </p>
+        ) : null}
+
         <div className="space-y-2">
           {visibleRows.map((row) => (
             <article key={row.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -151,7 +163,9 @@ export default function AlertsPage() {
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{row.detail}</p>
                   <p className="text-xs text-slate-600">{row.patientName}</p>
-                  <p className="text-[11px] text-slate-500">{row.type} · {row.datetime}</p>
+                  <p className="text-[11px] text-slate-500">
+                    {row.type} · {row.datetime}
+                  </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span
@@ -160,8 +174,8 @@ export default function AlertsPage() {
                       row.severity === "Critica"
                         ? "border-rose-200 bg-rose-50 text-rose-700"
                         : row.severity === "Moderada"
-                        ? "border-amber-200 bg-amber-50 text-amber-700"
-                        : "border-sky-200 bg-sky-50 text-sky-700",
+                          ? "border-amber-200 bg-amber-50 text-amber-700"
+                          : "border-sky-200 bg-sky-50 text-sky-700",
                     ].join(" ")}
                   >
                     {row.severity}
@@ -172,6 +186,12 @@ export default function AlertsPage() {
                 </div>
               </div>
 
+              {row.comments.length ? (
+                <p className="mt-2 text-[11px] text-slate-600">
+                  Ultimo comentario: {row.comments[0].author} · {row.comments[0].text}
+                </p>
+              ) : null}
+
               <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
                 <Link
                   href={`/portal/professional/patients/${row.patientId}?tab=summary`}
@@ -179,18 +199,39 @@ export default function AlertsPage() {
                 >
                   Abrir ficha
                 </Link>
-                <button type="button" className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 hover:bg-slate-100">
+                <button
+                  type="button"
+                  disabled={updatingId === row.id}
+                  onClick={() => updateRow(row, "En seguimiento")}
+                  className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
                   Marcar en seguimiento
                 </button>
-                <button type="button" className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 hover:bg-slate-100">
+                <button
+                  type="button"
+                  disabled={updatingId === row.id}
+                  onClick={() => updateRow(row, "Resuelta")}
+                  className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
                   Resolver alerta
                 </button>
-                <button type="button" className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 hover:bg-slate-100">
+                <button
+                  type="button"
+                  disabled={updatingId === row.id}
+                  onClick={() => {
+                    void handleAddComment(row);
+                  }}
+                  className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
                   Agregar comentario
                 </button>
               </div>
             </article>
           ))}
+
+          {!loading && visibleRows.length === 0 ? (
+            <p className="text-xs text-slate-500">No hay alertas para este filtro.</p>
+          ) : null}
         </div>
       </Panel>
     </ModulePage>

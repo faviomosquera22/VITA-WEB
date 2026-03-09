@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getRequestSession, unauthorizedResponse } from "@/lib/auth";
-import { appendAuditEvent, listPatients } from "@/lib/clinical-store";
+import { appendAuditEvent, listAlerts } from "@/lib/clinical-store";
 
 export async function GET(request: NextRequest) {
   const session = getRequestSession(request);
@@ -10,16 +10,16 @@ export async function GET(request: NextRequest) {
     return unauthorizedResponse("Debe iniciar sesion");
   }
 
-  const patients = listPatients();
+  const alerts = listAlerts();
 
   appendAuditEvent({
     actorName: session.name,
     actorRole: session.role,
-    action: "PATIENTS_READ",
-    targetType: "patient",
+    action: "ALERTS_READ",
+    targetType: "alert",
     targetId: "list",
-    detail: `Consulta de listado de pacientes (${patients.length} resultados).`,
+    detail: `Consulta de central de alertas (${alerts.length} alertas).`,
   });
 
-  return NextResponse.json(patients);
+  return NextResponse.json(alerts);
 }
