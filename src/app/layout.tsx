@@ -1,6 +1,21 @@
 // src/app/layout.tsx
 import type { Metadata } from "next";
+import { IBM_Plex_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-plus-jakarta",
+  display: "swap",
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-ibm-plex-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Vita · Portal",
@@ -15,7 +30,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body className="min-h-screen bg-slate-100 text-slate-900 antialiased">
+      <body
+        className={`${plusJakarta.variable} ${ibmPlexMono.variable} min-h-screen bg-slate-100 text-slate-900 antialiased`}
+      >
         {children}
       </body>
     </html>

@@ -7,8 +7,11 @@ import { useSearchParams } from "next/navigation";
 import { Panel, RiskBadge, TriageBadge } from "./clinical-ui";
 import {
   educationResources,
+  getKardexAdministrations,
   getPatientFunctionalPatterns,
+  type KardexAdministrationRecord,
   type PatientRecord,
+  type VitalSignRecord,
 } from "../_data/clinical-mock-data";
 
 type PatientTabId =
@@ -63,11 +66,57 @@ const patientTabs: Array<{ id: PatientTabId; label: string; group: string }> = [
 const isTab = (value: string | null): value is PatientTabId =>
   patientTabs.some((tab) => tab.id === value);
 
+const criticalHourSlots = [
+  "7:00",
+  "8:00",
+  "9:00",
+  "10:00",
+  "11:00",
+  "12:00",
+  "13:00",
+  "14:00",
+  "15:00",
+  "16:00",
+  "17:00",
+  "18:00",
+  "19:00",
+  "20:00",
+  "21:00",
+  "22:00",
+  "23:00",
+  "24:00",
+  "1:00",
+  "2:00",
+  "3:00",
+  "4:00",
+  "5:00",
+  "6:00",
+];
+
+const invasiveProcedureLabels = [
+  "Tubo endotraqueal",
+  "Traqueostomia",
+  "Ventilacion mecanica",
+  "Via central",
+  "Linea arterial",
+  "Cateter periferico",
+  "Sonda nasogastrica",
+  "Sonda vesical",
+  "Gastrostomia",
+  "Cateter hemodialisis",
+  "Otros",
+];
+
 export default function PatientClinicalRecord({ patient }: { patient: PatientRecord }) {
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
 
   const [selectedTab, setSelectedTab] = useState<PatientTabId>("summary");
+  const [selectedNursingNoteId, setSelectedNursingNoteId] = useState<string | null>(null);
+  const [selectedMedicalNoteId, setSelectedMedicalNoteId] = useState<string | null>(null);
+  const [selectedNursingShiftReportId, setSelectedNursingShiftReportId] = useState<string | null>(
+    null
+  );
   const activeTab = isTab(requestedTab) ? requestedTab : selectedTab;
 
   const latestVital = patient.vitalSigns[0] ?? null;
@@ -77,6 +126,26 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     () => [...patient.timeline].sort((a, b) => b.datetime.localeCompare(a.datetime)),
     [patient.timeline]
   );
+  const kardexAdministrations = getKardexAdministrations(patient);
+  const medicationAllergies = patient.antecedentes.allergies.filter(
+    (item) => !isNoKnownAllergy(item)
+  );
+  const vitalsByHour = groupVitalsByHour(patient.vitalSigns);
+  const latestVitalDate = splitDateTime(patient.vitalSigns[0]?.recordedAt ?? patient.admissionDate).date;
+  const invasiveRows = buildInvasiveProcedureRows(patient);
+  const fluidBalanceSheet = buildFluidBalanceSheet(patient);
+  const selectedNursingNote =
+    patient.nursingNotes.find((note) => note.id === selectedNursingNoteId) ??
+    patient.nursingNotes[0] ??
+    null;
+  const selectedMedicalNote =
+    patient.medicalNotes.find((note) => note.id === selectedMedicalNoteId) ??
+    patient.medicalNotes[0] ??
+    null;
+  const selectedNursingShiftReport =
+    patient.nursingShiftReports.find((report) => report.id === selectedNursingShiftReportId) ??
+    patient.nursingShiftReports[0] ??
+    null;
 
   const groupedTabs = useMemo(() => {
     return patientTabs.reduce<Record<string, Array<{ id: PatientTabId; label: string }>>>(
@@ -362,61 +431,156 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       )}
 
       {activeTab === "vitals" && (
-        <div className="space-y-4">
-          <Panel title="Signos vitales" subtitle="Registros historicos y tendencias basicas">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
-                <thead className="bg-slate-50 text-slate-600">
-                  <tr>
-                    <th className="px-3 py-2">Fecha</th>
-                    <th className="px-3 py-2">TA</th>
-                    <th className="px-3 py-2">FC</th>
-                    <th className="px-3 py-2">FR</th>
-                    <th className="px-3 py-2">Temp</th>
-                    <th className="px-3 py-2">SpO2</th>
-                    <th className="px-3 py-2">Glucosa</th>
-                    <th className="px-3 py-2">Dolor</th>
-                    <th className="px-3 py-2">Peso/IMC</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {patient.vitalSigns.map((vital) => (
-                    <tr key={vital.recordedAt}>
-                      <td className="px-3 py-2">{vital.recordedAt}</td>
-                      <td className="px-3 py-2">{vital.bloodPressure}</td>
-                      <td className="px-3 py-2">{vital.heartRate}</td>
-                      <td className="px-3 py-2">{vital.respiratoryRate}</td>
-                      <td className="px-3 py-2">{vital.temperature}</td>
-                      <td className="px-3 py-2">{vital.spo2}%</td>
-                      <td className="px-3 py-2">{vital.glucose}</td>
-                      <td className="px-3 py-2">{vital.painScale}/10</td>
-                      <td className="px-3 py-2">{vital.weightKg}kg / {vital.bmi}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Panel>
+        <Panel
+          title="Signos vitales"
+          subtitle="Formato de registro de paciente critico con grilla horaria y procedimientos invasivos"
+        >
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <div className="min-w-[1180px] text-[11px] text-slate-700">
+              <div className="grid grid-cols-12 border-b border-slate-300 bg-slate-50">
+                <HeaderField
+                  className="col-span-4"
+                  label="Apellidos y nombres"
+                  value={patient.fullName}
+                />
+                <HeaderField className="col-span-3" label="HC" value={patient.medicalRecordNumber} />
+                <HeaderField className="col-span-2" label="Cama" value={patient.code} />
+                <HeaderField className="col-span-3" label="Fecha" value={latestVitalDate} />
+                <HeaderField className="col-span-2" label="Edad" value={`${patient.age} anios`} />
+                <HeaderField className="col-span-2" label="Sexo" value={patient.sex} />
+                <HeaderField className="col-span-3" label="Area" value={patient.serviceArea ?? patient.careMode} />
+                <HeaderField className="col-span-5" label="Diagnostico" value={patient.primaryDiagnosis} />
+                <HeaderField
+                  className="col-span-2"
+                  label="Peso"
+                  value={`${patient.vitalSigns[0]?.weightKg ?? "-"} kg`}
+                />
+              </div>
 
-          <Panel title="Alertas de rango" subtitle="Variables fuera de rango detectadas en controles">
-            <div className="flex flex-wrap gap-2">
-              {patient.vitalSigns.flatMap((entry) => entry.outOfRangeFlags).length === 0 && (
-                <p className="text-xs text-slate-500">Sin valores fuera de rango en los registros actuales.</p>
-              )}
-              {patient.vitalSigns.flatMap((entry) => entry.outOfRangeFlags).map((flag, index) => (
-                <span
-                  key={`${flag}-${index}`}
-                  className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700"
-                >
-                  {flag}
-                </span>
-              ))}
+              <div className="grid grid-cols-[2.2fr_1fr]">
+                <div className="border-r border-slate-300">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                        <th className="border border-slate-300 px-1 py-1 text-center">Horas</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">FC</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">FR</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">PAS</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">PAD</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">PAM</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">T°</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">SO2</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">INI</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">FUN</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">Aseo/Bano</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">Act. fisica</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">HGT</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">Insulina</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">INI</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">FUN</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {criticalHourSlots.map((hour) => {
+                        const vital = vitalsByHour[hour] ?? null;
+                        const { pas, pad, pam } = parseBloodPressure(vital?.bloodPressure);
+
+                        return (
+                          <tr key={hour}>
+                            <td className="border border-slate-300 px-1 py-1 text-center font-semibold">
+                              {hour}
+                            </td>
+                            <td className="border border-slate-300 px-1 py-1 text-center">
+                              {vital ? vital.heartRate : "-"}
+                            </td>
+                            <td className="border border-slate-300 px-1 py-1 text-center">
+                              {vital ? vital.respiratoryRate : "-"}
+                            </td>
+                            <td className="border border-slate-300 px-1 py-1 text-center">{pas}</td>
+                            <td className="border border-slate-300 px-1 py-1 text-center">{pad}</td>
+                            <td className="border border-slate-300 px-1 py-1 text-center">{pam}</td>
+                            <td className="border border-slate-300 px-1 py-1 text-center">
+                              {vital ? vital.temperature : "-"}
+                            </td>
+                            <td className="border border-slate-300 px-1 py-1 text-center">
+                              {vital ? vital.spo2 : "-"}
+                            </td>
+                            <td className="border border-slate-300 px-1 py-1 text-center">-</td>
+                            <td className="border border-slate-300 px-1 py-1 text-center">-</td>
+                            <td className="border border-slate-300 px-1 py-1 text-center">-</td>
+                            <td className="border border-slate-300 px-1 py-1 text-center">-</td>
+                            <td className="border border-slate-300 px-1 py-1 text-center">
+                              {vital ? vital.glucose : "-"}
+                            </td>
+                            <td className="border border-slate-300 px-1 py-1 text-center">
+                              {getInsulinLabel(patient, vital)}
+                            </td>
+                            <td className="border border-slate-300 px-1 py-1 text-center">-</td>
+                            <td className="border border-slate-300 px-1 py-1 text-center">-</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex flex-col">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                        <th className="border border-slate-300 px-2 py-1 text-left">
+                          Tipo de procedimiento
+                        </th>
+                        <th className="border border-slate-300 px-2 py-1 text-left">
+                          Fecha colocacion
+                        </th>
+                        <th className="border border-slate-300 px-2 py-1 text-center">Dias</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invasiveRows.map((row) => (
+                        <tr key={row.label}>
+                          <td className="border border-slate-300 px-2 py-1">{row.label}</td>
+                          <td className="border border-slate-300 px-2 py-1 whitespace-nowrap">
+                            {row.placedAt}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1 text-center">{row.days}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="grid grid-cols-2 border-x border-b border-slate-300">
+                    <div className="border-r border-slate-300 p-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        Dieta artesanal
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-700">{patient.nutrition.diet}</p>
+                    </div>
+                    <div className="p-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        Suplemento nutricional
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-700">
+                        {patient.nutrition.estimatedIntake}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 border-t border-slate-300 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-600">
+                <HeaderField
+                  className="border-r border-slate-300"
+                  label="Elaborado por"
+                  value={patient.assignedProfessional}
+                />
+                <HeaderField className="border-r border-slate-300" label="Revisado por" value="-" />
+                <HeaderField label="Aprobado por" value="-" />
+              </div>
             </div>
-            <div className="mt-3">
-              <ActionChip label="Agregar nuevo control" />
-            </div>
-          </Panel>
-        </div>
+          </div>
+        </Panel>
       )}
 
       {activeTab === "medication" && (
@@ -464,136 +628,439 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       )}
 
       {activeTab === "nursing_notes" && (
-        <Panel title="Notas de enfermeria" subtitle="Evolucion cronologica y seguimiento por turno">
-          <div className="mb-3 flex flex-wrap gap-2 text-[11px]">
-            <ActionChip label="Agregar nota de enfermeria" />
-            <ActionChip label="Filtrar por fecha" />
+        <Panel title="Notas de enfermeria" subtitle="Vista narrativa tipo reporte con bloque de texto clinico">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)]">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+              <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Fechas de registro
+              </p>
+              <div className="space-y-1">
+                {patient.nursingNotes.map((note) => (
+                  <button
+                    key={note.id}
+                    type="button"
+                    onClick={() => setSelectedNursingNoteId(note.id)}
+                    className={[
+                      "w-full rounded-lg border px-2 py-1.5 text-left text-[11px]",
+                      selectedNursingNote?.id === note.id
+                        ? "border-sky-300 bg-sky-50 text-sky-700"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100",
+                    ].join(" ")}
+                  >
+                    <p className="font-semibold">{note.datetime}</p>
+                    <p className="text-[10px]">{note.professional}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                <SummaryRow label="Fecha" value={selectedNursingNote?.datetime ?? "-"} />
+                <SummaryRow label="Profesional" value={selectedNursingNote?.professional ?? "-"} />
+                <SummaryRow label="Area" value={selectedNursingNote?.specialty ?? "Enfermeria"} />
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-2">
+                <p className="mb-1 text-[11px] font-semibold text-slate-600">Nota de enfermeria</p>
+                <textarea
+                  value={selectedNursingNote?.note ?? "Sin notas de enfermeria registradas."}
+                  readOnly
+                  className="min-h-[180px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                />
+              </div>
+            </div>
           </div>
-          <ChronologicalNotes notes={patient.nursingNotes} />
         </Panel>
       )}
 
       {activeTab === "medical_notes" && (
-        <Panel title="Notas medicas" subtitle="Valoracion clinica, impresion diagnostica e indicaciones">
-          <div className="mb-3 flex flex-wrap gap-2 text-[11px]">
-            <ActionChip label="Agregar nota medica" />
-            <ActionChip label="Agregar interconsulta" />
+        <Panel title="Notas medicas" subtitle="Vista narrativa tipo reporte con bloque de texto clinico">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)]">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+              <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Fechas de registro
+              </p>
+              <div className="space-y-1">
+                {patient.medicalNotes.map((note) => (
+                  <button
+                    key={note.id}
+                    type="button"
+                    onClick={() => setSelectedMedicalNoteId(note.id)}
+                    className={[
+                      "w-full rounded-lg border px-2 py-1.5 text-left text-[11px]",
+                      selectedMedicalNote?.id === note.id
+                        ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100",
+                    ].join(" ")}
+                  >
+                    <p className="font-semibold">{note.datetime}</p>
+                    <p className="text-[10px]">{note.professional}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                <SummaryRow label="Fecha" value={selectedMedicalNote?.datetime ?? "-"} />
+                <SummaryRow label="Profesional" value={selectedMedicalNote?.professional ?? "-"} />
+                <SummaryRow label="Area" value={selectedMedicalNote?.specialty ?? "Medicina"} />
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-2">
+                <p className="mb-1 text-[11px] font-semibold text-slate-600">Nota medica</p>
+                <textarea
+                  value={selectedMedicalNote?.note ?? "Sin notas medicas registradas."}
+                  readOnly
+                  className="min-h-[180px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                />
+              </div>
+            </div>
           </div>
-          <ChronologicalNotes notes={patient.medicalNotes} />
         </Panel>
       )}
 
       {activeTab === "nursing_report" && (
-        <Panel title="Reporte de enfermeria" subtitle="Formato estructurado de turno y plan de cuidados">
-          <div className="space-y-3">
-            {patient.nursingShiftReports.length === 0 && (
-              <p className="text-xs text-slate-500">Sin reportes estructurados registrados.</p>
-            )}
-            {patient.nursingShiftReports.map((report) => (
-              <article key={report.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-slate-900">
-                    Turno {report.shift} · {report.date}
+        <Panel
+          title="Reporte de enfermeria"
+          subtitle="Vista narrativa del turno con estructura tipo nota clinica"
+        >
+          {patient.nursingShiftReports.length === 0 ? (
+            <p className="text-xs text-slate-500">Sin reportes estructurados registrados.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)]">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+                <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Reportes por turno
+                </p>
+                <div className="space-y-1">
+                  {patient.nursingShiftReports.map((report) => (
+                    <button
+                      key={report.id}
+                      type="button"
+                      onClick={() => setSelectedNursingShiftReportId(report.id)}
+                      className={[
+                        "w-full rounded-lg border px-2 py-1.5 text-left text-[11px]",
+                        selectedNursingShiftReport?.id === report.id
+                          ? "border-sky-300 bg-sky-50 text-sky-700"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100",
+                      ].join(" ")}
+                    >
+                      <p className="font-semibold">{report.date}</p>
+                      <p className="text-[10px]">
+                        Turno {report.shift} · {report.service}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
+                  <SummaryRow label="Fecha" value={selectedNursingShiftReport?.date ?? "-"} />
+                  <SummaryRow label="Turno" value={selectedNursingShiftReport?.shift ?? "-"} />
+                  <SummaryRow label="Servicio" value={selectedNursingShiftReport?.service ?? "-"} />
+                  <SummaryRow label="Paciente" value={patient.fullName} />
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-2">
+                  <p className="mb-1 text-[11px] font-semibold text-slate-600">
+                    Cuerpo narrativo del reporte
                   </p>
-                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600">
-                    {report.service}
-                  </span>
+                  <textarea
+                    value={formatNursingShiftNarrative(selectedNursingShiftReport)}
+                    readOnly
+                    className="min-h-[220px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                  />
                 </div>
-                <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-slate-700 md:grid-cols-2">
-                  <SummaryRow label="Estado general" value={report.generalStatus} />
-                  <SummaryRow label="Conciencia" value={report.consciousness} />
-                  <SummaryRow label="Respiracion" value={report.breathing} />
-                  <SummaryRow label="Dolor" value={report.pain} />
-                  <SummaryRow label="Tolerancia oral" value={report.oralTolerance} />
-                  <SummaryRow label="Eliminacion" value={report.elimination} />
-                  <SummaryRow label="Movilidad" value={report.mobility} />
-                  <SummaryRow label="Piel" value={report.skin} />
-                  <SummaryRow label="Procedimientos" value={report.proceduresDone} />
-                  <SummaryRow label="Respuesta" value={report.patientResponse} />
-                  <SummaryRow label="Incidencias" value={report.incidents} />
-                  <SummaryRow label="Plan de cuidados" value={report.carePlan} />
-                </div>
-              </article>
-            ))}
-          </div>
+              </div>
+            </div>
+          )}
         </Panel>
       )}
 
       {activeTab === "fluid_balance" && (
-        <Panel title="Balance hidrico" subtitle="Ingresos, egresos y balance neto por turno o 24 horas">
-          <div className="mb-3 flex flex-wrap gap-2 text-[11px]">
-            <ActionChip label="Registrar balance" />
-            <ActionChip label="Vista por turno" />
-            <ActionChip label="Vista 24 horas" />
-          </div>
-          <div className="space-y-3">
-            {patient.fluidBalances.length === 0 && (
-              <p className="text-xs text-slate-500">No hay registros de balance hidrico.</p>
-            )}
-            {patient.fluidBalances.map((balance) => {
-              const intakeTotal = sumObjectValues(balance.intake);
-              const outputTotal = sumObjectValues(balance.output);
-              const netBalance = intakeTotal - outputTotal;
+        <Panel
+          title="Balance hidrico"
+          subtitle="Formato de hoja de balance con control por horas, 12 horas y 24 horas"
+        >
+          {patient.fluidBalances.length === 0 ? (
+            <p className="text-xs text-slate-500">No hay registros de balance hidrico.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+              <div className="min-w-[1180px] text-[11px] text-slate-700">
+                <div className="grid grid-cols-4 border-b border-slate-300 bg-slate-50">
+                  <HeaderField label="Paciente" value={patient.fullName} />
+                  <HeaderField label="HC" value={patient.medicalRecordNumber} />
+                  <HeaderField label="Fecha" value={fluidBalanceSheet.date} />
+                  <HeaderField label="Area" value={patient.serviceArea ?? patient.careMode} />
+                </div>
 
-              return (
-                <article key={balance.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-900">
-                      {balance.shift} · {balance.date}
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                      <th className="border border-slate-300 px-2 py-1 text-left">Concepto</th>
+                      {criticalHourSlots.map((hour) => (
+                        <th key={`hour-fluid-${hour}`} className="border border-slate-300 px-1 py-1 text-center">
+                          {hour}
+                        </th>
+                      ))}
+                      <th className="border border-slate-300 px-2 py-1 text-center">Total 12h</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-slate-300 px-2 py-1 font-semibold">
+                        Ingresos (ml)
+                      </td>
+                      {fluidBalanceSheet.intakeByHour.map((value, index) => (
+                        <td
+                          key={`in-${criticalHourSlots[index]}`}
+                          className="border border-slate-300 px-1 py-1 text-center"
+                        >
+                          {value}
+                        </td>
+                      ))}
+                      <td className="border border-slate-300 px-2 py-1 text-center font-semibold">
+                        M: {fluidBalanceSheet.morningIntake} / N: {fluidBalanceSheet.nightIntake}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-2 py-1 font-semibold">
+                        Egresos (ml)
+                      </td>
+                      {fluidBalanceSheet.outputByHour.map((value, index) => (
+                        <td
+                          key={`out-${criticalHourSlots[index]}`}
+                          className="border border-slate-300 px-1 py-1 text-center"
+                        >
+                          {value}
+                        </td>
+                      ))}
+                      <td className="border border-slate-300 px-2 py-1 text-center font-semibold">
+                        M: {fluidBalanceSheet.morningOutput} / N: {fluidBalanceSheet.nightOutput}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-2 py-1 font-semibold">
+                        Diuresis (ml)
+                      </td>
+                      {fluidBalanceSheet.diuresisByHour.map((value, index) => (
+                        <td
+                          key={`diu-${criticalHourSlots[index]}`}
+                          className="border border-slate-300 px-1 py-1 text-center"
+                        >
+                          {value}
+                        </td>
+                      ))}
+                      <td className="border border-slate-300 px-2 py-1 text-center font-semibold">
+                        M: {fluidBalanceSheet.morningDiuresis} / N: {fluidBalanceSheet.nightDiuresis}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <div className="grid grid-cols-1 gap-2 border-t border-slate-300 p-3 md:grid-cols-2">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                      Egresos detallados 12 horas
                     </p>
-                    <span
-                      className={[
-                        "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                        netBalance < -300
-                          ? "border-amber-200 bg-amber-50 text-amber-700"
-                          : "border-emerald-200 bg-emerald-50 text-emerald-700",
-                      ].join(" ")}
-                    >
-                      Balance neto: {netBalance} ml
-                    </span>
+                    <p className="mt-1 text-[11px]">
+                      Perdidas insensibles: M {fluidBalanceSheet.morningInsensible} / N {fluidBalanceSheet.nightInsensible}
+                    </p>
+                    <p className="text-[11px]">
+                      Vomitos-SNG: M {fluidBalanceSheet.morningVomiting} / N {fluidBalanceSheet.nightVomiting}
+                    </p>
+                    <p className="text-[11px]">
+                      Drenajes: M {fluidBalanceSheet.morningDrains} / N {fluidBalanceSheet.nightDrains}
+                    </p>
+                    <p className="text-[11px]">
+                      Otros egresos: M {fluidBalanceSheet.morningOtherOutput} / N {fluidBalanceSheet.nightOtherOutput}
+                    </p>
                   </div>
-                  <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-slate-700 md:grid-cols-2">
-                    <SummaryRow
-                      label="Total ingresos"
-                      value={`${intakeTotal} ml (VO ${balance.intake.oral}, IV ${balance.intake.intravenous})`}
-                    />
-                    <SummaryRow
-                      label="Total egresos"
-                      value={`${outputTotal} ml (Diuresis ${balance.output.diuresis})`}
-                    />
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                      Cierre de balance
+                    </p>
+                    <p className="mt-1 text-[11px]">Balance 12h manana: {fluidBalanceSheet.morningBalance} ml</p>
+                    <p className="text-[11px]">Balance 12h noche: {fluidBalanceSheet.nightBalance} ml</p>
+                    <p className="text-[11px]">Ingreso 24h: {fluidBalanceSheet.intake24} ml</p>
+                    <p className="text-[11px]">Egreso 24h: {fluidBalanceSheet.output24} ml</p>
+                    <p className="text-[11px]">Diuresis 24h: {fluidBalanceSheet.diuresis24} ml</p>
+                    <p className="text-[11px] font-semibold">
+                      Balance 24h: {fluidBalanceSheet.balance24} ml
+                    </p>
+                    <p className="text-[11px]">Diuresis horaria: {fluidBalanceSheet.hourlyDiuresis} ml/h</p>
                   </div>
-                  <p className="mt-1 text-[11px] text-slate-500">{balance.observations}</p>
-                </article>
-              );
-            })}
-          </div>
+                </div>
+              </div>
+            </div>
+          )}
         </Panel>
       )}
 
       {activeTab === "kardex" && (
-        <Panel title="Kardex de enfermeria" subtitle="Plan operacional de cuidado por paciente">
-          <div className="space-y-3">
-            {patient.kardex.length === 0 && (
-              <p className="text-xs text-slate-500">No hay kardex registrados.</p>
-            )}
-            {patient.kardex.map((item) => (
-              <article key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-sm font-semibold text-slate-900">{item.date}</p>
-                <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-slate-700 md:grid-cols-2">
-                  <SummaryRow label="Diagnostico" value={item.diagnosis} />
-                  <SummaryRow label="Dieta" value={item.diet} />
-                  <SummaryRow label="Actividad" value={item.activity} />
-                  <SummaryRow label="Plan signos" value={item.vitalSignsPlan} />
-                  <SummaryRow label="Plan medicacion" value={item.medicationPlan} />
-                  <SummaryRow label="Soluciones" value={item.solutions} />
-                  <SummaryRow label="Procedimientos" value={item.procedures} />
-                  <SummaryRow label="Cuidados" value={item.nursingCare} />
-                  <SummaryRow label="Eliminacion" value={item.elimination} />
-                  <SummaryRow label="Observaciones" value={item.observations} />
-                  <SummaryRow label="Indicaciones especiales" value={item.specialIndications} />
+        <Panel
+          title="Kardex de enfermeria"
+          subtitle="Administracion de medicamentos (estructura segun formato institucional)"
+        >
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <div className="min-w-[1040px] text-[11px] text-slate-700">
+              <div className="border-b border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="font-semibold uppercase tracking-wide text-slate-700">
+                  Administracion de medicamentos · SNS-MSP/HCU-form.022/2021
+                </p>
+              </div>
+
+              <section className="border-b border-slate-200 px-3 py-3">
+                <p className="font-semibold uppercase tracking-wide text-slate-700">
+                  A. Datos del establecimiento y usuario / paciente
+                </p>
+                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-5">
+                  <KardexDataCell
+                    label="Primer apellido"
+                    value={getPrimarySurname(patient.lastName)}
+                  />
+                  <KardexDataCell
+                    label="Primer nombre"
+                    value={getPrimaryName(patient.firstName)}
+                  />
+                  <KardexDataCell label="Edad" value={`${patient.age}`} />
+                  <KardexDataCell
+                    label="Numero de historia clinica unica"
+                    value={patient.medicalRecordNumber}
+                  />
+                  <KardexDataCell label="Numero de archivo" value={patient.code} />
                 </div>
-              </article>
-            ))}
+                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-5">
+                  <KardexDataCell
+                    label="Alergia a medicamentos"
+                    value={medicationAllergies.length > 0 ? "SI" : "NO"}
+                  />
+                  <KardexDataCell
+                    className="md:col-span-4"
+                    label="Describa"
+                    value={
+                      medicationAllergies.length > 0
+                        ? medicationAllergies.join(", ")
+                        : "No registra alergia medicamentosa."
+                    }
+                  />
+                </div>
+              </section>
+
+              <section className="px-3 py-3">
+                <p className="font-semibold uppercase tracking-wide text-slate-700">
+                  B. Administracion de medicamentos prescritos
+                </p>
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                        <th
+                          className="border border-slate-300 px-2 py-1 text-left"
+                          rowSpan={2}
+                        >
+                          1. Medicamento
+                        </th>
+                        <th
+                          className="border border-slate-300 px-2 py-1 text-left"
+                          rowSpan={2}
+                        >
+                          Fecha
+                        </th>
+                        <th
+                          className="border border-slate-300 px-2 py-1 text-left"
+                          rowSpan={2}
+                        >
+                          Dosis, via, frecuencia
+                        </th>
+                        <th className="border border-slate-300 px-2 py-1 text-center" colSpan={8}>
+                          2. Administracion
+                        </th>
+                      </tr>
+                      <tr className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                        <th className="border border-slate-300 px-1 py-1 text-center">Hora</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">
+                          Responsable
+                        </th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">Hora</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">
+                          Responsable
+                        </th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">Hora</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">
+                          Responsable
+                        </th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">Hora</th>
+                        <th className="border border-slate-300 px-1 py-1 text-center">
+                          Responsable
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {kardexAdministrations.length === 0 ? (
+                        <tr>
+                          <td
+                            className="border border-slate-300 px-2 py-2 text-center text-[11px] text-slate-500"
+                            colSpan={11}
+                          >
+                            No hay administraciones registradas para este paciente.
+                          </td>
+                        </tr>
+                      ) : (
+                        kardexAdministrations.map((entry) => {
+                          const slots = buildAdministrationSlots(entry);
+                          const { date } = splitDateTime(entry.startedAt);
+
+                          return (
+                            <tr key={entry.id} className="align-top text-[11px]">
+                              <td className="border border-slate-300 px-2 py-2">
+                                <p className="font-semibold text-slate-900">{entry.itemName}</p>
+                                <p className="text-[10px] text-slate-500">{entry.type}</p>
+                                {entry.notes ? (
+                                  <p className="mt-1 text-[10px] text-slate-500">
+                                    Obs: {entry.notes}
+                                  </p>
+                                ) : null}
+                              </td>
+                              <td className="border border-slate-300 px-2 py-2 whitespace-nowrap">
+                                {date}
+                              </td>
+                              <td className="border border-slate-300 px-2 py-2">
+                                {buildDoseRouteFrequency(entry)}
+                              </td>
+                              <td className="border border-slate-300 px-1 py-2 text-center whitespace-nowrap">
+                                {slots[0].hour}
+                              </td>
+                              <td className="border border-slate-300 px-1 py-2 text-center">
+                                {slots[0].responsible}
+                              </td>
+                              <td className="border border-slate-300 px-1 py-2 text-center whitespace-nowrap">
+                                {slots[1].hour}
+                              </td>
+                              <td className="border border-slate-300 px-1 py-2 text-center">
+                                {slots[1].responsible}
+                              </td>
+                              <td className="border border-slate-300 px-1 py-2 text-center whitespace-nowrap">
+                                {slots[2].hour}
+                              </td>
+                              <td className="border border-slate-300 px-1 py-2 text-center">
+                                {slots[2].responsible}
+                              </td>
+                              <td className="border border-slate-300 px-1 py-2 text-center whitespace-nowrap">
+                                {slots[3].hour}
+                              </td>
+                              <td className="border border-slate-300 px-1 py-2 text-center">
+                                {slots[3].responsible}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
           </div>
         </Panel>
       )}
@@ -876,6 +1343,23 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function KardexDataCell({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
+  return (
+    <div className={`rounded-lg border border-slate-300 bg-slate-50 px-2 py-1.5 ${className ?? ""}`}>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-0.5 text-[11px] text-slate-700">{value}</p>
+    </div>
+  );
+}
+
 function ListBlock({ title, items }: { title: string; items: string[] }) {
   return (
     <div className="mt-3">
@@ -898,27 +1382,19 @@ function ListBlock({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-function ChronologicalNotes({
-  notes,
+function HeaderField({
+  label,
+  value,
+  className,
 }: {
-  notes: Array<{ id: string; datetime: string; professional: string; specialty: string; note: string }>;
+  label: string;
+  value: string;
+  className?: string;
 }) {
-  if (notes.length === 0) {
-    return <p className="text-xs text-slate-500">Sin notas registradas.</p>;
-  }
-
   return (
-    <div className="space-y-2">
-      {notes.map((note) => (
-        <article key={note.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-slate-900">{note.professional}</p>
-            <span className="text-[11px] text-slate-500">{note.datetime}</span>
-          </div>
-          <p className="text-[11px] text-slate-500">{note.specialty}</p>
-          <p className="mt-1 text-xs text-slate-700">{note.note}</p>
-        </article>
-      ))}
+    <div className={`border-b border-slate-300 px-2 py-1.5 ${className ?? ""}`}>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-0.5 text-[11px] text-slate-700">{value}</p>
     </div>
   );
 }
@@ -932,6 +1408,267 @@ function ActionChip({ label }: { label: string }) {
       {label}
     </button>
   );
+}
+
+function isNoKnownAllergy(value: string) {
+  return /(ninguna|no conocida|no conocidas|sin alergia)/i.test(value);
+}
+
+function normalizeHourLabel(datetime: string) {
+  const { time } = splitDateTime(datetime);
+  const [hourRaw] = time.split(":");
+  const hour = Number(hourRaw);
+
+  if (!Number.isFinite(hour)) {
+    return null;
+  }
+  if (hour === 0) {
+    return "24:00";
+  }
+  if (hour >= 1 && hour <= 23) {
+    return `${hour}:00`;
+  }
+  return null;
+}
+
+function groupVitalsByHour(vitals: VitalSignRecord[]) {
+  return vitals.reduce<Record<string, VitalSignRecord>>((acc, vital) => {
+    const hourLabel = normalizeHourLabel(vital.recordedAt);
+    if (!hourLabel || !criticalHourSlots.includes(hourLabel)) {
+      return acc;
+    }
+
+    if (!acc[hourLabel] || acc[hourLabel].recordedAt < vital.recordedAt) {
+      acc[hourLabel] = vital;
+    }
+    return acc;
+  }, {});
+}
+
+function parseBloodPressure(value?: string) {
+  if (!value) {
+    return { pas: "-", pad: "-", pam: "-" };
+  }
+
+  const match = value.match(/(\d+)\s*\/\s*(\d+)/);
+  if (!match) {
+    return { pas: "-", pad: "-", pam: "-" };
+  }
+
+  const pasValue = Number(match[1]);
+  const padValue = Number(match[2]);
+  const pamValue = Math.round((pasValue + 2 * padValue) / 3);
+
+  return {
+    pas: `${pasValue}`,
+    pad: `${padValue}`,
+    pam: `${pamValue}`,
+  };
+}
+
+function getInsulinLabel(patient: PatientRecord, vital: VitalSignRecord | null) {
+  if (!vital) {
+    return "-";
+  }
+
+  const insulinMedication = patient.medicationRecords.find((record) =>
+    /insulina/i.test(record.name)
+  );
+  if (!insulinMedication) {
+    return "-";
+  }
+
+  if (vital.glucose >= 180) {
+    return insulinMedication.dose;
+  }
+  return "-";
+}
+
+function mapProcedureTypeToLabel(type: string) {
+  const normalized = type.trim().toLowerCase();
+  if (normalized === "traqueostomia") {
+    return "Traqueostomia";
+  }
+  if (normalized === "ventilacion mecanica") {
+    return "Ventilacion mecanica";
+  }
+  if (normalized === "cateter central") {
+    return "Via central";
+  }
+  if (normalized === "cateter periferico") {
+    return "Cateter periferico";
+  }
+  if (normalized === "sonda nasogastrica") {
+    return "Sonda nasogastrica";
+  }
+  if (normalized === "sonda vesical") {
+    return "Sonda vesical";
+  }
+  if (normalized === "gastrostomia") {
+    return "Gastrostomia";
+  }
+  return "Otros";
+}
+
+function buildInvasiveProcedureRows(patient: PatientRecord) {
+  return invasiveProcedureLabels.map((label) => {
+    const procedure = patient.procedures.find(
+      (item) => mapProcedureTypeToLabel(item.type) === label
+    );
+
+    return {
+      label,
+      placedAt: procedure?.placedAt ?? "-",
+      days: procedure ? `${procedure.daysInstalled}` : "-",
+    };
+  });
+}
+
+function buildFluidBalanceSheet(patient: PatientRecord) {
+  const latestDate =
+    [...patient.fluidBalances]
+      .map((entry) => entry.date)
+      .sort((a, b) => a.localeCompare(b))
+      .at(-1) ?? patient.admissionDate;
+  const balancesOnDate = patient.fluidBalances.filter((entry) => entry.date === latestDate);
+
+  const morning =
+    balancesOnDate.find((entry) => /manana|mañana/i.test(entry.shift)) ??
+    balancesOnDate[0] ??
+    null;
+  const night =
+    balancesOnDate.find((entry) => /noche|tarde/i.test(entry.shift)) ??
+    balancesOnDate[1] ??
+    null;
+
+  const morningIntake = morning ? sumObjectValues(morning.intake) : 0;
+  const nightIntake = night ? sumObjectValues(night.intake) : 0;
+  const morningOutput = morning ? sumObjectValues(morning.output) : 0;
+  const nightOutput = night ? sumObjectValues(night.output) : 0;
+  const morningDiuresis = morning?.output.diuresis ?? 0;
+  const nightDiuresis = night?.output.diuresis ?? 0;
+
+  const intakeByHour = Array.from({ length: criticalHourSlots.length }, () => "-");
+  const outputByHour = Array.from({ length: criticalHourSlots.length }, () => "-");
+  const diuresisByHour = Array.from({ length: criticalHourSlots.length }, () => "-");
+
+  if (morning) {
+    intakeByHour[0] = `${morningIntake}`;
+    outputByHour[0] = `${morningOutput}`;
+    diuresisByHour[0] = `${morningDiuresis}`;
+  }
+  if (night) {
+    intakeByHour[12] = `${nightIntake}`;
+    outputByHour[12] = `${nightOutput}`;
+    diuresisByHour[12] = `${nightDiuresis}`;
+  }
+
+  const intake24 = morningIntake + nightIntake;
+  const output24 = morningOutput + nightOutput;
+  const diuresis24 = morningDiuresis + nightDiuresis;
+  const balance24 = intake24 - output24;
+
+  return {
+    date: latestDate,
+    intakeByHour,
+    outputByHour,
+    diuresisByHour,
+    morningIntake,
+    nightIntake,
+    morningOutput,
+    nightOutput,
+    morningDiuresis,
+    nightDiuresis,
+    morningInsensible: morning?.output.insensibleLoss ?? 0,
+    nightInsensible: night?.output.insensibleLoss ?? 0,
+    morningVomiting: morning?.output.vomiting ?? 0,
+    nightVomiting: night?.output.vomiting ?? 0,
+    morningDrains: morning?.output.drains ?? 0,
+    nightDrains: night?.output.drains ?? 0,
+    morningOtherOutput: morning?.output.other ?? 0,
+    nightOtherOutput: night?.output.other ?? 0,
+    morningBalance: morningIntake - morningOutput,
+    nightBalance: nightIntake - nightOutput,
+    intake24,
+    output24,
+    diuresis24,
+    balance24,
+    hourlyDiuresis: Math.round((diuresis24 / 24) * 10) / 10,
+  };
+}
+
+function getPrimarySurname(lastName: string) {
+  return lastName.split(" ").filter(Boolean)[0] ?? lastName;
+}
+
+function getPrimaryName(firstName: string) {
+  return firstName.split(" ").filter(Boolean)[0] ?? firstName;
+}
+
+function splitDateTime(value: string) {
+  const normalized = value.trim().replace("T", " ");
+  const [date = "-", time = "-"] = normalized.split(" ");
+  return { date, time };
+}
+
+function buildDoseRouteFrequency(entry: KardexAdministrationRecord) {
+  if (entry.type === "Infusion") {
+    return `Vol. total ${entry.totalVolumeMl} ml · Via ${entry.route} · ${entry.volumePerHourMl} ml/h por ${entry.durationHours} h`;
+  }
+
+  const frequencyLabel = entry.durationHours <= 1 ? "Dosis unica" : `Cada ${entry.durationHours} h`;
+  return `${entry.totalVolumeMl} ml · Via ${entry.route} · ${frequencyLabel}`;
+}
+
+function buildAdministrationSlots(entry: KardexAdministrationRecord) {
+  const { time } = splitDateTime(entry.startedAt);
+  const [hoursRaw, minutesRaw] = time.split(":");
+  const hours = Number(hoursRaw);
+  const minutes = Number(minutesRaw);
+
+  const hasValidTime =
+    Number.isFinite(hours) && Number.isFinite(minutes) && hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60;
+  const intervalHours = entry.durationHours >= 8 ? 2 : entry.durationHours >= 4 ? 1 : 0;
+
+  return Array.from({ length: 4 }, (_, index) => {
+    if (!hasValidTime) {
+      return {
+        hour: index === 0 ? time : "-",
+        responsible: index === 0 ? entry.responsible : "-",
+      };
+    }
+
+    if (index > 0 && intervalHours === 0) {
+      return { hour: "-", responsible: "-" };
+    }
+
+    const totalMinutes = hours * 60 + minutes + index * intervalHours * 60;
+    const wrappedMinutes = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
+    const slotHour = String(Math.floor(wrappedMinutes / 60)).padStart(2, "0");
+    const slotMinute = String(wrappedMinutes % 60).padStart(2, "0");
+
+    return {
+      hour: `${slotHour}:${slotMinute}`,
+      responsible: index === 0 ? entry.responsible : "-",
+    };
+  });
+}
+
+function formatNursingShiftNarrative(report: PatientRecord["nursingShiftReports"][number] | null) {
+  if (!report) {
+    return "Sin reporte de enfermeria disponible para este paciente.";
+  }
+
+  return [
+    `Turno ${report.shift} (${report.date}) en ${report.service}.`,
+    `Paciente con estado general ${report.generalStatus}, conciencia ${report.consciousness} y respiracion ${report.breathing}.`,
+    `Dolor reportado: ${report.pain}. Tolerancia oral: ${report.oralTolerance}.`,
+    `Eliminacion: ${report.elimination}. Movilidad: ${report.mobility}. Piel: ${report.skin}.`,
+    `Procedimientos realizados: ${report.proceduresDone}.`,
+    `Respuesta del paciente: ${report.patientResponse}.`,
+    `Incidencias: ${report.incidents}.`,
+    `Plan de cuidados: ${report.carePlan}.`,
+  ].join(" ");
 }
 
 function toInitials(name: string) {

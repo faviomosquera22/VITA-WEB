@@ -3,13 +3,17 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --app-font-sans:
+    var(--font-plus-jakarta), "Avenir Next", "Segoe UI", sans-serif;
+  --app-font-mono:
+    var(--font-ibm-plex-mono), "SF Mono", "Menlo", "Consolas", monospace;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--app-font-sans);
+  --font-mono: var(--app-font-mono);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,5 +26,52 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--app-font-sans);
+}
+
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.landing-enter {
+  opacity: 0;
+  animation: landing-rise 0.75s ease-out forwards;
+}
+
+.landing-enter-delay-1 {
+  animation-delay: 120ms;
+}
+
+.landing-enter-delay-2 {
+  animation-delay: 220ms;
+}
+
+.landing-float {
+  animation: landing-float 7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-enter,
+  .landing-float {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }
