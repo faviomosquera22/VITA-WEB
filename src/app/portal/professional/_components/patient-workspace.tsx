@@ -18,6 +18,7 @@ export function PatientFinder({
   title = "Busqueda de paciente",
   subtitle = "Busca por nombre, cedula, historia clinica o codigo y selecciona un paciente para continuar.",
   rightSlot,
+  showQuickChips = true,
 }: {
   patients: PatientRecord[];
   searchValue: string;
@@ -27,6 +28,7 @@ export function PatientFinder({
   title?: string;
   subtitle?: string;
   rightSlot?: ReactNode;
+  showQuickChips?: boolean;
 }) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -69,27 +71,29 @@ export function PatientFinder({
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        {patients.slice(0, 6).map((patient) => {
-          const selected = patient.id === selectedPatientId;
+      {showQuickChips ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {patients.slice(0, 6).map((patient) => {
+            const selected = patient.id === selectedPatientId;
 
-          return (
-            <button
-              key={patient.id}
-              type="button"
-              onClick={() => onSelectPatient(patient.id)}
-              className={[
-                "rounded-full border px-3 py-1 text-[11px] transition",
-                selected
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100",
-              ].join(" ")}
-            >
-              {patient.fullName}
-            </button>
-          );
-        })}
-      </div>
+            return (
+              <button
+                key={patient.id}
+                type="button"
+                onClick={() => onSelectPatient(patient.id)}
+                className={[
+                  "rounded-full border px-3 py-1 text-[11px] transition",
+                  selected
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100",
+                ].join(" ")}
+              >
+                {patient.fullName}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
     </article>
   );
 }

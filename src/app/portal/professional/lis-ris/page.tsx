@@ -133,6 +133,7 @@ export default function LisRisPage() {
         onSelectPatient={setSelectedPatientId}
         title="Seleccion de paciente para LIS/RIS"
         subtitle="Elige el paciente de la sala/area para ver sus examenes, resultados y tendencias."
+        showQuickChips={false}
       />
 
       {selectedPatient ? <PatientContextSummary patient={selectedPatient} compact /> : null}
