@@ -13,6 +13,7 @@ import {
   type KardexAdministrationRecord,
   type MedicationRecord,
   type PatientRecord,
+  type TriageColor,
   type VitalSignRecord,
 } from "../_data/clinical-mock-data";
 
@@ -480,6 +481,48 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     null;
   const activeTabLabel = patientTabs.find((tab) => tab.id === activeTab)?.label ?? activeTab;
   const tabAuditRecords = auditRecords.filter((record) => record.tab === activeTab);
+  const recentTimeline = timelineSorted.slice(0, 6);
+  const diagnosisByType = useMemo(
+    () => ({
+      Principal: patient.diagnoses.filter((item) => item.type === "Principal"),
+      Secundario: patient.diagnoses.filter((item) => item.type === "Secundario"),
+      Presuntivo: patient.diagnoses.filter((item) => item.type === "Presuntivo"),
+    }),
+    [patient.diagnoses]
+  );
+  const activeDiagnosisCount = useMemo(
+    () => patient.diagnoses.filter((item) => /activo/i.test(item.status)).length,
+    [patient.diagnoses]
+  );
+  const triageWaitTargetMinutes = getTriageWaitTargetMinutes(
+    patient.triageAssessment.triageColor
+  );
+  const timelineGroups = useMemo(() => {
+    const grouped = new Map<string, PatientRecord["timeline"]>();
+
+    for (const event of timelineSorted) {
+      const dateKey = splitDateTime(event.datetime).date;
+      const current = grouped.get(dateKey) ?? [];
+      current.push(event);
+      grouped.set(dateKey, current);
+    }
+
+    return Array.from(grouped.entries()).map(([date, events]) => ({
+      date,
+      events,
+    }));
+  }, [timelineSorted]);
+  const timelineCategoryCounts = useMemo(() => {
+    const counts = new Map<PatientRecord["timeline"][number]["category"], number>();
+
+    for (const event of timelineSorted) {
+      counts.set(event.category, (counts.get(event.category) ?? 0) + 1);
+    }
+
+    return Array.from(counts.entries())
+      .map(([category, count]) => ({ category, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [timelineSorted]);
   const moduleHistoryEntries = useMemo<ModuleHistoryEntry[]>(() => {
     const makeEntry = (
       id: string,
@@ -1522,53 +1565,110 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
           </div>
 
       {activeTab === "summary" && (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Panel title="Resumen general" subtitle="Vista rapida del estado actual del paciente">
-            <div className="space-y-2 text-xs text-slate-700">
-              <SummaryRow label="Motivo de consulta" value={patient.summary.reasonForConsultation} />
-              <SummaryRow label="Diagnostico principal" value={patient.primaryDiagnosis} />
-              <SummaryRow
-                label="Diagnosticos secundarios"
-                value={patient.secondaryDiagnoses.length ? patient.secondaryDiagnoses.join(", ") : "Sin diagnosticos secundarios"}
-              />
-              <SummaryRow
-                label="Alergias"
-                value={patient.antecedentes.allergies.join(", ") || "No registradas"}
-              />
-              <SummaryRow
-                label="Signos vitales recientes"
-                value={
-                  latestVital
-                    ? `${latestVital.recordedAt} · TA ${latestVital.bloodPressure} · FC ${latestVital.heartRate} · SpO2 ${latestVital.spo2}%`
-                    : "Sin registros recientes"
-                }
-              />
-            </div>
-          </Panel>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <QuickStatCard label="Estado actual" value={patient.currentStatus} hint={`Servicio: ${patient.serviceArea ?? patient.careMode}`} />
+            <QuickStatCard label="Riesgo clinico" value={`Riesgo ${patient.riskLevel}`} hint={`Triaje ${patient.triageColor}`} />
+            <QuickStatCard label="Diagnosticos activos" value={activeDiagnosisCount} hint={`Total registrados: ${patient.diagnoses.length}`} />
+            <QuickStatCard
+              label="Ultimo control"
+              value={latestVital ? latestVital.recordedAt : "Sin control"}
+              hint={
+                latestVital
+                  ? `TA ${latestVital.bloodPressure} · FC ${latestVital.heartRate} · SpO2 ${latestVital.spo2}%`
+                  : "Pendiente de signos vitales"
+              }
+            />
+          </div>
 
-          <Panel title="Resumen clinico complementario" subtitle="Alertas, notas recientes y seguimiento">
-            <div className="space-y-2 text-xs text-slate-700">
-              <SummaryRow
-                label="Medicacion actual"
-                value={patient.summary.activeMedicationSummary.join(" · ")}
-              />
-              <SummaryRow
-                label="Ultimo reporte de enfermeria"
-                value={patient.summary.latestNursingReport}
-              />
-              <SummaryRow
-                label="Vacunas pendientes"
-                value={patient.summary.vaccinationPendingSummary.join(", ") || "Sin pendientes"}
-              />
-              <SummaryRow
-                label="Resumen nutricional"
-                value={patient.summary.nutritionalSummary}
-              />
-              <SummaryRow
-                label="Resumen emocional"
-                value={patient.summary.emotionalSummary}
-              />
-            </div>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <Panel title="Resumen clinico principal" subtitle="Lo indispensable para decidir en menos de 30 segundos">
+              <div className="space-y-3">
+                <SummaryRow label="Motivo de consulta" value={patient.summary.reasonForConsultation} />
+                <SummaryRow label="Diagnostico principal" value={patient.primaryDiagnosis} />
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Diagnosticos secundarios
+                  </p>
+                  {patient.secondaryDiagnoses.length === 0 ? (
+                    <p className="mt-1 text-xs text-slate-600">Sin diagnosticos secundarios.</p>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {patient.secondaryDiagnoses.map((item) => (
+                        <InfoTag key={item} label={item} tone="slate" />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                    Alergias registradas
+                  </p>
+                  {patient.antecedentes.allergies.length === 0 ? (
+                    <p className="mt-1 text-xs text-amber-800">No registradas.</p>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {patient.antecedentes.allergies.map((item) => (
+                        <InfoTag key={item} label={item} tone="amber" />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Panel>
+
+            <Panel title="Seguimiento y alertas" subtitle="Lo reciente del turno: medicacion, enfermeria y eventos">
+              <div className="space-y-2 text-xs text-slate-700">
+                <SummaryRow
+                  label="Medicacion actual"
+                  value={
+                    patient.summary.activeMedicationSummary.length
+                      ? patient.summary.activeMedicationSummary.join(" · ")
+                      : "Sin medicacion activa"
+                  }
+                />
+                <SummaryRow
+                  label="Ultimo reporte de enfermeria"
+                  value={patient.summary.latestNursingReport}
+                />
+                <SummaryRow
+                  label="Vacunas pendientes"
+                  value={
+                    patient.summary.vaccinationPendingSummary.length
+                      ? patient.summary.vaccinationPendingSummary.join(", ")
+                      : "Sin pendientes"
+                  }
+                />
+                <SummaryRow
+                  label="Resumen nutricional"
+                  value={patient.summary.nutritionalSummary}
+                />
+                <SummaryRow
+                  label="Resumen emocional"
+                  value={patient.summary.emotionalSummary}
+                />
+              </div>
+            </Panel>
+          </div>
+
+          <Panel title="Eventos clinicos recientes" subtitle="Ultimos hitos del paciente ordenados por tiempo">
+            {recentTimeline.length === 0 ? (
+              <p className="text-xs text-slate-500">Sin eventos recientes registrados.</p>
+            ) : (
+              <div className="space-y-2">
+                {recentTimeline.map((event) => (
+                  <article key={event.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <TimelineCategoryTag category={event.category} />
+                      <span className="text-[11px] text-slate-500">{event.datetime}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-700">{event.detail}</p>
+                  </article>
+                ))}
+              </div>
+            )}
           </Panel>
         </div>
       )}
@@ -1632,38 +1732,96 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       )}
 
       {activeTab === "triage" && (
-        <Panel title="Triaje y evaluacion inicial" subtitle="Clasificacion de riesgo y conducta sugerida">
-          <div className="grid grid-cols-1 gap-3 text-xs text-slate-700 md:grid-cols-2">
-            <SummaryRow label="Fecha evaluacion" value={patient.triageAssessment.evaluatedAt} />
-            <SummaryRow
-              label="Motivo consulta"
-              value={patient.triageAssessment.consultationReason}
-            />
-            <SummaryRow
-              label="Tiempo evolucion"
-              value={patient.triageAssessment.evolutionTime}
-            />
-            <SummaryRow
-              label="Clasificacion de riesgo"
-              value={patient.triageAssessment.riskClassification}
-            />
-            <SummaryRow
-              label="Color triaje"
-              value={patient.triageAssessment.triageColor}
-            />
-            <SummaryRow
-              label="Conducta sugerida"
-              value={patient.triageAssessment.suggestedConduct}
-            />
-            <SummaryRow label="Derivacion" value={patient.triageAssessment.referral} />
-            <SummaryRow
-              label="Observaciones"
-              value={patient.triageAssessment.professionalObservations}
-            />
-          </div>
-          <ListBlock title="Sintomas reportados" items={patient.triageAssessment.symptoms} />
-          <ListBlock title="Signos de alarma" items={patient.triageAssessment.warningSigns} />
-        </Panel>
+        <div className="space-y-4">
+          <Panel title="Triaje y evaluacion inicial" subtitle="Clasificacion de riesgo explicada de forma operativa">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              <div
+                className={[
+                  "rounded-xl border p-3",
+                  getTriageColorCardTone(patient.triageAssessment.triageColor),
+                ].join(" ")}
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-wide">
+                  Color de triaje
+                </p>
+                <p className="mt-1 text-sm font-semibold capitalize">
+                  {patient.triageAssessment.triageColor}
+                </p>
+              </div>
+              <QuickStatCard
+                label="Riesgo"
+                value={patient.triageAssessment.riskClassification}
+                hint="Clasificacion de enfermeria"
+              />
+              <QuickStatCard
+                label="Tiempo de evolucion"
+                value={patient.triageAssessment.evolutionTime}
+                hint="Reportado por paciente"
+              />
+              <QuickStatCard
+                label="Meta de espera"
+                value={`${triageWaitTargetMinutes} min`}
+                hint="Referencia segun color de triaje"
+              />
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
+              <article className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Motivo y sintomas clave
+                </p>
+                <p className="mt-1 text-xs text-slate-700">
+                  {patient.triageAssessment.consultationReason}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {patient.triageAssessment.symptoms.map((symptom) => (
+                    <InfoTag key={symptom} label={symptom} tone="sky" />
+                  ))}
+                </div>
+              </article>
+
+              <article className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Decision clinica
+                </p>
+                <SummaryRow
+                  label="Conducta sugerida"
+                  value={patient.triageAssessment.suggestedConduct}
+                />
+                <div className="mt-2">
+                  <SummaryRow label="Derivacion" value={patient.triageAssessment.referral} />
+                </div>
+              </article>
+
+              <article className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-700">
+                  Signos de alarma
+                </p>
+                {patient.triageAssessment.warningSigns.length === 0 ? (
+                  <p className="mt-1 text-xs text-rose-800">Sin signos de alarma registrados.</p>
+                ) : (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {patient.triageAssessment.warningSigns.map((item) => (
+                      <InfoTag key={item} label={item} tone="rose" />
+                    ))}
+                  </div>
+                )}
+              </article>
+            </div>
+
+            <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Observaciones del profesional
+              </p>
+              <p className="mt-1 text-xs text-slate-700">
+                {patient.triageAssessment.professionalObservations}
+              </p>
+              <p className="mt-2 text-[11px] text-slate-500">
+                Evaluado en: {patient.triageAssessment.evaluatedAt}
+              </p>
+            </div>
+          </Panel>
+        </div>
       )}
 
       {activeTab === "vitals" && (
@@ -3037,24 +3195,57 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       )}
 
       {activeTab === "diagnoses" && (
-        <Panel title="Diagnosticos" subtitle="Principal, secundarios y presuntivos">
-          <div className="space-y-2">
-            {patient.diagnoses.map((item) => (
-              <article key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-slate-900">{item.diagnosis}</p>
-                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600">
-                    {item.type}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Registro: {item.registeredAt} · Estado: {item.status}
-                </p>
-                <p className="text-[11px] text-slate-500">{item.observations}</p>
-              </article>
-            ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <QuickStatCard label="Total diagnosticos" value={patient.diagnoses.length} hint="Registrados en ficha" />
+            <QuickStatCard label="Activos" value={activeDiagnosisCount} hint="Estado actual" />
+            <QuickStatCard label="Principales" value={diagnosisByType.Principal.length} hint="Eje de tratamiento" />
+            <QuickStatCard label="Secundarios/presuntivos" value={diagnosisByType.Secundario.length + diagnosisByType.Presuntivo.length} hint="Contexto clinico" />
           </div>
-        </Panel>
+
+          <Panel title="Diagnosticos" subtitle="Ordenados por tipo, estado y fecha para lectura rapida">
+            <div className="space-y-4">
+              {(["Principal", "Secundario", "Presuntivo"] as const).map((type) => {
+                const items = diagnosisByType[type];
+
+                return (
+                  <section key={type}>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-slate-800">{type}</p>
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600">
+                        {items.length}
+                      </span>
+                    </div>
+
+                    {items.length === 0 ? (
+                      <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                        Sin diagnosticos {type.toLowerCase()}.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {items.map((item) => (
+                          <article key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-slate-900">{item.diagnosis}</p>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <DiagnosisTypeTag type={item.type} />
+                                <DiagnosisStatusTag status={item.status} />
+                              </div>
+                            </div>
+                            <p className="text-[11px] text-slate-500">
+                              Registro: {item.registeredAt}
+                            </p>
+                            <p className="mt-1 text-[11px] text-slate-600">{item.observations}</p>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          </Panel>
+        </div>
       )}
 
       {activeTab === "procedures" && (
@@ -3661,19 +3852,62 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       )}
 
       {activeTab === "timeline" && (
-        <Panel title="Historial / linea de tiempo clinica" subtitle="Secuencia de eventos clinicos relevantes">
-          <div className="space-y-2">
-            {timelineSorted.map((event) => (
-              <article key={event.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-slate-900">{event.category}</p>
-                  <span className="text-[11px] text-slate-500">{event.datetime}</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-700">{event.detail}</p>
-              </article>
-            ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <QuickStatCard label="Eventos totales" value={timelineSorted.length} hint="Linea de tiempo completa" />
+            <QuickStatCard label="Categorias activas" value={timelineCategoryCounts.length} hint="Tipos de evento registrados" />
+            <QuickStatCard label="Primer evento" value={timelineSorted[timelineSorted.length - 1]?.datetime ?? "-"} hint="Inicio de trazabilidad" />
+            <QuickStatCard label="Ultimo evento" value={timelineSorted[0]?.datetime ?? "-"} hint="Actualizacion mas reciente" />
           </div>
-        </Panel>
+
+          <Panel title="Historial / linea de tiempo clinica" subtitle="Eventos agrupados por fecha y priorizados por categoria">
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              {timelineCategoryCounts.map((item) => (
+                <div
+                  key={item.category}
+                  className="inline-flex items-center gap-1.5"
+                >
+                  <TimelineCategoryTag category={item.category} />
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                    {item.count}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {timelineGroups.length === 0 ? (
+              <p className="text-xs text-slate-500">Sin eventos historicos registrados.</p>
+            ) : (
+              <div className="space-y-4">
+                {timelineGroups.map((group) => (
+                  <section key={group.date}>
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                        {group.date}
+                      </span>
+                      <span className="text-[11px] text-slate-500">{group.events.length} eventos</span>
+                    </div>
+
+                    <div className="space-y-2 border-l-2 border-slate-200 pl-3">
+                      {group.events.map((event) => {
+                        const { time } = splitDateTime(event.datetime);
+                        return (
+                          <article key={event.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <TimelineCategoryTag category={event.category} />
+                              <span className="text-[11px] text-slate-500">{time}</span>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-700">{event.detail}</p>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </div>
       )}
 
       <Panel
@@ -4003,6 +4237,93 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function QuickStatCard({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string | number;
+  hint: string;
+}) {
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
+      <p className="mt-1 text-[11px] text-slate-500">{hint}</p>
+    </article>
+  );
+}
+
+function InfoTag({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "slate" | "amber" | "sky" | "rose";
+}) {
+  const className: Record<typeof tone, string> = {
+    slate: "border-slate-200 bg-white text-slate-700",
+    amber: "border-amber-200 bg-amber-100 text-amber-800",
+    sky: "border-sky-200 bg-sky-100 text-sky-800",
+    rose: "border-rose-200 bg-rose-100 text-rose-800",
+  };
+
+  return (
+    <span className={["rounded-full border px-2 py-0.5 text-[11px] font-medium", className[tone]].join(" ")}>
+      {label}
+    </span>
+  );
+}
+
+function DiagnosisTypeTag({
+  type,
+}: {
+  type: PatientRecord["diagnoses"][number]["type"];
+}) {
+  const className: Record<PatientRecord["diagnoses"][number]["type"], string> = {
+    Principal: "border-red-200 bg-red-50 text-red-700",
+    Secundario: "border-amber-200 bg-amber-50 text-amber-700",
+    Presuntivo: "border-sky-200 bg-sky-50 text-sky-700",
+  };
+
+  return (
+    <span className={["rounded-full border px-2 py-0.5 text-[11px] font-semibold", className[type]].join(" ")}>
+      {type}
+    </span>
+  );
+}
+
+function DiagnosisStatusTag({ status }: { status: string }) {
+  const isActive = /activo/i.test(status);
+  return (
+    <span
+      className={[
+        "rounded-full border px-2 py-0.5 text-[11px] font-medium",
+        isActive
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+          : "border-slate-200 bg-white text-slate-600",
+      ].join(" ")}
+    >
+      {status}
+    </span>
+  );
+}
+
+function TimelineCategoryTag({
+  category,
+}: {
+  category: PatientRecord["timeline"][number]["category"];
+}) {
+  const className = getTimelineCategoryTone(category);
+
+  return (
+    <span className={["rounded-full border px-2 py-0.5 text-[11px] font-semibold", className].join(" ")}>
+      {category}
+    </span>
+  );
+}
+
 function KardexDataCell({
   label,
   value,
@@ -4068,6 +4389,45 @@ function ActionChip({ label }: { label: string }) {
       {label}
     </button>
   );
+}
+
+function getTriageWaitTargetMinutes(color: TriageColor) {
+  const map: Record<TriageColor, number> = {
+    rojo: 0,
+    naranja: 10,
+    amarillo: 60,
+    verde: 120,
+    azul: 240,
+  };
+  return map[color];
+}
+
+function getTriageColorCardTone(color: TriageColor) {
+  const map: Record<TriageColor, string> = {
+    rojo: "border-red-200 bg-red-50 text-red-700",
+    naranja: "border-orange-200 bg-orange-50 text-orange-700",
+    amarillo: "border-amber-200 bg-amber-50 text-amber-700",
+    verde: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    azul: "border-sky-200 bg-sky-50 text-sky-700",
+  };
+  return map[color];
+}
+
+function getTimelineCategoryTone(category: PatientRecord["timeline"][number]["category"]) {
+  const map: Record<PatientRecord["timeline"][number]["category"], string> = {
+    Ingreso: "border-sky-200 bg-sky-50 text-sky-700",
+    Triaje: "border-orange-200 bg-orange-50 text-orange-700",
+    Signos: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    Medicacion: "border-violet-200 bg-violet-50 text-violet-700",
+    "Nota enfermeria": "border-cyan-200 bg-cyan-50 text-cyan-700",
+    "Nota medica": "border-indigo-200 bg-indigo-50 text-indigo-700",
+    Procedimiento: "border-amber-200 bg-amber-50 text-amber-700",
+    Examen: "border-teal-200 bg-teal-50 text-teal-700",
+    Reporte: "border-slate-200 bg-slate-50 text-slate-700",
+    Alerta: "border-rose-200 bg-rose-50 text-rose-700",
+  };
+
+  return map[category];
 }
 
 function isNoKnownAllergy(value: string) {

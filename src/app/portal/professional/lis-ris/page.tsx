@@ -79,6 +79,18 @@ export default function LisRisPage() {
   const selectedPatientImaging = selectedPatientExams.filter(
     (exam) => exam.category === "Imagenologia"
   );
+  const selectedPatientPending = selectedPatientExams.filter(
+    (exam) => exam.status === "Pendiente"
+  );
+  const selectedPatientValidated = selectedPatientExams.filter(
+    (exam) => exam.status === "Validado"
+  );
+  const selectedPatientLab = selectedPatientExams.filter(
+    (exam) => exam.category === "Laboratorio"
+  );
+  const selectedPatientExamRows = [...selectedPatientExams].sort((a, b) =>
+    (b.resultAt ?? b.requestedAt).localeCompare(a.resultAt ?? a.requestedAt)
+  );
   const selectedTrend = useMemo(
     () => (selectedPatient ? buildPatientTrend(selectedPatient) : []),
     [selectedPatient]
@@ -124,6 +136,52 @@ export default function LisRisPage() {
       />
 
       {selectedPatient ? <PatientContextSummary patient={selectedPatient} compact /> : null}
+
+      {selectedPatient ? (
+        <Panel
+          title="Tablero LIS/RIS del paciente seleccionado"
+          subtitle="Lectura rapida de estado de examenes, criticidad y tiempos"
+        >
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <StatMini label="Total examenes" value={selectedPatientExams.length} />
+            <StatMini label="Pendientes" value={selectedPatientPending.length} tone="amber" />
+            <StatMini label="Validados" value={selectedPatientValidated.length} tone="emerald" />
+            <StatMini label="Criticos" value={selectedPatientCritical.length} tone="red" />
+            <StatMini label="Laboratorio" value={selectedPatientLab.length} tone="sky" />
+          </div>
+
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="px-3 py-2 font-semibold">Examen</th>
+                  <th className="px-3 py-2 font-semibold">Categoria</th>
+                  <th className="px-3 py-2 font-semibold">Estado</th>
+                  <th className="px-3 py-2 font-semibold">Solicitado</th>
+                  <th className="px-3 py-2 font-semibold">Resultado</th>
+                  <th className="px-3 py-2 font-semibold">Resumen</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {selectedPatientExamRows.map((exam) => (
+                  <tr key={exam.id} className="hover:bg-slate-50">
+                    <td className="px-3 py-2 text-slate-800">{exam.name}</td>
+                    <td className="px-3 py-2">
+                      <ExamCategoryTag category={exam.category} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <ExamStatusTag status={exam.status} critical={isCriticalExam(exam)} />
+                    </td>
+                    <td className="px-3 py-2 text-slate-600">{exam.requestedAt}</td>
+                    <td className="px-3 py-2 text-slate-600">{exam.resultAt ?? "Pendiente"}</td>
+                    <td className="px-3 py-2 text-slate-700">{exam.summary}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Panel title="Solicitud por perfiles" subtitle="Ordenes estandarizadas para reducir errores y acelerar tiempos">
@@ -246,3 +304,72 @@ function buildPatientTrend(patient: PatientRecord): LabTrendPoint[] {
   ];
 }
 
+function StatMini({
+  label,
+  value,
+  tone = "slate",
+}: {
+  label: string;
+  value: string | number;
+  tone?: "slate" | "amber" | "red" | "emerald" | "sky";
+}) {
+  const className: Record<typeof tone, string> = {
+    slate: "border-slate-200 bg-slate-50 text-slate-700",
+    amber: "border-amber-200 bg-amber-50 text-amber-700",
+    red: "border-red-200 bg-red-50 text-red-700",
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    sky: "border-sky-200 bg-sky-50 text-sky-700",
+  };
+
+  return (
+    <article className={["rounded-xl border p-3", className[tone]].join(" ")}>
+      <p className="text-[11px] font-semibold uppercase tracking-wide">{label}</p>
+      <p className="mt-1 text-lg font-semibold">{value}</p>
+    </article>
+  );
+}
+
+function ExamStatusTag({
+  status,
+  critical,
+}: {
+  status: ExamRecord["status"];
+  critical: boolean;
+}) {
+  if (critical) {
+    return (
+      <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+        Critico
+      </span>
+    );
+  }
+
+  const className: Record<ExamRecord["status"], string> = {
+    Pendiente: "border-amber-200 bg-amber-50 text-amber-700",
+    Procesado: "border-sky-200 bg-sky-50 text-sky-700",
+    Validado: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  };
+
+  return (
+    <span className={["rounded-full border px-2 py-0.5 text-[11px] font-semibold", className[status]].join(" ")}>
+      {status}
+    </span>
+  );
+}
+
+function ExamCategoryTag({ category }: { category: ExamRecord["category"] }) {
+  const className: Record<ExamRecord["category"], string> = {
+    Laboratorio: "border-indigo-200 bg-indigo-50 text-indigo-700",
+    Imagenologia: "border-cyan-200 bg-cyan-50 text-cyan-700",
+    Microbiologia: "border-violet-200 bg-violet-50 text-violet-700",
+    "Prueba rapida": "border-slate-200 bg-slate-50 text-slate-700",
+    Electrocardiograma: "border-rose-200 bg-rose-50 text-rose-700",
+    Otro: "border-slate-200 bg-slate-50 text-slate-700",
+  };
+
+  return (
+    <span className={["rounded-full border px-2 py-0.5 text-[11px] font-semibold", className[category]].join(" ")}>
+      {category}
+    </span>
+  );
+}
