@@ -136,7 +136,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
 
-  const [selectedTab, setSelectedTab] = useState<PatientTabId>("summary");
+  const [selectedTab, setSelectedTab] = useState<PatientTabId | null>(null);
   const [selectedNursingNoteId, setSelectedNursingNoteId] = useState<string | null>(null);
   const [selectedMedicalNoteId, setSelectedMedicalNoteId] = useState<string | null>(null);
   const [selectedNursingShiftReportId, setSelectedNursingShiftReportId] = useState<string | null>(
@@ -208,7 +208,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     details: "",
   });
 
-  const activeTab = isTab(requestedTab) ? requestedTab : selectedTab;
+  const activeTab = selectedTab ?? (isTab(requestedTab) ? requestedTab : "summary");
 
   const effectiveVitals = useMemo(
     () =>
@@ -664,60 +664,64 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
         )}
       </header>
 
-      <nav className="rounded-2xl border border-slate-200 bg-white p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-3 xl:sticky xl:top-3">
+          <div className="mb-3 border-b border-slate-200 pb-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
-              Navegacion de ficha clinica
+              Submodulos de ficha
             </p>
             <p className="text-[11px] text-slate-500">
-              Selecciona el modulo de trabajo del paciente por area funcional.
+              Navegacion clinica del paciente por area.
             </p>
+            <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600">
+              Activo: <span className="font-semibold text-slate-800">{activeTabLabel}</span>
+            </div>
           </div>
-          <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-            Modulo activo: {activeTabLabel}
-          </span>
-        </div>
 
-        <div className="space-y-3">
-          {Object.entries(groupedTabs).map(([groupName, tabs]) => (
-            <section key={groupName} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                  {groupName}
-                </p>
-                <span className="text-[10px] text-slate-400">{tabs.length} opciones</span>
-              </div>
+          <div className="space-y-3 xl:max-h-[calc(100vh-180px)] xl:overflow-y-auto xl:pr-1">
+            {Object.entries(groupedTabs).map(([groupName, tabs]) => (
+              <section key={groupName}>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    {groupName}
+                  </p>
+                  <span className="text-[10px] text-slate-400">{tabs.length}</span>
+                </div>
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                {tabs.map((tab) => {
-                  const active = tab.id === activeTab;
+                <div className="space-y-1.5">
+                  {tabs.map((tab) => {
+                    const active = tab.id === activeTab;
 
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setSelectedTab(tab.id)}
-                      aria-pressed={active}
-                      className={[
-                        "rounded-lg border px-3 py-2 text-left text-xs transition",
-                        active
-                          ? "border-slate-900 bg-slate-900 text-white shadow-sm"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-100",
-                      ].join(" ")}
-                    >
-                      <p className="font-semibold">{tab.label}</p>
-                      <p className={["mt-0.5 text-[11px]", active ? "text-slate-200" : "text-slate-500"].join(" ")}>
-                        Abrir modulo
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
-        </div>
-      </nav>
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setSelectedTab(tab.id)}
+                        aria-pressed={active}
+                        className={[
+                          "flex w-full items-center justify-between rounded-lg border px-2.5 py-2 text-left text-xs transition",
+                          active
+                            ? "border-sky-300 bg-sky-50 text-sky-800"
+                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                        ].join(" ")}
+                      >
+                        <span className="font-medium">{tab.label}</span>
+                        <span
+                          className={[
+                            "h-1.5 w-1.5 rounded-full",
+                            active ? "bg-sky-600" : "bg-slate-300",
+                          ].join(" ")}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
+        </aside>
+
+        <section className="space-y-4">
 
       {activeTab === "summary" && (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -2225,6 +2229,8 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
           Volver al listado
         </Link>
       </footer>
+        </section>
+      </div>
     </div>
   );
 }
