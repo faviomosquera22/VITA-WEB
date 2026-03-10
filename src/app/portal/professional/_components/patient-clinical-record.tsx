@@ -132,6 +132,15 @@ type NutritionPlanRecord = {
   professional: string;
 };
 
+type ModuleHistoryEntry = {
+  id: string;
+  date: string;
+  dateKey: string;
+  title: string;
+  detail: string;
+  professional?: string;
+};
+
 export default function PatientClinicalRecord({ patient }: { patient: PatientRecord }) {
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
@@ -176,10 +185,13 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     intakeOther: "",
     diuresis: "",
     vomiting: "",
-    drains: "",
-    liquidStools: "",
+    drain1: "",
+    drain2: "",
+    drain3: "",
+    drain4: "",
+    drain5: "",
+    catarsis: "",
     aspiration: "",
-    insensibleLoss: "",
     outputOther: "",
     observations: "",
   });
@@ -216,6 +228,8 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     title: "",
     details: "",
   });
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyDateFilter, setHistoryDateFilter] = useState("");
 
   const activeTab = selectedTab ?? (isTab(requestedTab) ? requestedTab : "summary");
 
@@ -270,6 +284,32 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   const latestVitalDate = splitDateTime(effectiveVitals[0]?.recordedAt ?? patient.admissionDate).date;
   const invasiveRows = buildInvasiveProcedureRows(patient);
   const fluidBalanceSheet = buildFluidBalanceSheet(effectiveFluidBalances, patient.admissionDate);
+  const insensibleLossModel = useMemo(() => {
+    const weightKg = latestVital?.weightKg ?? 70;
+    const shiftHours = 8;
+
+    const vitalInShift =
+      [...effectiveVitals]
+        .filter((vital) => {
+          const hour = getHourFromDateTime(vital.recordedAt);
+          if (hour === null) {
+            return false;
+          }
+          return isHourInShift(hour, fluidForm.shift);
+        })
+        .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))[0] ?? latestVital;
+
+    const temperature = vitalInShift?.temperature ?? latestVital?.temperature ?? 37;
+    const feverFactor = temperature > 37 ? 1 + (temperature - 37) * 0.1 : 1;
+    const totalMl = Math.round(weightKg * 0.5 * shiftHours * feverFactor);
+
+    return {
+      totalMl,
+      weightKg,
+      temperature,
+      shiftHours,
+    };
+  }, [effectiveVitals, fluidForm.shift, latestVital]);
   const fluidDraftSummary = useMemo(() => {
     const intake = {
       oral: parseMlValue(fluidForm.oral),
@@ -282,10 +322,15 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     const output = {
       diuresis: parseMlValue(fluidForm.diuresis),
       vomiting: parseMlValue(fluidForm.vomiting),
-      drains: parseMlValue(fluidForm.drains),
-      liquidStools: parseMlValue(fluidForm.liquidStools),
+      drains:
+        parseMlValue(fluidForm.drain1) +
+        parseMlValue(fluidForm.drain2) +
+        parseMlValue(fluidForm.drain3) +
+        parseMlValue(fluidForm.drain4) +
+        parseMlValue(fluidForm.drain5),
+      liquidStools: parseMlValue(fluidForm.catarsis),
       aspiration: parseMlValue(fluidForm.aspiration),
-      insensibleLoss: parseMlValue(fluidForm.insensibleLoss),
+      insensibleLoss: insensibleLossModel.totalMl,
       other: parseMlValue(fluidForm.outputOther),
     };
 
@@ -311,7 +356,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       outputTotal,
       balance: intakeTotal - outputTotal,
     };
-  }, [fluidForm]);
+  }, [fluidForm, insensibleLossModel.totalMl]);
   const selectedNursingNote =
     effectiveNursingNotes.find((note) => note.id === selectedNursingNoteId) ??
     effectiveNursingNotes[0] ??
@@ -326,6 +371,308 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     null;
   const activeTabLabel = patientTabs.find((tab) => tab.id === activeTab)?.label ?? activeTab;
   const tabAuditRecords = auditRecords.filter((record) => record.tab === activeTab);
+  const moduleHistoryEntries = useMemo<ModuleHistoryEntry[]>(() => {
+    const makeEntry = (
+      id: string,
+      date: string,
+      title: string,
+      detail: string,
+      professional?: string
+    ): ModuleHistoryEntry => ({
+      id,
+      date,
+      dateKey: extractDateKey(date),
+      title,
+      detail,
+      professional,
+    });
+
+    const fromAudit = tabAuditRecords.map((record) =>
+      makeEntry(`audit-${record.id}`, record.timestamp, record.title, record.details, record.professional)
+    );
+
+    let entries: ModuleHistoryEntry[] = [];
+
+    if (activeTab === "summary") {
+      entries = timelineSorted.map((event) =>
+        makeEntry(
+          `timeline-${event.id}`,
+          event.datetime,
+          `${event.category}`,
+          event.detail,
+          patient.assignedProfessional
+        )
+      );
+    }
+
+    if (activeTab === "personal") {
+      entries = [
+        makeEntry(
+          `personal-${patient.id}`,
+          patient.admissionDate,
+          "Registro de datos personales",
+          `Direccion ${patient.personalData.address} · Contacto ${patient.personalData.phone}`,
+          patient.assignedProfessional
+        ),
+      ];
+    }
+
+    if (activeTab === "background") {
+      entries = [
+        makeEntry(
+          `background-${patient.id}`,
+          patient.admissionDate,
+          "Registro de antecedentes",
+          `Patologicos: ${patient.antecedentes.pathological.join(", ") || "Sin registros"}`,
+          patient.assignedProfessional
+        ),
+      ];
+    }
+
+    if (activeTab === "triage") {
+      entries = [
+        makeEntry(
+          `triage-${patient.id}`,
+          patient.triageAssessment.evaluatedAt,
+          `Triaje ${patient.triageAssessment.triageColor}`,
+          `${patient.triageAssessment.consultationReason} · Riesgo ${patient.triageAssessment.riskClassification}`,
+          patient.assignedProfessional
+        ),
+      ];
+    }
+
+    if (activeTab === "vitals") {
+      entries = effectiveVitals.map((vital) =>
+        makeEntry(
+          `vital-${vital.recordedAt}`,
+          vital.recordedAt,
+          "Control de signos vitales",
+          `TA ${vital.bloodPressure} · FC ${vital.heartRate} · FR ${vital.respiratoryRate} · T° ${vital.temperature} · SpO2 ${vital.spo2}%`,
+          vital.professional
+        )
+      );
+    }
+
+    if (activeTab === "fluid_balance") {
+      entries = effectiveFluidBalances.map((entry) => {
+        const intake = sumObjectValues(entry.intake);
+        const output = sumObjectValues(entry.output);
+        return makeEntry(
+          `fluid-${entry.id}`,
+          `${entry.date} ${entry.shift}`,
+          `Balance hidrico ${entry.shift}`,
+          `Ingreso ${intake} ml · Egreso ${output} ml · Diuresis ${entry.output.diuresis} ml`,
+          patient.assignedProfessional
+        );
+      });
+    }
+
+    if (activeTab === "medication") {
+      entries = patient.medicationRecords.map((record) =>
+        makeEntry(
+          `med-${record.id}`,
+          record.startDate,
+          `${record.name} ${record.dose}`,
+          `${record.frequency} · ${record.route} · Estado ${record.administrationStatus}`,
+          record.prescriber
+        )
+      );
+    }
+
+    if (activeTab === "nursing_notes") {
+      entries = effectiveNursingNotes.map((note) =>
+        makeEntry(`nn-${note.id}`, note.datetime, "Nota de enfermeria", note.note, note.professional)
+      );
+    }
+
+    if (activeTab === "medical_notes") {
+      entries = effectiveMedicalNotes.map((note) =>
+        makeEntry(`mn-${note.id}`, note.datetime, "Nota medica", note.note, note.professional)
+      );
+    }
+
+    if (activeTab === "nursing_report") {
+      entries = effectiveNursingShiftReports.map((report) =>
+        makeEntry(
+          `nr-${report.id}`,
+          `${report.date} ${report.shift}`,
+          `Reporte de enfermeria ${report.shift}`,
+          `${report.generalStatus} · ${report.carePlan}`,
+          patient.assignedProfessional
+        )
+      );
+    }
+
+    if (activeTab === "kardex") {
+      entries = patient.kardex.map((entry) =>
+        makeEntry(
+          `kardex-${entry.id}`,
+          entry.date,
+          "Registro kardex",
+          `${entry.diagnosis} · ${entry.medicationPlan}`,
+          patient.assignedProfessional
+        )
+      );
+    }
+
+    if (activeTab === "exams") {
+      entries = patient.exams.map((exam) =>
+        makeEntry(
+          `exam-${exam.id}`,
+          exam.resultAt ?? exam.requestedAt,
+          `${exam.name} (${exam.category})`,
+          `${exam.status} · ${exam.summary}`,
+          exam.requestedBy
+        )
+      );
+    }
+
+    if (activeTab === "diagnoses") {
+      entries = patient.diagnoses.map((diagnosis) =>
+        makeEntry(
+          `diagnosis-${diagnosis.id}`,
+          diagnosis.registeredAt,
+          `${diagnosis.type}`,
+          `${diagnosis.diagnosis} · ${diagnosis.status}`,
+          patient.assignedProfessional
+        )
+      );
+    }
+
+    if (activeTab === "procedures") {
+      entries = patient.procedures.map((procedure) =>
+        makeEntry(
+          `procedure-${procedure.id}`,
+          procedure.placedAt,
+          procedure.type,
+          `${procedure.status} · ${procedure.daysInstalled} dias instalado`,
+          procedure.responsibleProfessional
+        )
+      );
+    }
+
+    if (activeTab === "nutrition") {
+      entries = nutritionPlans.map((plan) =>
+        makeEntry(
+          `nutrition-${plan.id}`,
+          plan.date,
+          `Plan nutricional ${plan.dietName}`,
+          `${plan.dietType} · Objetivo: ${plan.objectives}`,
+          plan.professional
+        )
+      );
+    }
+
+    if (activeTab === "vaccination") {
+      entries = [
+        ...patient.vaccination.applied.map((item) =>
+          makeEntry(
+            `vac-applied-${item.vaccine}-${item.date}`,
+            item.date,
+            `Vacuna aplicada: ${item.vaccine}`,
+            item.observations,
+            patient.assignedProfessional
+          )
+        ),
+        ...patient.vaccination.pending.map((item) =>
+          makeEntry(
+            `vac-pending-${item.vaccine}-${item.suggestedDate}`,
+            item.suggestedDate,
+            `Vacuna pendiente: ${item.vaccine}`,
+            `${item.availability} · ${item.observations}`,
+            patient.assignedProfessional
+          )
+        ),
+      ];
+    }
+
+    if (activeTab === "emotional") {
+      entries = patient.emotionalHealth.moodFollowUp.map((entry) =>
+        makeEntry(
+          `emotional-${entry.date}-${entry.mood}`,
+          entry.date,
+          `Seguimiento emocional: ${entry.mood}`,
+          `${entry.stressFactor} · ${entry.observations}`,
+          patient.assignedProfessional
+        )
+      );
+    }
+
+    if (activeTab === "care_plan") {
+      entries = patient.carePlan.map((entry) =>
+        makeEntry(
+          `careplan-${entry.id}`,
+          patient.admissionDate,
+          entry.nursingDiagnosis,
+          `Objetivo: ${entry.objective} · Evaluacion: ${entry.evaluation}`,
+          patient.assignedProfessional
+        )
+      );
+    }
+
+    if (activeTab === "documents" || activeTab === "reports") {
+      entries = patient.documents.map((document) =>
+        makeEntry(
+          `document-${document.id}`,
+          document.date,
+          document.title,
+          `${document.type} · ${document.status}`,
+          document.uploadedBy
+        )
+      );
+    }
+
+    if (activeTab === "timeline") {
+      entries = timelineSorted.map((event) =>
+        makeEntry(
+          `timeline-${event.id}`,
+          event.datetime,
+          `${event.category}`,
+          event.detail,
+          patient.assignedProfessional
+        )
+      );
+    }
+
+    if (activeTab === "education") {
+      entries = educationResources.map((resource) =>
+        makeEntry(
+          `education-${resource.id}`,
+          resource.updatedAt,
+          resource.title,
+          `${resource.condition} · ${resource.format}`,
+          patient.assignedProfessional
+        )
+      );
+    }
+
+    return [...fromAudit, ...entries]
+      .sort((a, b) => {
+        if (a.dateKey === b.dateKey) {
+          return b.date.localeCompare(a.date);
+        }
+        return b.dateKey.localeCompare(a.dateKey);
+      })
+      .slice(0, 200);
+  }, [
+    activeTab,
+    effectiveFluidBalances,
+    effectiveMedicalNotes,
+    effectiveNursingNotes,
+    effectiveNursingShiftReports,
+    effectiveVitals,
+    nutritionPlans,
+    patient,
+    tabAuditRecords,
+    timelineSorted,
+  ]);
+  const filteredModuleHistoryEntries = useMemo(
+    () =>
+      historyDateFilter
+        ? moduleHistoryEntries.filter((entry) => entry.dateKey === historyDateFilter)
+        : moduleHistoryEntries,
+    [historyDateFilter, moduleHistoryEntries]
+  );
 
   const addAuditRecord = (tab: PatientTabId, title: string, details: string) => {
     const professional = currentProfessional.trim() || patient.assignedProfessional;
@@ -446,10 +793,13 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       intakeOther: "",
       diuresis: "",
       vomiting: "",
-      drains: "",
-      liquidStools: "",
+      drain1: "",
+      drain2: "",
+      drain3: "",
+      drain4: "",
+      drain5: "",
+      catarsis: "",
       aspiration: "",
-      insensibleLoss: "",
       outputOther: "",
       observations: "",
     });
@@ -749,6 +1099,24 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
         </aside>
 
         <section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+            <div>
+              <p className="text-xs font-semibold text-slate-800">Modulo actual: {activeTabLabel}</p>
+              <p className="text-[11px] text-slate-500">
+                Registro y consulta historica por fecha en el modulo seleccionado.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setHistoryDateFilter("");
+                setHistoryOpen(true);
+              }}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Ver historico
+            </button>
+          </div>
 
       {activeTab === "summary" && (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -1517,6 +1885,9 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                       Drenajes: M {fluidBalanceSheet.morningDrains} / N {fluidBalanceSheet.nightDrains}
                     </p>
                     <p className="text-[11px]">
+                      Catarsis: M {fluidBalanceSheet.morningCatarsis} / N {fluidBalanceSheet.nightCatarsis}
+                    </p>
+                    <p className="text-[11px]">
                       Otros egresos: M {fluidBalanceSheet.morningOtherOutput} / N {fluidBalanceSheet.nightOtherOutput}
                     </p>
                   </div>
@@ -1616,25 +1987,51 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                         />
                         <InputText
                           type="number"
-                          label="Vomitos"
+                          label="Vomitos / SNG"
                           value={fluidForm.vomiting}
                           onChange={(value) => setFluidForm((prev) => ({ ...prev, vomiting: value }))}
                           placeholder="0"
                         />
                         <InputText
                           type="number"
-                          label="Drenajes"
-                          value={fluidForm.drains}
-                          onChange={(value) => setFluidForm((prev) => ({ ...prev, drains: value }))}
+                          label="Dren 1"
+                          value={fluidForm.drain1}
+                          onChange={(value) => setFluidForm((prev) => ({ ...prev, drain1: value }))}
                           placeholder="0"
                         />
                         <InputText
                           type="number"
-                          label="Deposiciones liquidas"
-                          value={fluidForm.liquidStools}
-                          onChange={(value) =>
-                            setFluidForm((prev) => ({ ...prev, liquidStools: value }))
-                          }
+                          label="Dren 2"
+                          value={fluidForm.drain2}
+                          onChange={(value) => setFluidForm((prev) => ({ ...prev, drain2: value }))}
+                          placeholder="0"
+                        />
+                        <InputText
+                          type="number"
+                          label="Dren 3"
+                          value={fluidForm.drain3}
+                          onChange={(value) => setFluidForm((prev) => ({ ...prev, drain3: value }))}
+                          placeholder="0"
+                        />
+                        <InputText
+                          type="number"
+                          label="Dren 4"
+                          value={fluidForm.drain4}
+                          onChange={(value) => setFluidForm((prev) => ({ ...prev, drain4: value }))}
+                          placeholder="0"
+                        />
+                        <InputText
+                          type="number"
+                          label="Dren 5"
+                          value={fluidForm.drain5}
+                          onChange={(value) => setFluidForm((prev) => ({ ...prev, drain5: value }))}
+                          placeholder="0"
+                        />
+                        <InputText
+                          type="number"
+                          label="Catarsis"
+                          value={fluidForm.catarsis}
+                          onChange={(value) => setFluidForm((prev) => ({ ...prev, catarsis: value }))}
                           placeholder="0"
                         />
                         <InputText
@@ -1646,15 +2043,6 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                         />
                         <InputText
                           type="number"
-                          label="Perdidas insensibles"
-                          value={fluidForm.insensibleLoss}
-                          onChange={(value) =>
-                            setFluidForm((prev) => ({ ...prev, insensibleLoss: value }))
-                          }
-                          placeholder="250"
-                        />
-                        <InputText
-                          type="number"
                           label="Otros egresos"
                           value={fluidForm.outputOther}
                           onChange={(value) =>
@@ -1662,6 +2050,18 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                           }
                           placeholder="0"
                         />
+                        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 sm:col-span-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                            Perdidas insensibles (auto)
+                          </p>
+                          <p className="mt-0.5 text-xs font-semibold text-slate-800">
+                            {insensibleLossModel.totalMl} ml
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            Peso {insensibleLossModel.weightKg} kg · T° {insensibleLossModel.temperature.toFixed(1)} ·
+                            {` ${insensibleLossModel.shiftHours}h`}
+                          </p>
+                        </div>
                         <div className="flex items-end">
                           <div className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2">
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
@@ -2393,6 +2793,63 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
           Volver al listado
         </Link>
       </footer>
+
+      {historyOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Historico de {activeTabLabel}</p>
+                <p className="text-[11px] text-slate-500">Paciente: {patient.fullName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistoryOpen(false)}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-100"
+              >
+                Cerrar
+              </button>
+            </header>
+
+            <div className="border-b border-slate-200 px-4 py-3">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-[220px_minmax(0,1fr)] md:items-end">
+                <InputText
+                  label="Filtrar por fecha"
+                  value={historyDateFilter}
+                  onChange={setHistoryDateFilter}
+                  type="date"
+                />
+                <p className="text-xs text-slate-500">
+                  Registros encontrados: {filteredModuleHistoryEntries.length}
+                </p>
+              </div>
+            </div>
+
+            <div className="max-h-[60vh] overflow-y-auto px-4 py-3">
+              {filteredModuleHistoryEntries.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+                  No hay registros historicos para esta fecha o modulo.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {filteredModuleHistoryEntries.map((entry) => (
+                    <article key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-semibold text-slate-900">{entry.title}</p>
+                        <span className="text-[11px] text-slate-500">{entry.date}</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-700">{entry.detail}</p>
+                      {entry.professional ? (
+                        <p className="mt-1 text-[11px] text-slate-500">Profesional: {entry.professional}</p>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
         </section>
       </div>
     </div>
@@ -2410,7 +2867,7 @@ function InputText({
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-  type?: "text" | "number";
+  type?: "text" | "number" | "date";
 }) {
   return (
     <label>
@@ -2638,6 +3095,30 @@ function normalizeHourLabel(datetime: string) {
   return null;
 }
 
+function getHourFromDateTime(datetime: string) {
+  const { time } = splitDateTime(datetime);
+  const [hourRaw] = time.split(":");
+  const hour = Number(hourRaw);
+
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) {
+    return null;
+  }
+
+  return hour;
+}
+
+function isHourInShift(hour: number, shift: string) {
+  if (/manana|mañana/i.test(shift)) {
+    return hour >= 7 && hour <= 14;
+  }
+
+  if (/tarde/i.test(shift)) {
+    return hour >= 15 && hour <= 22;
+  }
+
+  return hour >= 23 || hour <= 6;
+}
+
 function groupVitalsByHour(vitals: VitalSignRecord[]) {
   return vitals.reduce<Record<string, VitalSignRecord>>((acc, vital) => {
     const hourLabel = normalizeHourLabel(vital.recordedAt);
@@ -2754,6 +3235,7 @@ function buildFluidBalanceSheet(
         acc.insensible += entry.output.insensibleLoss;
         acc.vomiting += entry.output.vomiting;
         acc.drains += entry.output.drains;
+        acc.catarsis += entry.output.liquidStools;
         acc.otherOutput += entry.output.other;
         return acc;
       },
@@ -2764,6 +3246,7 @@ function buildFluidBalanceSheet(
         insensible: 0,
         vomiting: 0,
         drains: 0,
+        catarsis: 0,
         otherOutput: 0,
       }
     );
@@ -2814,6 +3297,8 @@ function buildFluidBalanceSheet(
     nightVomiting: night.vomiting,
     morningDrains: morning.drains,
     nightDrains: night.drains,
+    morningCatarsis: morning.catarsis,
+    nightCatarsis: night.catarsis,
     morningOtherOutput: morning.otherOutput,
     nightOtherOutput: night.otherOutput,
     morningBalance: morningIntake - morningOutput,
@@ -2838,6 +3323,21 @@ function splitDateTime(value: string) {
   const normalized = value.trim().replace("T", " ");
   const [date = "-", time = "-"] = normalized.split(" ");
   return { date, time };
+}
+
+function extractDateKey(value: string) {
+  const datePart = splitDateTime(value).date;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    return datePart;
+  }
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return "";
 }
 
 function buildDoseRouteFrequency(entry: KardexAdministrationRecord) {
