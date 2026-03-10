@@ -139,6 +139,10 @@ type ModuleHistoryEntry = {
   title: string;
   detail: string;
   professional?: string;
+  sections?: Array<{
+    title: string;
+    items: Array<{ label: string; value: string }>;
+  }>;
 };
 
 export default function PatientClinicalRecord({ patient }: { patient: PatientRecord }) {
@@ -377,7 +381,8 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       date: string,
       title: string,
       detail: string,
-      professional?: string
+      professional?: string,
+      sections?: ModuleHistoryEntry["sections"]
     ): ModuleHistoryEntry => ({
       id,
       date,
@@ -385,6 +390,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       title,
       detail,
       professional,
+      sections,
     });
 
     const fromAudit = tabAuditRecords.map((record) =>
@@ -457,12 +463,48 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       entries = effectiveFluidBalances.map((entry) => {
         const intake = sumObjectValues(entry.intake);
         const output = sumObjectValues(entry.output);
+        const balance = intake - output;
+
         return makeEntry(
           `fluid-${entry.id}`,
           `${entry.date} ${entry.shift}`,
           `Balance hidrico ${entry.shift}`,
-          `Ingreso ${intake} ml · Egreso ${output} ml · Diuresis ${entry.output.diuresis} ml`,
-          patient.assignedProfessional
+          `Ingreso ${intake} ml · Egreso ${output} ml · Balance ${balance} ml`,
+          patient.assignedProfessional,
+          [
+            {
+              title: "Ingresos",
+              items: [
+                { label: "Oral", value: `${entry.intake.oral} ml` },
+                { label: "Intravenoso", value: `${entry.intake.intravenous} ml` },
+                { label: "Medicacion diluida", value: `${entry.intake.dilutedMedication} ml` },
+                { label: "Enteral/Parenteral", value: `${entry.intake.enteralParenteral} ml` },
+                { label: "Otros", value: `${entry.intake.other} ml` },
+                { label: "Total", value: `${intake} ml` },
+              ],
+            },
+            {
+              title: "Egresos",
+              items: [
+                { label: "Diuresis", value: `${entry.output.diuresis} ml` },
+                { label: "Vomitos / SNG", value: `${entry.output.vomiting} ml` },
+                { label: "Drenajes", value: `${entry.output.drains} ml` },
+                { label: "Catarsis", value: `${entry.output.liquidStools} ml` },
+                { label: "Aspiracion", value: `${entry.output.aspiration} ml` },
+                { label: "Perdidas insensibles", value: `${entry.output.insensibleLoss} ml` },
+                { label: "Otros", value: `${entry.output.other} ml` },
+                { label: "Total", value: `${output} ml` },
+              ],
+            },
+            {
+              title: "Resumen",
+              items: [
+                { label: "Turno", value: entry.shift },
+                { label: "Balance", value: `${balance} ml` },
+                { label: "Observaciones", value: entry.observations || "Sin observaciones" },
+              ],
+            },
+          ]
         );
       });
     }
@@ -2839,6 +2881,43 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                         <span className="text-[11px] text-slate-500">{entry.date}</span>
                       </div>
                       <p className="mt-1 text-[11px] text-slate-700">{entry.detail}</p>
+                      {entry.sections?.length ? (
+                        <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
+                          {entry.sections.map((section) => (
+                            <section
+                              key={`${entry.id}-${section.title}`}
+                              className="rounded-lg border border-slate-200 bg-white p-2"
+                            >
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                {section.title}
+                              </p>
+                              <dl className="mt-1 space-y-1">
+                                {section.items.map((item) => {
+                                  const isSummaryField = /(total|balance)/i.test(item.label);
+
+                                  return (
+                                    <div
+                                      key={`${entry.id}-${section.title}-${item.label}`}
+                                      className="flex items-start justify-between gap-2 text-[11px]"
+                                    >
+                                      <dt className="text-slate-500">{item.label}</dt>
+                                      <dd
+                                        className={`text-right ${
+                                          isSummaryField
+                                            ? "font-semibold text-slate-900"
+                                            : "text-slate-700"
+                                        }`}
+                                      >
+                                        {item.value}
+                                      </dd>
+                                    </div>
+                                  );
+                                })}
+                              </dl>
+                            </section>
+                          ))}
+                        </div>
+                      ) : null}
                       {entry.professional ? (
                         <p className="mt-1 text-[11px] text-slate-500">Profesional: {entry.professional}</p>
                       ) : null}
