@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { ModulePage, Panel, StatCard } from "../../_components/clinical-ui";
+import type { CedulaLookupErrorResponse, CedulaLookupResponse } from "@/types/paciente-cedula";
 import type { RegisteredPatientRecord, RegisteredPatientSummary } from "@/types/patient-intake";
 
 type FormState = {
@@ -228,6 +229,11 @@ const emptyForm: FormState = {
 export default function PatientIntakePage() {
   const searchParams = useSearchParams();
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [cedulaLookupInput, setCedulaLookupInput] = useState("");
+  const [cedulaLookupLoading, setCedulaLookupLoading] = useState(false);
+  const [cedulaLookupMessage, setCedulaLookupMessage] = useState<string | null>(null);
+  const [cedulaLookupError, setCedulaLookupError] = useState<string | null>(null);
+  const [cedulaLookupExistingUrl, setCedulaLookupExistingUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -255,6 +261,9 @@ export default function PatientIntakePage() {
       sexBiological: sexo || prev.sexBiological,
       gender: sexo || prev.gender,
     }));
+    if (cedula) {
+      setCedulaLookupInput(cedula);
+    }
   }, [searchParams]);
 
   useEffect(() => {
@@ -345,6 +354,67 @@ export default function PatientIntakePage() {
     }
   };
 
+  const onCedulaLookup = async () => {
+    const cedula = normalizeCedula(cedulaLookupInput);
+    setCedulaLookupMessage(null);
+    setCedulaLookupError(null);
+    setCedulaLookupExistingUrl(null);
+
+    if (cedula.length !== 10) {
+      setCedulaLookupError("Ingresa una cedula valida de 10 digitos.");
+      return;
+    }
+
+    setCedulaLookupLoading(true);
+    try {
+      const response = await fetch(
+        `/api/paciente/cedula?cedula=${encodeURIComponent(cedula)}`,
+        {
+          method: "GET",
+          cache: "no-store",
+        }
+      );
+
+      if (!response.ok) {
+        const errorPayload = (await response.json()) as CedulaLookupErrorResponse;
+        throw new Error(errorPayload.error ?? "No se pudo consultar la cedula.");
+      }
+
+      const payload = (await response.json()) as CedulaLookupResponse;
+      if (payload.estado === "found") {
+        setCedulaLookupExistingUrl(
+          payload.paciente.fichaUrl ?? `/portal/professional/patients/${payload.paciente.id}`
+        );
+        setCedulaLookupMessage(
+          `Paciente ya existe en Vita: ${payload.paciente.nombreCompleto} (HC ${payload.paciente.historiaClinicaNumero}).`
+        );
+      } else {
+        setCedulaLookupMessage(
+          `Datos cargados desde Registro Civil para ${payload.registroCivil.nombres} ${payload.registroCivil.apellidos}.`
+        );
+        setForm((prev) => ({
+          ...prev,
+          source: "registro_civil",
+          documentType: "cedula",
+          documentNumber: payload.registroCivil.cedula,
+          firstNames: payload.registroCivil.nombres,
+          lastNames: payload.registroCivil.apellidos,
+          birthDate: payload.registroCivil.fecha_nacimiento ?? prev.birthDate,
+          sexBiological: payload.registroCivil.sexo ?? prev.sexBiological,
+          gender: payload.registroCivil.sexo ?? prev.gender,
+        }));
+      }
+    } catch (lookupError) {
+      setCedulaLookupError(
+        lookupError instanceof Error
+          ? lookupError.message
+          : "Error inesperado al buscar la cedula."
+      );
+    } finally {
+      setCedulaLookupLoading(false);
+    }
+  };
+
   return (
     <ModulePage
       title="Ingreso de paciente"
@@ -360,6 +430,42 @@ export default function PatientIntakePage() {
         </div>
       }
     >
+      <Panel
+        title="Busqueda por cedula (Registro Civil)"
+        subtitle="Consulta server-side con webservices.ec usando token seguro y autocompleta datos de identificacion"
+      >
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="w-full sm:max-w-sm">
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Cedula ecuatoriana
+            </label>
+            <input
+              value={cedulaLookupInput}
+              onChange={(event) => setCedulaLookupInput(normalizeCedula(event.target.value))}
+              maxLength={10}
+              inputMode="numeric"
+              placeholder="Ej. 1722334412"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 focus:border-sky-500 focus:bg-white focus:outline-none"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={onCedulaLookup}
+            disabled={cedulaLookupLoading}
+            className="rounded-full border border-sky-300 bg-sky-600 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {cedulaLookupLoading ? "Consultando..." : "Buscar por cedula"}
+          </button>
+        </div>
+        {cedulaLookupMessage ? <p className="mt-2 text-xs text-emerald-700">{cedulaLookupMessage}</p> : null}
+        {cedulaLookupError ? <p className="mt-2 text-xs text-red-700">{cedulaLookupError}</p> : null}
+        {cedulaLookupExistingUrl ? (
+          <Link href={cedulaLookupExistingUrl} className="mt-2 inline-block text-xs font-semibold text-sky-700 underline">
+            Abrir ficha existente
+          </Link>
+        ) : null}
+      </Panel>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <StatCard label="Campos obligatorios" value={4} hint="Documento, nombres, apellidos y motivo" />
         <StatCard label="Faltantes actuales" value={requiredMissing.length} hint={requiredMissing.join(", ") || "Formulario listo"} />
@@ -927,6 +1033,10 @@ function buildPayload(form: FormState) {
       disasterRecoveryValidated: true,
     },
   };
+}
+
+function normalizeCedula(value: string) {
+  return value.replace(/\D/g, "").slice(0, 10);
 }
 
 function splitMultiline(value: string) {

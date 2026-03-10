@@ -1,124 +1,184 @@
+"use client";
+
+import { useState } from "react";
+
 import { ModulePage, Panel, StatCard } from "../_components/clinical-ui";
-import { mockPatients, type FluidBalanceRecord, type PatientRecord } from "../_data/clinical-mock-data";
-
-type BedState = "Ocupada" | "Libre" | "Limpieza" | "Reservada";
-
-type BedSlot = {
-  id: string;
-  room: string;
-  bed: string;
-  state: BedState;
-  patientName?: string;
-};
-
-const bedMap: BedSlot[] = [
-  { id: "b-1", room: "Sala A", bed: "A-01", state: "Ocupada", patientName: "Maria Lopez" },
-  { id: "b-2", room: "Sala A", bed: "A-02", state: "Ocupada", patientName: "Juan Perez" },
-  { id: "b-3", room: "Sala A", bed: "A-03", state: "Limpieza" },
-  { id: "b-4", room: "Sala A", bed: "A-04", state: "Libre" },
-  { id: "b-5", room: "Sala B", bed: "B-01", state: "Ocupada", patientName: "Sofia Mendoza" },
-  { id: "b-6", room: "Sala B", bed: "B-02", state: "Reservada" },
-  { id: "b-7", room: "Sala B", bed: "B-03", state: "Libre" },
-  { id: "b-8", room: "Sala B", bed: "B-04", state: "Ocupada", patientName: "Ana Torres" },
-];
+import {
+  getPatientById,
+  mockPatients,
+  type FluidBalanceRecord,
+  type PatientRecord,
+} from "../_data/clinical-mock-data";
+import {
+  hospitalBedSlots,
+  hospitalRooms,
+  type HospitalBedState,
+} from "../_data/facility-layout-mock-data";
 
 const adtEvents = [
   {
     id: "adt-1",
     datetime: "2026-03-10 07:25",
     action: "Admision",
-    patient: "Sofia Mendoza",
-    detail: "Ingreso a Sala B · cama B-01 por control metabolico.",
+    patientId: "p-005",
+    roomId: "sala-b",
+    detail: "Ingreso por control metabolico y vigilancia de glicemia.",
   },
   {
     id: "adt-2",
     datetime: "2026-03-10 09:10",
     action: "Traslado",
-    patient: "Juan Perez",
-    detail: "Traslado de observacion a hospitalizacion Sala A · cama A-02.",
+    patientId: "p-002",
+    roomId: "sala-a",
+    detail: "Traslado de observacion a cama de hospitalizacion.",
   },
   {
     id: "adt-3",
     datetime: "2026-03-10 11:45",
     action: "Alta",
-    patient: "Carlos Gomez",
-    detail: "Alta medica con indicaciones y seguimiento ambulatorio en 72h.",
+    patientId: "p-003",
+    roomId: "sala-c",
+    detail: "Alta medica con control ambulatorio en 72h.",
   },
 ];
 
 export default function HospitalizationPage() {
-  const hospitalized = mockPatients.filter((patient) => patient.careMode === "Hospitalizacion");
-  const occupiedBeds = bedMap.filter((slot) => slot.state === "Ocupada").length;
-  const availableBeds = bedMap.filter((slot) => slot.state === "Libre").length;
-  const fluidSummary = summarizeFluid(hospitalized);
-  const epicrisisPatient = hospitalized[0] ?? mockPatients[0];
+  const [selectedRoomId, setSelectedRoomId] = useState(hospitalRooms[0]?.id ?? "");
+
+  const selectedRoom = hospitalRooms.find((room) => room.id === selectedRoomId) ?? hospitalRooms[0];
+  const roomBeds = hospitalBedSlots.filter((slot) => slot.roomId === selectedRoom.id);
+  const occupiedBeds = roomBeds.filter((slot) => slot.state === "Ocupada");
+  const availableBeds = roomBeds.filter((slot) => slot.state === "Disponible");
+  const roomPatients = occupiedBeds
+    .map((slot) => (slot.patientId ? getPatientById(slot.patientId) : null))
+    .filter((patient): patient is PatientRecord => patient !== null);
+  const roomAdtEvents = adtEvents.filter((event) => event.roomId === selectedRoom.id);
+  const fluidSummary = summarizeFluid(roomPatients);
+  const epicrisisPatient = roomPatients[0] ?? mockPatients[0];
 
   return (
     <ModulePage
       title="Hospitalizacion y camas"
-      subtitle="Mapa de camas en tiempo real, flujo ADT, balance hidrico y epicrisis estructurada."
+      subtitle="Seleccion por sala, mapa visual de camas y datos de pacientes hospitalizados."
     >
+      <Panel title="Salas de hospitalizacion" subtitle="Selecciona una sala para visualizar camas y pacientes">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+          {hospitalRooms.map((room) => {
+            const bedsInRoom = hospitalBedSlots.filter((slot) => slot.roomId === room.id);
+            const busy = bedsInRoom.filter((slot) => slot.state === "Ocupada").length;
+
+            return (
+              <button
+                key={room.id}
+                type="button"
+                onClick={() => setSelectedRoomId(room.id)}
+                className={[
+                  "rounded-xl border p-3 text-left transition",
+                  selectedRoom.id === room.id
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
+                ].join(" ")}
+              >
+                <p className="text-xs font-semibold">{room.label}</p>
+                <p className="text-[11px] opacity-80">{room.floor} · {room.service}</p>
+                <p className="text-[11px] opacity-80">
+                  Camas: {busy}/{bedsInRoom.length} ocupadas
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </Panel>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <StatCard label="Camas ocupadas" value={occupiedBeds} hint={`Total mapa: ${bedMap.length}`} />
-        <StatCard label="Camas libres" value={availableBeds} hint="Disponibles para admision" />
-        <StatCard label="Pacientes hospitalizados" value={hospitalized.length} hint="Con seguimiento activo" />
-        <StatCard label="Balance 24h global" value={`${fluidSummary.balance} ml`} hint="Ingreso menos egreso" />
+        <StatCard label="Sala activa" value={selectedRoom.label} hint={`${selectedRoom.floor} · ${selectedRoom.service}`} />
+        <StatCard label="Camas ocupadas" value={occupiedBeds.length} hint={`Total sala: ${roomBeds.length}`} />
+        <StatCard label="Camas disponibles" value={availableBeds.length} hint='Marcadas como "Disponible"' />
+        <StatCard label="Balance 24h sala" value={`${fluidSummary.balance} ml`} hint="Ingreso menos egreso" />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <Panel title="Mapa de camas" subtitle="Estado por sala y cama: ocupada, libre, limpieza o reservada">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {bedMap.map((slot) => (
-              <article key={slot.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-slate-900">
-                    {slot.room} · {slot.bed}
-                  </p>
-                  <BedStateBadge state={slot.state} />
-                </div>
-                <p className="text-[11px] text-slate-500">{slot.patientName ?? "Sin paciente asignado"}</p>
-              </article>
-            ))}
-          </div>
-        </Panel>
-
-        <Panel title="Movimientos ADT" subtitle="Admision, traslado y alta con trazabilidad operativa">
-          <div className="space-y-2">
-            {adtEvents.map((event) => (
-              <article key={event.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-slate-900">
-                    {event.action} · {event.patient}
-                  </p>
-                  <span className="text-[11px] text-slate-500">{event.datetime}</span>
-                </div>
-                <p className="text-[11px] text-slate-600">{event.detail}</p>
-              </article>
-            ))}
-          </div>
-        </Panel>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <Panel title="Balance hidrico por hospitalizacion" subtitle="Entradas, salidas y diuresis para vigilancia clinica">
-          <div className="space-y-2">
-            {hospitalized.map((patient) => {
-              const totals = summarizePatientFluid(patient.fluidBalances);
-
+        <Panel title={`Mapa visual de camas - ${selectedRoom.label}`} subtitle="Cada cama muestra estado y datos del paciente cuando esta ocupada">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {roomBeds.map((slot) => {
+              const patient = slot.patientId ? getPatientById(slot.patientId) : null;
               return (
-                <article key={patient.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-semibold text-slate-900">{patient.fullName}</p>
-                  <p className="text-[11px] text-slate-500">
-                    Ingreso: {totals.intake} ml · Egreso: {totals.output} ml · Balance: {totals.balance} ml
-                  </p>
-                  <p className="text-[11px] text-slate-600">Diuresis acumulada: {totals.diuresis} ml</p>
+                <article
+                  key={slot.id}
+                  className={[
+                    "rounded-xl border p-3",
+                    slot.state === "Ocupada" ? "border-red-200 bg-red-50" : "border-slate-200 bg-slate-50",
+                  ].join(" ")}
+                >
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-slate-900">
+                      Cama {slot.bedLabel}
+                    </p>
+                    <BedStateBadge state={slot.state} />
+                  </div>
+                  {patient ? (
+                    <>
+                      <p className="text-xs font-semibold text-slate-900">{patient.fullName}</p>
+                      <p className="text-[11px] text-slate-600">HC {patient.medicalRecordNumber}</p>
+                      <p className="text-[11px] text-slate-600">{patient.primaryDiagnosis}</p>
+                    </>
+                  ) : (
+                    <p className="text-[11px] font-semibold text-slate-600">Disponible</p>
+                  )}
                 </article>
               );
             })}
           </div>
         </Panel>
 
-        <Panel title="Epicrisis preestructurada" subtitle="Borrador automatico para cierre de hospitalizacion">
+        <Panel title={`Movimientos ADT - ${selectedRoom.label}`} subtitle="Admision, traslado y alta con trazabilidad por sala">
+          <div className="space-y-2">
+            {roomAdtEvents.length === 0 ? (
+              <p className="text-xs text-slate-500">Sin movimientos recientes en esta sala.</p>
+            ) : (
+              roomAdtEvents.map((event) => {
+                const patient = getPatientById(event.patientId);
+                return (
+                  <article key={event.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-slate-900">
+                        {event.action} · {patient?.fullName ?? "Paciente"}
+                      </p>
+                      <span className="text-[11px] text-slate-500">{event.datetime}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600">{event.detail}</p>
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <Panel title={`Balance hidrico por paciente - ${selectedRoom.label}`} subtitle="Entradas, salidas y diuresis de pacientes ubicados en la sala">
+          <div className="space-y-2">
+            {roomPatients.length === 0 ? (
+              <p className="text-xs text-slate-500">No hay pacientes ocupando camas en esta sala.</p>
+            ) : (
+              roomPatients.map((patient) => {
+                const totals = summarizePatientFluid(patient.fluidBalances);
+
+                return (
+                  <article key={patient.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs font-semibold text-slate-900">{patient.fullName}</p>
+                    <p className="text-[11px] text-slate-500">
+                      Ingreso: {totals.intake} ml · Egreso: {totals.output} ml · Balance: {totals.balance} ml
+                    </p>
+                    <p className="text-[11px] text-slate-600">Diuresis acumulada: {totals.diuresis} ml</p>
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </Panel>
+
+        <Panel title="Epicrisis preestructurada" subtitle="Borrador automatico para cierre de hospitalizacion del paciente seleccionado">
           <article className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
             <p className="font-semibold text-slate-900">
               Paciente: {epicrisisPatient.fullName} · HC {epicrisisPatient.medicalRecordNumber}
@@ -183,10 +243,10 @@ function summarizePatientFluid(entries: FluidBalanceRecord[]) {
   );
 }
 
-function BedStateBadge({ state }: { state: BedState }) {
-  const className: Record<BedState, string> = {
+function BedStateBadge({ state }: { state: HospitalBedState }) {
+  const className: Record<HospitalBedState, string> = {
     Ocupada: "border-red-200 bg-red-50 text-red-700",
-    Libre: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    Disponible: "border-emerald-200 bg-emerald-50 text-emerald-700",
     Limpieza: "border-amber-200 bg-amber-50 text-amber-700",
     Reservada: "border-sky-200 bg-sky-50 text-sky-700",
   };

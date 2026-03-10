@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { ModulePage, Panel, StatCard } from "../_components/clinical-ui";
 import {
@@ -9,11 +9,25 @@ import {
   PatientFinder,
   usePatientSelection,
 } from "../_components/patient-workspace";
-import { getLatestVitalByPatient, mockPatients } from "../_data/clinical-mock-data";
+import {
+  getLatestVitalByPatient,
+  getPatientServiceArea,
+  mockPatients,
+  type ServiceArea,
+} from "../_data/clinical-mock-data";
 
 export default function VitalsPage() {
+  const [areaFilter, setAreaFilter] = useState<"all" | ServiceArea>("all");
+  const patientsByArea = useMemo(
+    () =>
+      areaFilter === "all"
+        ? mockPatients
+        : mockPatients.filter((patient) => getPatientServiceArea(patient) === areaFilter),
+    [areaFilter]
+  );
+
   const { search, setSearch, selectedPatientId, setSelectedPatientId, filteredPatients, selectedPatient } =
-    usePatientSelection(mockPatients);
+    usePatientSelection(patientsByArea);
 
   const rows = useMemo(
     () =>
@@ -42,23 +56,41 @@ export default function VitalsPage() {
       }
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard label="Pacientes en sala" value={patientsByArea.length} hint={areaFilter === "all" ? "Todas las areas" : areaFilter} />
         <StatCard label="Pacientes con registro" value={rows.length} hint="Ultimo control disponible" />
         <StatCard label="Con valores alterados" value={flagged.length} hint="Fuera de rango" />
         <StatCard
           label="Sin control actualizado"
-          value={mockPatients.length - rows.filter((entry) => entry.latestVital?.recordedAt.startsWith("2026-03-08")).length}
+          value={patientsByArea.length - rows.filter((entry) => entry.latestVital?.recordedAt.startsWith("2026-03-08")).length}
           hint="Pendientes de registro del dia"
         />
       </div>
 
+      <article className="rounded-2xl border border-slate-200 bg-white p-4">
+        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          Sala / area para signos vitales
+        </label>
+        <select
+          value={areaFilter}
+          onChange={(event) => setAreaFilter(event.target.value as "all" | ServiceArea)}
+          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 focus:border-sky-500 focus:bg-white focus:outline-none sm:max-w-sm"
+        >
+          <option value="all">Todas las areas</option>
+          <option value="Emergencia">Emergencia</option>
+          <option value="Observacion">Observacion</option>
+          <option value="Hospitalizacion">Hospitalizacion</option>
+          <option value="Consulta externa">Consulta externa</option>
+        </select>
+      </article>
+
       <PatientFinder
-        patients={filteredPatients.length ? filteredPatients : mockPatients}
+        patients={filteredPatients.length ? filteredPatients : patientsByArea}
         searchValue={search}
         onSearchChange={setSearch}
         selectedPatientId={selectedPatientId}
         onSelectPatient={setSelectedPatientId}
         title="Busqueda de paciente para signos vitales"
-        subtitle="Selecciona paciente para registrar nuevos controles o revisar tendencias."
+        subtitle="Primero selecciona sala/area y luego elige el paciente para revisar sus controles."
       />
 
       {selectedPatient ? <PatientContextSummary patient={selectedPatient} compact /> : null}
