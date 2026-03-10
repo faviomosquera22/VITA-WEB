@@ -32,6 +32,25 @@ export default function TriagePage() {
   const urgent = triageQueue.filter(
     (patient) => patient.triageColor === "rojo" || patient.triageColor === "naranja"
   );
+  const triageWaitData = triageQueue.map((patient, index) => {
+    const limitMinutes = getWaitLimit(patient.triageColor);
+    const waitMinutes = getEstimatedWaitMinutes(patient.triageColor, index);
+
+    return {
+      patient,
+      limitMinutes,
+      waitMinutes,
+      overdue: waitMinutes > limitMinutes,
+    };
+  });
+  const overdueRetriage = triageWaitData.filter((item) => item.overdue);
+  const doorToDoctorMinutes = triageWaitData.length
+    ? Math.round(
+        triageWaitData.reduce((acc, item) => acc + item.waitMinutes, 0) /
+          triageWaitData.length
+      )
+    : 0;
+  const doorToAnalgesiaMinutes = doorToDoctorMinutes + 8;
 
   return (
     <ModulePage
@@ -46,13 +65,19 @@ export default function TriagePage() {
         </Link>
       }
     >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Pacientes clasificados" value={triageQueue.length} hint="Cola segun filtros activos" />
         <StatCard label="Urgencia alta" value={urgent.length} hint="Triage rojo y naranja" />
         <StatCard
           label="No reevaluados"
           value={triageQueue.filter((patient) => patient.currentStatus === "En observacion").length}
           hint="Priorizar reevaluacion"
+        />
+        <StatCard label="Puerta-medico" value={`${doorToDoctorMinutes} min`} hint="Promedio del turno" />
+        <StatCard
+          label="Re-triaje automatico"
+          value={overdueRetriage.length}
+          hint="Pacientes fuera de tiempo objetivo"
         />
       </div>
 
@@ -128,6 +153,65 @@ export default function TriagePage() {
         </div>
       </Panel>
 
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <Panel
+          title="Triage avanzado (Manchester / ESI)"
+          subtitle="Flujo guiado por prioridad, tiempo objetivo y control de sala de espera"
+        >
+          <div className="space-y-2 text-xs text-slate-700">
+            <article className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="font-semibold text-slate-900">1. Priorizacion inicial</p>
+              <p className="text-[11px] text-slate-600">
+                Seleccion de flujo clinico (dolor toracico, disnea, trauma, fiebre) y asignacion de nivel ESI/MTS.
+              </p>
+            </article>
+            <article className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="font-semibold text-slate-900">2. Tiempo objetivo por nivel</p>
+              <p className="text-[11px] text-slate-600">
+                Rojo: inmediato · Naranja: 10 min · Amarillo: 30 min · Verde: 60 min · Azul: 120 min.
+              </p>
+            </article>
+            <article className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="font-semibold text-slate-900">3. Indicadores urgencias</p>
+              <p className="text-[11px] text-slate-600">
+                Puerta-medico: {doorToDoctorMinutes} min · Puerta-analgesia: {doorToAnalgesiaMinutes} min · Alta &lt; 4h: 74%.
+              </p>
+            </article>
+          </div>
+        </Panel>
+
+        <Panel
+          title="Re-triaje automatico y sala de espera"
+          subtitle="Pacientes que exceden el tiempo de espera permitido por su prioridad"
+        >
+          <div className="space-y-2">
+            {overdueRetriage.length === 0 ? (
+              <p className="text-xs text-slate-500">Sin pacientes fuera de tiempo objetivo.</p>
+            ) : (
+              overdueRetriage.map((item) => (
+                <article
+                  key={`retriage-${item.patient.id}`}
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-slate-900">{item.patient.fullName}</p>
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                      Re-triaje requerido
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Espera: {item.waitMinutes} min · Limite nivel {item.patient.triageColor}: {item.limitMinutes} min
+                  </p>
+                  <p className="text-[11px] text-slate-600">
+                    Pantalla publica: turno #{item.patient.code.replace("PAC-", "")} (sin datos sensibles).
+                  </p>
+                </article>
+              ))
+            )}
+          </div>
+        </Panel>
+      </div>
+
       {selectedPatient ? (
         <Panel
           title="Vista por paciente: evaluacion y reevaluacion"
@@ -181,4 +265,28 @@ function Field({ label, value }: { label: string; value: string }) {
       <p className="mt-0.5 text-xs text-slate-700">{value}</p>
     </div>
   );
+}
+
+function getWaitLimit(color: TriageColor) {
+  const limits: Record<TriageColor, number> = {
+    rojo: 0,
+    naranja: 10,
+    amarillo: 30,
+    verde: 60,
+    azul: 120,
+  };
+
+  return limits[color];
+}
+
+function getEstimatedWaitMinutes(color: TriageColor, index: number) {
+  const base: Record<TriageColor, number> = {
+    rojo: 2,
+    naranja: 14,
+    amarillo: 24,
+    verde: 48,
+    azul: 90,
+  };
+
+  return base[color] + index * 3;
 }

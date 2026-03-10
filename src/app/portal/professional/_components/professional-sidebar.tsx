@@ -31,6 +31,13 @@ const moduleIconMap: Record<ProfessionalModuleId, (className: string) => JSX.Ele
   patients: patientsIcon,
   triage: triageIcon,
   follow_up: followUpIcon,
+  shift: shiftIcon,
+  hce: hceIcon,
+  prescription: prescriptionIcon,
+  lis_ris: lisRisIcon,
+  hospitalization: hospitalizationIcon,
+  surgery: surgeryIcon,
+  population: populationIcon,
   vitals: vitalsIcon,
   medication: medicationIcon,
   vaccination: vaccinationIcon,
@@ -41,6 +48,7 @@ const moduleIconMap: Record<ProfessionalModuleId, (className: string) => JSX.Ele
   health_education: educationIcon,
   alerts: alertsIcon,
   care_team: careTeamIcon,
+  compliance: complianceIcon,
   settings: settingsIcon,
 };
 
@@ -69,6 +77,34 @@ const modulePathMatchers: Array<{
       pathname.startsWith("/portal/professional/follow-up") ||
       pathname.startsWith("/portal/professional/fluid-balance") ||
       pathname.startsWith("/portal/professional/kardex"),
+  },
+  {
+    id: "shift",
+    matcher: (pathname) => pathname.startsWith("/portal/professional/turno"),
+  },
+  {
+    id: "hce",
+    matcher: (pathname) => pathname.startsWith("/portal/professional/hce"),
+  },
+  {
+    id: "prescription",
+    matcher: (pathname) => pathname.startsWith("/portal/professional/prescripcion"),
+  },
+  {
+    id: "lis_ris",
+    matcher: (pathname) => pathname.startsWith("/portal/professional/lis-ris"),
+  },
+  {
+    id: "hospitalization",
+    matcher: (pathname) => pathname.startsWith("/portal/professional/hospitalizacion"),
+  },
+  {
+    id: "surgery",
+    matcher: (pathname) => pathname.startsWith("/portal/professional/quirurgico"),
+  },
+  {
+    id: "population",
+    matcher: (pathname) => pathname.startsWith("/portal/professional/programas"),
   },
   { id: "vitals", matcher: (pathname) => pathname.startsWith("/portal/professional/vitals") },
   {
@@ -109,6 +145,10 @@ const modulePathMatchers: Array<{
   {
     id: "care_team",
     matcher: (pathname) => pathname.startsWith("/portal/professional/care-team"),
+  },
+  {
+    id: "compliance",
+    matcher: (pathname) => pathname.startsWith("/portal/professional/cumplimiento"),
   },
   {
     id: "settings",
@@ -358,6 +398,97 @@ function followUpIcon(className: string) {
   );
 }
 
+function shiftIcon(className: string) {
+  return iconBase(
+    className,
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 9h18" />
+      <path d="M8 3v4" />
+      <path d="M16 3v4" />
+      <path d="M12 12v4l2.5 1.5" />
+    </>
+  );
+}
+
+function hceIcon(className: string) {
+  return iconBase(
+    className,
+    <>
+      <path d="M7 3h10l4 4v14H7z" />
+      <path d="M17 3v4h4" />
+      <path d="M10 12h8" />
+      <path d="M10 16h8" />
+      <path d="M10 8h4" />
+    </>
+  );
+}
+
+function prescriptionIcon(className: string) {
+  return iconBase(
+    className,
+    <>
+      <path d="M8 4h8l4 4v12H8z" />
+      <path d="M16 4v4h4" />
+      <path d="M10 13h8" />
+      <path d="M10 17h5" />
+      <path d="M4 9l2 2 4-4" />
+    </>
+  );
+}
+
+function lisRisIcon(className: string) {
+  return iconBase(
+    className,
+    <>
+      <path d="M4 6h8v8H4z" />
+      <path d="M14 10h6v8h-6z" />
+      <path d="M14 6h6" />
+      <path d="M17 6v4" />
+      <path d="M7 9v3" />
+    </>
+  );
+}
+
+function hospitalizationIcon(className: string) {
+  return iconBase(
+    className,
+    <>
+      <path d="M3 18v-8h9a4 4 0 014 4v4" />
+      <path d="M16 10h5v8" />
+      <path d="M3 18h18" />
+      <path d="M6 10V7" />
+    </>
+  );
+}
+
+function surgeryIcon(className: string) {
+  return iconBase(
+    className,
+    <>
+      <path d="M4 5l6 6" />
+      <path d="M10 5L4 11" />
+      <path d="M14 4l6 6" />
+      <path d="M17 7l-7 7" />
+      <path d="M10 14l4 4" />
+      <path d="M7 17l3-3" />
+    </>
+  );
+}
+
+function populationIcon(className: string) {
+  return iconBase(
+    className,
+    <>
+      <path d="M4 18h16" />
+      <path d="M7 18V8" />
+      <path d="M12 18V5" />
+      <path d="M17 18v-6" />
+      <path d="M5 8l7-3 7 2" />
+    </>
+  );
+}
+
 function vitalsIcon(className: string) {
   return iconBase(
     className,
@@ -465,6 +596,16 @@ function careTeamIcon(className: string) {
       <path d="M16 10a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
       <path d="M3 20c0-2.5 2.3-4.5 5-4.5s5 2 5 4.5" />
       <path d="M13 20c0-1.9 1.8-3.5 4-3.5s4 1.6 4 3.5" />
+    </>
+  );
+}
+
+function complianceIcon(className: string) {
+  return iconBase(
+    className,
+    <>
+      <path d="M12 3l8 3v6c0 4.4-2.6 7.4-8 9-5.4-1.6-8-4.6-8-9V6l8-3z" />
+      <path d="M9 12l2 2 4-4" />
     </>
   );
 }

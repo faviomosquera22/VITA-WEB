@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ModulePage, Panel, RiskBadge, StatCard, TriageBadge } from "../_components/clinical-ui";
+import BuscadorPaciente from "@/components/BuscadorPaciente";
+import type { RegisteredPatientSummary } from "@/types/patient-intake";
 import {
   getCriticalPatients,
   getPatientFunctionalPatterns,
@@ -35,6 +37,7 @@ export default function PatientsPage() {
   const [professionalFilter, setProfessionalFilter] = useState<"all" | string>("all");
   const [sortBy, setSortBy] = useState<SortBy>("recent");
   const [quickMode, setQuickMode] = useState<"all" | "alerts" | "recent" | "critical">("all");
+  const [registeredPatients, setRegisteredPatients] = useState<RegisteredPatientSummary[]>([]);
 
   const professionals = useMemo(
     () => Array.from(new Set(mockPatients.map((patient) => patient.assignedProfessional))),
@@ -161,17 +164,48 @@ export default function PatientsPage() {
   const criticalPatients = getCriticalPatients();
   const patientsWithAlerts = getPatientsWithAlerts();
 
+  useEffect(() => {
+    const loadRegisteredPatients = async () => {
+      try {
+        const response = await fetch("/api/paciente/registro", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        const payload = (await response.json()) as {
+          data?: RegisteredPatientSummary[];
+        };
+
+        if (response.ok && payload.data) {
+          setRegisteredPatients(payload.data);
+        }
+      } catch {
+        // Ignore load errors in list page.
+      }
+    };
+
+    loadRegisteredPatients();
+  }, []);
+
   return (
     <ModulePage
       title="Pacientes"
       subtitle="Busqueda, filtros clinicos y acceso a ficha integral del paciente con enfoque profesional."
       actions={
-        <Link
-          href="/portal/professional"
-          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-        >
-          Volver a inicio
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/portal/professional/patients/ingreso"
+            className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100"
+          >
+            Ingresar paciente
+          </Link>
+          <Link
+            href="/portal/professional"
+            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Volver a inicio
+          </Link>
+        </div>
       }
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -184,6 +218,49 @@ export default function PatientsPage() {
           hint="En seguimiento activo"
         />
       </div>
+
+      <BuscadorPaciente />
+
+      <Panel
+        title="Pacientes ingresados recientemente"
+        subtitle="Registros creados desde modulo de ingreso clinico"
+      >
+        {registeredPatients.length === 0 ? (
+          <p className="text-xs text-slate-500">Aun no hay pacientes creados con el nuevo flujo de ingreso.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="px-3 py-2 font-semibold">HC</th>
+                  <th className="px-3 py-2 font-semibold">Paciente</th>
+                  <th className="px-3 py-2 font-semibold">Documento</th>
+                  <th className="px-3 py-2 font-semibold">Motivo</th>
+                  <th className="px-3 py-2 font-semibold">Ficha</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {registeredPatients.slice(0, 6).map((entry) => (
+                  <tr key={entry.id}>
+                    <td className="px-3 py-2 text-slate-700">{entry.medicalRecordNumber}</td>
+                    <td className="px-3 py-2 text-slate-700">{entry.fullName}</td>
+                    <td className="px-3 py-2 text-slate-700">{entry.documentNumber}</td>
+                    <td className="px-3 py-2 text-slate-700">{entry.consultationReason}</td>
+                    <td className="px-3 py-2">
+                      <Link
+                        href={`/portal/professional/patients/ingreso/${entry.id}`}
+                        className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        Ver ficha
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
 
       <Panel
         title="Buscador y filtros"

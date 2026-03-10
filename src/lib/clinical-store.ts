@@ -67,6 +67,7 @@ export interface AuditEvent {
     | "LOGOUT"
     | "CASE_CREATED"
     | "ALERT_UPDATED"
+    | "PATIENT_REGISTERED"
     | "PATIENTS_READ"
     | "CASES_READ"
     | "ALERTS_READ";

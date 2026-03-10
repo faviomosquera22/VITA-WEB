@@ -7,6 +7,13 @@ export type ProfessionalModuleId =
   | "patients"
   | "triage"
   | "follow_up"
+  | "shift"
+  | "hce"
+  | "prescription"
+  | "lis_ris"
+  | "hospitalization"
+  | "surgery"
+  | "population"
   | "vitals"
   | "medication"
   | "vaccination"
@@ -17,6 +24,7 @@ export type ProfessionalModuleId =
   | "health_education"
   | "alerts"
   | "care_team"
+  | "compliance"
   | "settings";
 
 export type TriageColor = "rojo" | "naranja" | "amarillo" | "verde" | "azul";
@@ -42,6 +50,32 @@ export interface SidebarModuleItem {
   path: string;
   section: SidebarSectionId;
   roles: UserRole[];
+}
+
+export interface ProfessionalShiftOverview {
+  assignedArea: string;
+  assignedService: string;
+  contract: string;
+  weeklyHours: number;
+  coordinator: string;
+  activeShift: string;
+  onCallToday: boolean;
+  onCallWindow: string;
+  nextOnCall: string;
+}
+
+export interface ProfessionalShiftCalendarEntry {
+  id: string;
+  dayLabel: string;
+  date: string;
+  shiftName: string;
+  shiftRange: string;
+  area: string;
+  service: string;
+  onCall: boolean;
+  onCallRange?: string;
+  status: "En curso" | "Programado" | "Descanso";
+  notes?: string;
 }
 
 export interface VitalSignRecord {
@@ -490,6 +524,55 @@ export const professionalSidebarModules: SidebarModuleItem[] = [
     roles: ["professional", "institution"],
   },
   {
+    id: "shift",
+    label: "Horarios / turno",
+    path: "/portal/professional/turno",
+    section: "main",
+    roles: ["professional", "institution"],
+  },
+  {
+    id: "hce",
+    label: "HCE estructurada",
+    path: "/portal/professional/hce",
+    section: "main",
+    roles: ["professional", "institution"],
+  },
+  {
+    id: "prescription",
+    label: "Prescripcion",
+    path: "/portal/professional/prescripcion",
+    section: "clinical",
+    roles: ["professional", "institution"],
+  },
+  {
+    id: "lis_ris",
+    label: "LIS / RIS",
+    path: "/portal/professional/lis-ris",
+    section: "clinical",
+    roles: ["professional", "institution"],
+  },
+  {
+    id: "hospitalization",
+    label: "Hospitalizacion",
+    path: "/portal/professional/hospitalizacion",
+    section: "clinical",
+    roles: ["professional", "institution"],
+  },
+  {
+    id: "surgery",
+    label: "Quirurgico",
+    path: "/portal/professional/quirurgico",
+    section: "clinical",
+    roles: ["professional", "institution"],
+  },
+  {
+    id: "population",
+    label: "Programas y gestion",
+    path: "/portal/professional/programas",
+    section: "support",
+    roles: ["professional", "institution"],
+  },
+  {
     id: "vitals",
     label: "Signos vitales",
     path: "/portal/professional/vitals",
@@ -560,6 +643,13 @@ export const professionalSidebarModules: SidebarModuleItem[] = [
     roles: ["professional", "institution"],
   },
   {
+    id: "compliance",
+    label: "Cumplimiento",
+    path: "/portal/professional/cumplimiento",
+    section: "system",
+    roles: ["professional", "institution"],
+  },
+  {
     id: "settings",
     label: "Configuracion",
     path: "/portal/professional/settings",
@@ -615,6 +705,90 @@ export const currentClinicalContext = {
   professionalName: "Lic. Daniela Naranjo",
   activeShift: "Turno manana 07:00 - 15:00",
 };
+
+export const professionalShiftOverview: ProfessionalShiftOverview = {
+  assignedArea: "Emergencia adultos",
+  assignedService: "Emergencia y observacion clinica",
+  contract: "Tiempo completo",
+  weeklyHours: 40,
+  coordinator: "Dra. Sofia Montalvo",
+  activeShift: "Manana 07:00 - 15:00",
+  onCallToday: false,
+  onCallWindow: "Sin guardia asignada hoy",
+  nextOnCall: "Jueves 12 mar 22:00 - Viernes 13 mar 06:00",
+};
+
+export const professionalShiftCalendar: ProfessionalShiftCalendarEntry[] = [
+  {
+    id: "shift-2026-03-10",
+    dayLabel: "Martes 10 mar",
+    date: "2026-03-10",
+    shiftName: "Manana",
+    shiftRange: "07:00 - 15:00",
+    area: "Emergencia adultos",
+    service: "Observacion clinica",
+    onCall: false,
+    status: "En curso",
+  },
+  {
+    id: "shift-2026-03-11",
+    dayLabel: "Miercoles 11 mar",
+    date: "2026-03-11",
+    shiftName: "Tarde",
+    shiftRange: "15:00 - 23:00",
+    area: "Emergencia adultos",
+    service: "Observacion clinica",
+    onCall: false,
+    status: "Programado",
+    notes: "Cobertura de alta demanda en observacion.",
+  },
+  {
+    id: "shift-2026-03-12",
+    dayLabel: "Jueves 12 mar",
+    date: "2026-03-12",
+    shiftName: "Noche",
+    shiftRange: "22:00 - 06:00",
+    area: "Emergencia adultos",
+    service: "Urgencias",
+    onCall: true,
+    onCallRange: "22:00 - 06:00",
+    status: "Programado",
+    notes: "Guardia nocturna con soporte de medicina interna.",
+  },
+  {
+    id: "shift-2026-03-13",
+    dayLabel: "Viernes 13 mar",
+    date: "2026-03-13",
+    shiftName: "Descanso compensatorio",
+    shiftRange: "Libre",
+    area: "Emergencia adultos",
+    service: "No aplica",
+    onCall: false,
+    status: "Descanso",
+  },
+  {
+    id: "shift-2026-03-14",
+    dayLabel: "Sabado 14 mar",
+    date: "2026-03-14",
+    shiftName: "Manana",
+    shiftRange: "07:00 - 15:00",
+    area: "Hospitalizacion",
+    service: "Medicina interna",
+    onCall: false,
+    status: "Programado",
+  },
+  {
+    id: "shift-2026-03-15",
+    dayLabel: "Domingo 15 mar",
+    date: "2026-03-15",
+    shiftName: "Tarde",
+    shiftRange: "15:00 - 23:00",
+    area: "Emergencia adultos",
+    service: "Observacion clinica",
+    onCall: false,
+    status: "Programado",
+  },
+];
 
 export const vaccineInventory: VaccineInventoryRecord[] = [
   {

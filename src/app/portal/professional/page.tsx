@@ -89,7 +89,7 @@ export default function ProfessionalHomePage() {
         </Panel>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Panel title="Pendientes del dia" subtitle="Tareas clinicas que requieren cierre durante el turno">
           <div className="space-y-2">
             {pendingTasks.map((task) => (
@@ -105,19 +105,6 @@ export default function ProfessionalHomePage() {
                 </p>
               </article>
             ))}
-          </div>
-        </Panel>
-
-        <Panel title="Accesos rapidos" subtitle="Acciones directas para trabajo clinico del turno">
-          <div className="grid grid-cols-1 gap-2 text-xs">
-            <QuickAction href="/portal/professional/patients" label="Buscar paciente" />
-            <QuickAction href="/portal/professional/vitals" label="Registrar signos vitales" />
-            <QuickAction href="/portal/professional/nursing-report" label="Agregar nota / reporte enfermeria" />
-            <QuickAction href="/portal/professional/medication" label="Registrar medicacion" />
-            <QuickAction href="/portal/professional/vaccination" label="Aplicar vacuna" />
-            <QuickAction href="/portal/professional/reports" label="Crear reporte" />
-            <QuickAction href="/portal/professional/alerts" label="Ver alertas" />
-            <QuickAction href="/portal/professional/triage" label="Abrir triaje" />
           </div>
         </Panel>
 
@@ -197,16 +184,5 @@ function SummaryCell({ label, value }: { label: string; value: string }) {
       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
       <p className="mt-0.5 text-xs text-slate-700">{value}</p>
     </div>
-  );
-}
-
-function QuickAction({ href, label }: { href: string; label: string }) {
-  return (
-    <Link
-      href={href}
-      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700 hover:bg-slate-100"
-    >
-      {label}
-    </Link>
   );
 }

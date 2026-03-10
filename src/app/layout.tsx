@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { IBM_Plex_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
+import QueryProvider from "@/components/providers/query-provider";
+
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
@@ -33,7 +35,7 @@ export default function RootLayout({
       <body
         className={`${plusJakarta.variable} ${ibmPlexMono.variable} min-h-screen bg-slate-100 text-slate-900 antialiased`}
       >
-        {children}
+        <QueryProvider>{children}</QueryProvider>
       </body>
     </html>
   );
