@@ -664,40 +664,57 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
         )}
       </header>
 
-      <nav className="rounded-2xl border border-slate-200 bg-white p-3">
-        <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
-            Submodulos de ficha clinica
+      <nav className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
+              Navegacion de ficha clinica
+            </p>
+            <p className="text-[11px] text-slate-500">
+              Selecciona el modulo de trabajo del paciente por area funcional.
+            </p>
+          </div>
+          <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+            Modulo activo: {activeTabLabel}
           </span>
-          <span>Vision clinica · Monitoreo · Cuidados · Integral · Documental</span>
         </div>
-        <div className="space-y-2">
+
+        <div className="space-y-3">
           {Object.entries(groupedTabs).map(([groupName, tabs]) => (
-            <div key={groupName}>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                {groupName}
-              </p>
-              <div className="flex gap-2 overflow-x-auto pb-1">
+            <section key={groupName} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                  {groupName}
+                </p>
+                <span className="text-[10px] text-slate-400">{tabs.length} opciones</span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 {tabs.map((tab) => {
                   const active = tab.id === activeTab;
+
                   return (
                     <button
                       key={tab.id}
                       type="button"
                       onClick={() => setSelectedTab(tab.id)}
+                      aria-pressed={active}
                       className={[
-                        "whitespace-nowrap rounded-full border px-3 py-1 text-xs transition",
+                        "rounded-lg border px-3 py-2 text-left text-xs transition",
                         active
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                          ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-100",
                       ].join(" ")}
                     >
-                      {tab.label}
+                      <p className="font-semibold">{tab.label}</p>
+                      <p className={["mt-0.5 text-[11px]", active ? "text-slate-200" : "text-slate-500"].join(" ")}>
+                        Abrir modulo
+                      </p>
                     </button>
                   );
                 })}
               </div>
-            </div>
+            </section>
           ))}
         </div>
       </nav>
