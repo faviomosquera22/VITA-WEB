@@ -6,10 +6,12 @@ import { useSearchParams } from "next/navigation";
 
 import { Panel, RiskBadge, TriageBadge } from "./clinical-ui";
 import {
+  type CarePlanRecord,
   educationResources,
   getKardexAdministrations,
   getPatientFunctionalPatterns,
   type KardexAdministrationRecord,
+  type MedicationRecord,
   type PatientRecord,
   type VitalSignRecord,
 } from "../_data/clinical-mock-data";
@@ -145,6 +147,31 @@ type ModuleHistoryEntry = {
   }>;
 };
 
+type NursingHourEntry = {
+  id: string;
+  hour: string;
+  focus: string;
+  action: string;
+  response: string;
+};
+
+type NursingShiftReportRecord = PatientRecord["nursingShiftReports"][number] & {
+  hourlyEntries?: NursingHourEntry[];
+};
+
+type CarePlanHourEntry = {
+  id: string;
+  hour: string;
+  focus: string;
+  intervention: string;
+  response: string;
+  status: string;
+};
+
+type CarePlanEntryRecord = CarePlanRecord & {
+  hourlyEntries?: CarePlanHourEntry[];
+};
+
 export default function PatientClinicalRecord({ patient }: { patient: PatientRecord }) {
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
@@ -155,15 +182,16 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   const [selectedNursingShiftReportId, setSelectedNursingShiftReportId] = useState<string | null>(
     null
   );
+  const [selectedCarePlanId, setSelectedCarePlanId] = useState<string | null>(null);
   const [currentProfessional, setCurrentProfessional] = useState(patient.assignedProfessional);
 
   const [addedVitals, setAddedVitals] = useState<VitalSignRecord[]>([]);
+  const [addedMedicationRecords, setAddedMedicationRecords] = useState<PatientRecord["medicationRecords"]>([]);
   const [addedFluidBalances, setAddedFluidBalances] = useState<PatientRecord["fluidBalances"]>([]);
   const [addedNursingNotes, setAddedNursingNotes] = useState<PatientRecord["nursingNotes"]>([]);
   const [addedMedicalNotes, setAddedMedicalNotes] = useState<PatientRecord["medicalNotes"]>([]);
-  const [addedNursingShiftReports, setAddedNursingShiftReports] = useState<
-    PatientRecord["nursingShiftReports"]
-  >([]);
+  const [addedNursingShiftReports, setAddedNursingShiftReports] = useState<NursingShiftReportRecord[]>([]);
+  const [addedCarePlans, setAddedCarePlans] = useState<CarePlanEntryRecord[]>([]);
   const [nutritionPlans, setNutritionPlans] = useState<NutritionPlanRecord[]>([
     createInitialNutritionPlan(patient),
   ]);
@@ -199,6 +227,32 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     outputOther: "",
     observations: "",
   });
+  const [medicationForm, setMedicationForm] = useState<{
+    name: string;
+    dose: string;
+    frequency: string;
+    route: string;
+    schedule: string;
+    indication: string;
+    prescriber: string;
+    adherence: string;
+    administrationStatus: MedicationRecord["administrationStatus"];
+    notes: string;
+  }>({
+    name: "",
+    dose: "",
+    frequency: "",
+    route: "Oral",
+    schedule: "",
+    indication: "",
+    prescriber: patient.assignedProfessional,
+    adherence: "En seguimiento",
+    administrationStatus: "Pendiente",
+    notes: "",
+  });
+  const [medicationOverrides, setMedicationOverrides] = useState<
+    Record<string, Partial<MedicationRecord>>
+  >({});
   const [nursingNoteDraft, setNursingNoteDraft] = useState("");
   const [medicalNoteDraft, setMedicalNoteDraft] = useState("");
   const [nursingReportForm, setNursingReportForm] = useState<{
@@ -216,6 +270,28 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     incidents: "",
     carePlan: "",
   });
+  const [nursingHourForm, setNursingHourForm] = useState({
+    hour: "07:00",
+    focus: "Monitoreo",
+    action: "",
+    response: "",
+  });
+  const [nursingHourEntries, setNursingHourEntries] = useState<NursingHourEntry[]>([]);
+  const [carePlanForm, setCarePlanForm] = useState({
+    nursingDiagnosis: "",
+    objective: "",
+    baseInterventions: "",
+    evaluation: "",
+    observations: "",
+  });
+  const [carePlanHourForm, setCarePlanHourForm] = useState({
+    hour: "07:00",
+    focus: "Intervencion",
+    intervention: "",
+    response: "",
+    status: "Pendiente",
+  });
+  const [carePlanHourEntries, setCarePlanHourEntries] = useState<CarePlanHourEntry[]>([]);
   const [nutritionForm, setNutritionForm] = useState({
     dietName: patient.nutrition.diet,
     dietType: patient.nutrition.nutritionalStatus,
@@ -251,6 +327,16 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       ),
     [addedFluidBalances, patient.fluidBalances]
   );
+  const effectiveMedicationRecords = useMemo(
+    () =>
+      [...addedMedicationRecords, ...patient.medicationRecords]
+        .map((record) => ({
+          ...record,
+          ...(medicationOverrides[record.id] ?? {}),
+        }))
+        .sort((a, b) => `${b.startDate}-${b.schedule}`.localeCompare(`${a.startDate}-${a.schedule}`)),
+    [addedMedicationRecords, medicationOverrides, patient.medicationRecords]
+  );
   const effectiveNursingNotes = useMemo(
     () =>
       [...addedNursingNotes, ...patient.nursingNotes].sort((a, b) =>
@@ -265,13 +351,28 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       ),
     [addedMedicalNotes, patient.medicalNotes]
   );
-  const effectiveNursingShiftReports = useMemo(
+  const effectiveNursingShiftReports = useMemo<NursingShiftReportRecord[]>(
     () =>
-      [...addedNursingShiftReports, ...patient.nursingShiftReports].sort((a, b) =>
+      [
+        ...addedNursingShiftReports,
+        ...patient.nursingShiftReports.map((report) => ({ ...report })),
+      ].sort((a, b) =>
         `${b.date}-${b.shift}`.localeCompare(`${a.date}-${a.shift}`)
       ),
     [addedNursingShiftReports, patient.nursingShiftReports]
   );
+  const nursingShiftHourOptions = useMemo(
+    () => getNursingShiftHours(nursingReportForm.shift),
+    [nursingReportForm.shift]
+  );
+  const effectiveCarePlans = useMemo<CarePlanEntryRecord[]>(
+    () => [
+      ...addedCarePlans,
+      ...patient.carePlan.map((entry) => ({ ...entry })),
+    ],
+    [addedCarePlans, patient.carePlan]
+  );
+  const carePlanHourOptions = useMemo(() => getCarePlanHourOptions(), []);
 
   const latestVital = effectiveVitals[0] ?? null;
   const functionalPatterns = getPatientFunctionalPatterns(patient);
@@ -372,6 +473,10 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   const selectedNursingShiftReport =
     effectiveNursingShiftReports.find((report) => report.id === selectedNursingShiftReportId) ??
     effectiveNursingShiftReports[0] ??
+    null;
+  const selectedCarePlan =
+    effectiveCarePlans.find((entry) => entry.id === selectedCarePlanId) ??
+    effectiveCarePlans[0] ??
     null;
   const activeTabLabel = patientTabs.find((tab) => tab.id === activeTab)?.label ?? activeTab;
   const tabAuditRecords = auditRecords.filter((record) => record.tab === activeTab);
@@ -510,7 +615,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     }
 
     if (activeTab === "medication") {
-      entries = patient.medicationRecords.map((record) =>
+      entries = effectiveMedicationRecords.map((record) =>
         makeEntry(
           `med-${record.id}`,
           record.startDate,
@@ -540,7 +645,18 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
           `${report.date} ${report.shift}`,
           `Reporte de enfermeria ${report.shift}`,
           `${report.generalStatus} · ${report.carePlan}`,
-          patient.assignedProfessional
+          patient.assignedProfessional,
+          report.hourlyEntries?.length
+            ? [
+                {
+                  title: "Registro horario",
+                  items: report.hourlyEntries.map((entry) => ({
+                    label: `${entry.hour} · ${entry.focus}`,
+                    value: `${entry.action} · Respuesta: ${entry.response}`,
+                  })),
+                },
+              ]
+            : undefined
         )
       );
     }
@@ -641,13 +757,33 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     }
 
     if (activeTab === "care_plan") {
-      entries = patient.carePlan.map((entry) =>
+      entries = effectiveCarePlans.map((entry) =>
         makeEntry(
           `careplan-${entry.id}`,
           patient.admissionDate,
           entry.nursingDiagnosis,
           `Objetivo: ${entry.objective} · Evaluacion: ${entry.evaluation}`,
-          patient.assignedProfessional
+          patient.assignedProfessional,
+          [
+            {
+              title: "Intervenciones",
+              items: entry.interventions.map((intervention, index) => ({
+                label: `Intervencion ${index + 1}`,
+                value: intervention,
+              })),
+            },
+            ...(entry.hourlyEntries?.length
+              ? [
+                  {
+                    title: "Seguimiento horario",
+                    items: entry.hourlyEntries.map((hourly) => ({
+                      label: `${hourly.hour} · ${hourly.focus}`,
+                      value: `${hourly.intervention} · ${hourly.response} · ${hourly.status}`,
+                    })),
+                  },
+                ]
+              : []),
+          ]
         )
       );
     }
@@ -698,7 +834,9 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       .slice(0, 200);
   }, [
     activeTab,
+    effectiveCarePlans,
     effectiveFluidBalances,
+    effectiveMedicationRecords,
     effectiveMedicalNotes,
     effectiveNursingNotes,
     effectiveNursingShiftReports,
@@ -800,6 +938,85 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     }));
   };
 
+  const updateMedicationRecord = (recordId: string, patch: Partial<MedicationRecord>) => {
+    setMedicationOverrides((prev) => ({
+      ...prev,
+      [recordId]: {
+        ...(prev[recordId] ?? {}),
+        ...patch,
+      },
+    }));
+  };
+
+  const setMedicationAdministrationStatus = (
+    record: MedicationRecord,
+    status: MedicationRecord["administrationStatus"]
+  ) => {
+    updateMedicationRecord(record.id, {
+      administrationStatus: status,
+      adherence: status === "Administrado" ? "Alta" : record.adherence,
+    });
+    addAuditRecord(
+      "medication",
+      "Actualizacion de administracion",
+      `${record.name} ${record.dose} marcado como ${status}.`
+    );
+  };
+
+  const registerMedicationRecord = () => {
+    if (
+      !medicationForm.name.trim() ||
+      !medicationForm.dose.trim() ||
+      !medicationForm.frequency.trim() ||
+      !medicationForm.route.trim() ||
+      !medicationForm.schedule.trim()
+    ) {
+      return;
+    }
+
+    const newMedication: MedicationRecord = {
+      id: `med-local-${Date.now()}`,
+      name: medicationForm.name.trim(),
+      dose: medicationForm.dose.trim(),
+      frequency: medicationForm.frequency.trim(),
+      route: medicationForm.route.trim(),
+      schedule: medicationForm.schedule.trim(),
+      startDate: getCurrentDateLabel(),
+      indication: medicationForm.indication.trim() || "Indicacion clinica pendiente de detalle.",
+      prescriber: medicationForm.prescriber.trim() || currentProfessional.trim() || patient.assignedProfessional,
+      adherence: medicationForm.adherence.trim() || "En seguimiento",
+      administrationStatus: medicationForm.administrationStatus,
+      notes: medicationForm.notes.trim() || "Sin observaciones.",
+    };
+
+    setAddedMedicationRecords((prev) => [newMedication, ...prev]);
+    addAuditRecord(
+      "medication",
+      "Registro de medicamento",
+      `${newMedication.name} ${newMedication.dose} · ${newMedication.frequency} · Via ${newMedication.route} · Estado ${newMedication.administrationStatus}.`
+    );
+    setMedicationForm((prev) => ({
+      ...prev,
+      name: "",
+      dose: "",
+      frequency: "",
+      schedule: "",
+      indication: "",
+      notes: "",
+      administrationStatus: "Pendiente",
+    }));
+  };
+
+  const registerFirstPendingMedication = () => {
+    const pendingRecord = effectiveMedicationRecords.find(
+      (record) => record.administrationStatus === "Pendiente"
+    );
+    if (!pendingRecord) {
+      return;
+    }
+    setMedicationAdministrationStatus(pendingRecord, "Administrado");
+  };
+
   const registerFluidBalance = () => {
     if (fluidDraftSummary.intakeTotal <= 0 && fluidDraftSummary.outputTotal <= 0) {
       return;
@@ -887,15 +1104,61 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     setMedicalNoteDraft("");
   };
 
-  const registerNursingShiftReport = () => {
-    if (
-      !nursingReportForm.generalStatus.trim() ||
-      !nursingReportForm.proceduresDone.trim() ||
-      !nursingReportForm.carePlan.trim()
-    ) {
+  const addNursingHourEntry = () => {
+    if (!nursingHourForm.action.trim()) {
       return;
     }
 
+    const newEntry: NursingHourEntry = {
+      id: `nhr-local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      hour: nursingHourForm.hour,
+      focus: nursingHourForm.focus.trim() || "Monitoreo",
+      action: nursingHourForm.action.trim(),
+      response: nursingHourForm.response.trim() || "Sin cambios relevantes.",
+    };
+
+    setNursingHourEntries((prev) =>
+      sortNursingHourEntriesByShift([...prev, newEntry], nursingReportForm.shift)
+    );
+    setNursingHourForm((prev) => ({
+      ...prev,
+      action: "",
+      response: "",
+    }));
+  };
+
+  const removeNursingHourEntry = (entryId: string) => {
+    setNursingHourEntries((prev) => prev.filter((entry) => entry.id !== entryId));
+  };
+
+  const registerNursingShiftReport = () => {
+    const timelineSummary = nursingHourEntries
+      .map(
+        (entry) =>
+          `${entry.hour} ${entry.focus}: ${entry.action}${
+            entry.response ? ` (Respuesta: ${entry.response})` : ""
+          }`
+      )
+      .join(" | ");
+
+    const generalStatus =
+      nursingReportForm.generalStatus.trim() ||
+      (nursingHourEntries.length > 0 ? "Seguimiento de enfermeria por horas." : "");
+    const proceduresDone = [nursingReportForm.proceduresDone.trim(), timelineSummary ? `Registro horario: ${timelineSummary}` : ""]
+      .filter(Boolean)
+      .join(" · ");
+    const carePlan =
+      nursingReportForm.carePlan.trim() ||
+      (nursingHourEntries.length > 0
+        ? "Continuar vigilancia y cuidados de enfermeria segun registro por horas."
+        : "");
+
+    if (!generalStatus || !proceduresDone || !carePlan) {
+      return;
+    }
+
+    const lastHourlyResponse =
+      nursingHourEntries.length > 0 ? nursingHourEntries[nursingHourEntries.length - 1].response : "";
     const reference = selectedNursingShiftReport;
     setAddedNursingShiftReports((prev) => [
       {
@@ -903,7 +1166,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
         shift: nursingReportForm.shift,
         service: nursingReportForm.service,
         date: latestVitalDate,
-        generalStatus: nursingReportForm.generalStatus.trim(),
+        generalStatus,
         consciousness: reference?.consciousness ?? "Alerta",
         breathing: reference?.breathing ?? "Sin dificultad respiratoria",
         pain: reference?.pain ?? "0/10",
@@ -911,17 +1174,18 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
         elimination: reference?.elimination ?? "Conservada",
         mobility: reference?.mobility ?? "Asistida",
         skin: reference?.skin ?? "Integra",
-        proceduresDone: nursingReportForm.proceduresDone.trim(),
-        patientResponse: reference?.patientResponse ?? "Cooperador/a",
+        proceduresDone,
+        patientResponse: reference?.patientResponse ?? (lastHourlyResponse || "Cooperador/a"),
         incidents: nursingReportForm.incidents.trim() || "Sin incidencias",
-        carePlan: nursingReportForm.carePlan.trim(),
+        carePlan,
+        hourlyEntries: nursingHourEntries.length > 0 ? nursingHourEntries : undefined,
       },
       ...prev,
     ]);
     addAuditRecord(
       "nursing_report",
       "Reporte de enfermeria",
-      `Turno ${nursingReportForm.shift}. ${nursingReportForm.generalStatus}. Procedimientos: ${nursingReportForm.proceduresDone}. Plan: ${nursingReportForm.carePlan}.`
+      `Turno ${nursingReportForm.shift}. ${generalStatus}. Procedimientos: ${proceduresDone}. Plan: ${carePlan}. Registros horarios: ${nursingHourEntries.length}.`
     );
     setNursingReportForm((prev) => ({
       ...prev,
@@ -929,6 +1193,103 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       proceduresDone: "",
       incidents: "",
       carePlan: "",
+    }));
+    setNursingHourEntries([]);
+    setNursingHourForm((prev) => ({
+      ...prev,
+      hour: nursingShiftHourOptions[0] ?? prev.hour,
+      action: "",
+      response: "",
+    }));
+  };
+
+  const addCarePlanHourEntry = () => {
+    if (!carePlanHourForm.intervention.trim()) {
+      return;
+    }
+
+    const newEntry: CarePlanHourEntry = {
+      id: `cph-local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      hour: carePlanHourForm.hour,
+      focus: carePlanHourForm.focus.trim() || "Intervencion",
+      intervention: carePlanHourForm.intervention.trim(),
+      response: carePlanHourForm.response.trim() || "Sin cambios relevantes.",
+      status: carePlanHourForm.status.trim() || "Pendiente",
+    };
+
+    setCarePlanHourEntries((prev) => sortCarePlanHourEntries([...prev, newEntry]));
+    setCarePlanHourForm((prev) => ({
+      ...prev,
+      intervention: "",
+      response: "",
+    }));
+  };
+
+  const removeCarePlanHourEntry = (entryId: string) => {
+    setCarePlanHourEntries((prev) => prev.filter((entry) => entry.id !== entryId));
+  };
+
+  const registerCarePlan = () => {
+    const baseInterventions = carePlanForm.baseInterventions
+      .split(";")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const hourlyInterventions = carePlanHourEntries.map(
+      (entry) => `${entry.hour} ${entry.focus}: ${entry.intervention}`
+    );
+    const interventions = [...baseInterventions, ...hourlyInterventions];
+
+    if (
+      !carePlanForm.nursingDiagnosis.trim() ||
+      !carePlanForm.objective.trim() ||
+      interventions.length === 0
+    ) {
+      return;
+    }
+
+    const latestHourlyResponse =
+      carePlanHourEntries.length > 0
+        ? carePlanHourEntries[carePlanHourEntries.length - 1].response
+        : "";
+    const evaluation =
+      carePlanForm.evaluation.trim() ||
+      latestHourlyResponse ||
+      "Pendiente de evaluacion en siguiente control.";
+    const observations =
+      carePlanForm.observations.trim() ||
+      `Plan generado con ${carePlanHourEntries.length} registros horarios.`;
+
+    const newCarePlan: CarePlanEntryRecord = {
+      id: `careplan-local-${Date.now()}`,
+      nursingDiagnosis: carePlanForm.nursingDiagnosis.trim(),
+      objective: carePlanForm.objective.trim(),
+      interventions,
+      evaluation,
+      observations,
+      hourlyEntries: carePlanHourEntries.length > 0 ? carePlanHourEntries : undefined,
+    };
+
+    setAddedCarePlans((prev) => [newCarePlan, ...prev]);
+    setSelectedCarePlanId(newCarePlan.id);
+    addAuditRecord(
+      "care_plan",
+      "Plan de cuidados",
+      `${newCarePlan.nursingDiagnosis}. Objetivo: ${newCarePlan.objective}. Intervenciones: ${newCarePlan.interventions.length}. Registros horarios: ${carePlanHourEntries.length}.`
+    );
+    setCarePlanForm({
+      nursingDiagnosis: "",
+      objective: "",
+      baseInterventions: "",
+      evaluation: "",
+      observations: "",
+    });
+    setCarePlanHourEntries([]);
+    setCarePlanHourForm((prev) => ({
+      ...prev,
+      hour: carePlanHourOptions[7] ?? prev.hour,
+      intervention: "",
+      response: "",
+      status: "Pendiente",
     }));
   };
 
@@ -1388,7 +1749,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                               {vital ? vital.glucose : "-"}
                             </td>
                             <td className="border border-slate-300 px-1 py-1 text-center">
-                              {getInsulinLabel(patient, vital)}
+                              {getInsulinLabel(effectiveMedicationRecords, vital)}
                             </td>
                             <td className="border border-slate-300 px-1 py-1 text-center">-</td>
                             <td className="border border-slate-300 px-1 py-1 text-center">-</td>
@@ -1534,43 +1895,204 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       {activeTab === "medication" && (
         <Panel title="Medicacion" subtitle="Plan farmacologico, adherencia y estado de administracion">
           <div className="mb-3 flex flex-wrap gap-2 text-[11px]">
-            <ActionChip label="Agregar medicamento" />
-            <ActionChip label="Registrar administracion" />
-            <ActionChip label="Ver historial de cambios" />
+            <button
+              type="button"
+              onClick={registerMedicationRecord}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Agregar medicamento
+            </button>
+            <button
+              type="button"
+              onClick={registerFirstPendingMedication}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Registrar administracion
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setHistoryDateFilter("");
+                setHistoryOpen(true);
+              }}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Ver historial de cambios
+            </button>
           </div>
-          <div className="space-y-2">
-            {patient.medicationRecords.map((record) => (
-              <article
-                key={record.id}
-                className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"
+
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <p className="text-xs font-semibold text-slate-800">Registrar medicamento</p>
+            <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+              <InputText
+                label="Farmaco"
+                value={medicationForm.name}
+                onChange={(value) => setMedicationForm((prev) => ({ ...prev, name: value }))}
+                placeholder="Metformina"
+              />
+              <InputText
+                label="Dosis"
+                value={medicationForm.dose}
+                onChange={(value) => setMedicationForm((prev) => ({ ...prev, dose: value }))}
+                placeholder="850 mg"
+              />
+              <InputText
+                label="Frecuencia"
+                value={medicationForm.frequency}
+                onChange={(value) => setMedicationForm((prev) => ({ ...prev, frequency: value }))}
+                placeholder="c/12h"
+              />
+              <InputText
+                label="Via"
+                value={medicationForm.route}
+                onChange={(value) => setMedicationForm((prev) => ({ ...prev, route: value }))}
+                placeholder="Oral"
+              />
+              <InputText
+                label="Horario"
+                value={medicationForm.schedule}
+                onChange={(value) => setMedicationForm((prev) => ({ ...prev, schedule: value }))}
+                placeholder="08:00 - 20:00"
+              />
+              <InputText
+                label="Indicacion"
+                value={medicationForm.indication}
+                onChange={(value) => setMedicationForm((prev) => ({ ...prev, indication: value }))}
+                placeholder="Control glucemico"
+              />
+              <InputText
+                label="Prescriptor"
+                value={medicationForm.prescriber}
+                onChange={(value) => setMedicationForm((prev) => ({ ...prev, prescriber: value }))}
+                placeholder="Dra. Camila Rojas"
+              />
+              <InputSelect
+                label="Adherencia"
+                value={medicationForm.adherence}
+                onChange={(value) => setMedicationForm((prev) => ({ ...prev, adherence: value }))}
+                options={["Alta", "Buena", "En seguimiento", "Baja"]}
+              />
+              <InputSelect
+                label="Estado"
+                value={medicationForm.administrationStatus}
+                onChange={(value) =>
+                  setMedicationForm((prev) => ({
+                    ...prev,
+                    administrationStatus: value as MedicationRecord["administrationStatus"],
+                  }))
+                }
+                options={["Pendiente", "Administrado", "Omitido"]}
+              />
+            </div>
+            <div className="mt-2">
+              <label>
+                <span className="mb-1 block text-[11px] font-semibold text-slate-600">Observaciones</span>
+                <textarea
+                  value={medicationForm.notes}
+                  onChange={(event) =>
+                    setMedicationForm((prev) => ({ ...prev, notes: event.target.value }))
+                  }
+                  placeholder="Notas de administracion o seguimiento..."
+                  className="min-h-[88px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none focus:border-sky-300 focus:bg-white"
+                />
+              </label>
+            </div>
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={registerMedicationRecord}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-semibold text-slate-900">
-                    {record.name} · {record.dose}
+                Guardar medicamento
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {effectiveMedicationRecords.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+                No hay medicamentos registrados en esta ficha.
+              </p>
+            ) : (
+              effectiveMedicationRecords.map((record) => (
+                <article
+                  key={record.id}
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold text-slate-900">
+                      {record.name} · {record.dose}
+                    </p>
+                    <span
+                      className={[
+                        "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                        record.administrationStatus === "Pendiente"
+                          ? "border-amber-200 bg-amber-50 text-amber-700"
+                          : record.administrationStatus === "Administrado"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-rose-200 bg-rose-50 text-rose-700",
+                      ].join(" ")}
+                    >
+                      {record.administrationStatus}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-600">
+                    {record.frequency} · Via {record.route} · Horario {record.schedule}
                   </p>
-                  <span
-                    className={[
-                      "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                      record.administrationStatus === "Pendiente"
-                        ? "border-amber-200 bg-amber-50 text-amber-700"
-                        : record.administrationStatus === "Administrado"
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-slate-200 bg-slate-100 text-slate-700",
-                    ].join(" ")}
-                  >
-                    {record.administrationStatus}
-                  </span>
-                </div>
-                <p className="mt-1 text-[11px] text-slate-600">
-                  {record.frequency} · Via {record.route} · Horario {record.schedule}
-                </p>
-                <p className="text-[11px] text-slate-500">Indicacion: {record.indication}</p>
-                <p className="text-[11px] text-slate-500">
-                  Prescribe: {record.prescriber} · Adherencia: {record.adherence}
-                </p>
-                <p className="text-[11px] text-slate-500">Observaciones: {record.notes}</p>
-              </article>
-            ))}
+                  <p className="text-[11px] text-slate-500">Indicacion: {record.indication}</p>
+                  <p className="text-[11px] text-slate-500">
+                    Prescribe: {record.prescriber} · Adherencia: {record.adherence}
+                  </p>
+                  <p className="text-[11px] text-slate-500">Observaciones: {record.notes}</p>
+                  <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    <InputSelect
+                      label="Estado"
+                      value={record.administrationStatus}
+                      onChange={(value) =>
+                        updateMedicationRecord(record.id, {
+                          administrationStatus: value as MedicationRecord["administrationStatus"],
+                        })
+                      }
+                      options={["Pendiente", "Administrado", "Omitido"]}
+                    />
+                    <InputSelect
+                      label="Adherencia"
+                      value={record.adherence}
+                      onChange={(value) => updateMedicationRecord(record.id, { adherence: value })}
+                      options={["Alta", "Buena", "En seguimiento", "Baja"]}
+                    />
+                    <InputText
+                      label="Horario"
+                      value={record.schedule}
+                      onChange={(value) => updateMedicationRecord(record.id, { schedule: value })}
+                    />
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMedicationAdministrationStatus(record, "Pendiente")}
+                      className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-100"
+                    >
+                      Marcar pendiente
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMedicationAdministrationStatus(record, "Administrado")}
+                      className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
+                    >
+                      Marcar administrado
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMedicationAdministrationStatus(record, "Omitido")}
+                      className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100"
+                    >
+                      Marcar omitido
+                    </button>
+                  </div>
+                </article>
+              ))
+            )}
           </div>
         </Panel>
       )}
@@ -1710,16 +2232,18 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       {activeTab === "nursing_report" && (
         <Panel
           title="Reporte de enfermeria"
-          subtitle="Vista narrativa del turno con estructura tipo nota clinica"
+          subtitle="Ingreso rapido por turno con registro horario y resumen clinico"
         >
-          {effectiveNursingShiftReports.length === 0 ? (
-            <p className="text-xs text-slate-500">Sin reportes estructurados registrados.</p>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)]">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
-                <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  Reportes por turno
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)]">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+              <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Reportes por turno
+              </p>
+              {effectiveNursingShiftReports.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-slate-200 bg-white px-2 py-2 text-[11px] text-slate-500">
+                  Aun no hay reportes. Registra el primero en el panel derecho.
                 </p>
+              ) : (
                 <div className="space-y-1">
                   {effectiveNursingShiftReports.map((report) => (
                     <button
@@ -1740,94 +2264,231 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                     </button>
                   ))}
                 </div>
-              </div>
+              )}
+            </div>
 
-              <div className="space-y-2">
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
-                  <SummaryRow label="Fecha" value={selectedNursingShiftReport?.date ?? "-"} />
-                  <SummaryRow label="Turno" value={selectedNursingShiftReport?.shift ?? "-"} />
-                  <SummaryRow label="Servicio" value={selectedNursingShiftReport?.service ?? "-"} />
-                  <SummaryRow label="Paciente" value={patient.fullName} />
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-2">
-                  <p className="mb-1 text-[11px] font-semibold text-slate-600">
-                    Cuerpo narrativo del reporte
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
+                <SummaryRow label="Fecha" value={selectedNursingShiftReport?.date ?? "-"} />
+                <SummaryRow label="Turno" value={selectedNursingShiftReport?.shift ?? "-"} />
+                <SummaryRow label="Servicio" value={selectedNursingShiftReport?.service ?? "-"} />
+                <SummaryRow label="Paciente" value={patient.fullName} />
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-2">
+                <p className="mb-1 text-[11px] font-semibold text-slate-600">
+                  Cuerpo narrativo del reporte
+                </p>
+                <textarea
+                  value={formatNursingShiftNarrative(selectedNursingShiftReport)}
+                  readOnly
+                  className="min-h-[180px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                />
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-2">
+                <p className="mb-1 text-[11px] font-semibold text-slate-600">
+                  Registro horario del reporte seleccionado
+                </p>
+                {selectedNursingShiftReport?.hourlyEntries?.length ? (
+                  <div className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-50">
+                    <table className="min-w-[620px] w-full border-collapse text-[11px]">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-600">
+                          <th className="border border-slate-200 px-2 py-1 text-left">Hora</th>
+                          <th className="border border-slate-200 px-2 py-1 text-left">Foco</th>
+                          <th className="border border-slate-200 px-2 py-1 text-left">Registro</th>
+                          <th className="border border-slate-200 px-2 py-1 text-left">Respuesta</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedNursingShiftReport.hourlyEntries.map((entry) => (
+                          <tr key={`${selectedNursingShiftReport.id}-${entry.id}`}>
+                            <td className="border border-slate-200 bg-white px-2 py-1 font-semibold text-slate-700">
+                              {entry.hour}
+                            </td>
+                            <td className="border border-slate-200 bg-white px-2 py-1 text-slate-600">
+                              {entry.focus}
+                            </td>
+                            <td className="border border-slate-200 bg-white px-2 py-1 text-slate-700">
+                              {entry.action}
+                            </td>
+                            <td className="border border-slate-200 bg-white px-2 py-1 text-slate-600">
+                              {entry.response}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                    Este reporte no tiene detalle horario.
                   </p>
-                  <textarea
-                    value={formatNursingShiftNarrative(selectedNursingShiftReport)}
-                    readOnly
-                    className="min-h-[220px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                )}
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-2">
+                <p className="mb-1 text-[11px] font-semibold text-slate-600">
+                  Registrar reporte de turno
+                </p>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  <InputSelect
+                    label="Turno"
+                    value={nursingReportForm.shift}
+                    onChange={(value) => {
+                      const nextHours = getNursingShiftHours(value);
+                      setNursingReportForm((prev) => ({ ...prev, shift: value }));
+                      setNursingHourForm((prev) => ({
+                        ...prev,
+                        hour: nextHours.includes(prev.hour) ? prev.hour : nextHours[0] ?? prev.hour,
+                      }));
+                      setNursingHourEntries((prev) => sortNursingHourEntriesByShift(prev, value));
+                    }}
+                    options={["Manana", "Tarde", "Noche"]}
+                  />
+                  <InputText
+                    label="Servicio"
+                    value={nursingReportForm.service}
+                    onChange={(value) =>
+                      setNursingReportForm((prev) => ({ ...prev, service: value }))
+                    }
+                    placeholder="Observacion / Emergencia"
                   />
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-2">
-                  <p className="mb-1 text-[11px] font-semibold text-slate-600">
-                    Registrar reporte de turno
-                  </p>
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-[11px] font-semibold text-slate-700">Carga rapida por hora</p>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {nursingShiftHourOptions.map((hour) => (
+                      <button
+                        key={`hour-pill-${hour}`}
+                        type="button"
+                        onClick={() => setNursingHourForm((prev) => ({ ...prev, hour }))}
+                        className={[
+                          "rounded-lg border px-2 py-0.5 text-[11px] transition",
+                          nursingHourForm.hour === hour
+                            ? "border-sky-300 bg-sky-50 text-sky-700"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100",
+                        ].join(" ")}
+                      >
+                        {hour}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
                     <InputSelect
-                      label="Turno"
-                      value={nursingReportForm.shift}
-                      onChange={(value) =>
-                        setNursingReportForm((prev) => ({ ...prev, shift: value }))
-                      }
-                      options={["Manana", "Tarde", "Noche"]}
+                      label="Hora"
+                      value={nursingHourForm.hour}
+                      onChange={(value) => setNursingHourForm((prev) => ({ ...prev, hour: value }))}
+                      options={nursingShiftHourOptions}
+                    />
+                    <InputSelect
+                      label="Foco"
+                      value={nursingHourForm.focus}
+                      onChange={(value) => setNursingHourForm((prev) => ({ ...prev, focus: value }))}
+                      options={[
+                        "Monitoreo",
+                        "Medicacion",
+                        "Procedimiento",
+                        "Incidencia",
+                        "Respuesta paciente",
+                      ]}
                     />
                     <InputText
-                      label="Servicio"
-                      value={nursingReportForm.service}
-                      onChange={(value) =>
-                        setNursingReportForm((prev) => ({ ...prev, service: value }))
-                      }
-                      placeholder="Observacion / Emergencia"
+                      label="Registro"
+                      value={nursingHourForm.action}
+                      onChange={(value) => setNursingHourForm((prev) => ({ ...prev, action: value }))}
+                      placeholder="Que se realizo o evaluo"
                     />
                     <InputText
-                      label="Estado general"
-                      value={nursingReportForm.generalStatus}
+                      label="Respuesta"
+                      value={nursingHourForm.response}
                       onChange={(value) =>
-                        setNursingReportForm((prev) => ({ ...prev, generalStatus: value }))
+                        setNursingHourForm((prev) => ({ ...prev, response: value }))
                       }
-                      placeholder="Paciente estable, en observacion..."
-                    />
-                    <InputText
-                      label="Procedimientos"
-                      value={nursingReportForm.proceduresDone}
-                      onChange={(value) =>
-                        setNursingReportForm((prev) => ({ ...prev, proceduresDone: value }))
-                      }
-                      placeholder="Control signos, curacion, medicacion..."
+                      placeholder="Respuesta del paciente"
                     />
                   </div>
-                  <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
-                    <InputText
-                      label="Incidencias"
-                      value={nursingReportForm.incidents}
-                      onChange={(value) =>
-                        setNursingReportForm((prev) => ({ ...prev, incidents: value }))
-                      }
-                      placeholder="Sin incidencias / eventos..."
-                    />
-                    <InputText
-                      label="Plan de cuidados"
-                      value={nursingReportForm.carePlan}
-                      onChange={(value) =>
-                        setNursingReportForm((prev) => ({ ...prev, carePlan: value }))
-                      }
-                      placeholder="Continuar vigilancia y plan..."
-                    />
-                  </div>
-                  <div className="mt-2">
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-slate-500">
+                      Registros por hora en borrador: {nursingHourEntries.length}
+                    </p>
                     <button
                       type="button"
-                      onClick={registerNursingShiftReport}
-                      className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                      onClick={addNursingHourEntry}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
                     >
-                      Guardar reporte
+                      Agregar hora
                     </button>
                   </div>
+                  {nursingHourEntries.length > 0 ? (
+                    <div className="mt-2 space-y-1">
+                      {nursingHourEntries.map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1"
+                        >
+                          <p className="text-[11px] text-slate-700">
+                            <span className="font-semibold">{entry.hour}</span> · {entry.focus}: {entry.action}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-slate-500">{entry.response}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeNursingHourEntry(entry.id)}
+                              className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100"
+                            >
+                              Quitar
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                  <InputText
+                    label="Estado general"
+                    value={nursingReportForm.generalStatus}
+                    onChange={(value) =>
+                      setNursingReportForm((prev) => ({ ...prev, generalStatus: value }))
+                    }
+                    placeholder="Paciente estable, en observacion..."
+                  />
+                  <InputText
+                    label="Procedimientos generales"
+                    value={nursingReportForm.proceduresDone}
+                    onChange={(value) =>
+                      setNursingReportForm((prev) => ({ ...prev, proceduresDone: value }))
+                    }
+                    placeholder="Curaciones, controles o apoyos del turno"
+                  />
+                  <InputText
+                    label="Incidencias"
+                    value={nursingReportForm.incidents}
+                    onChange={(value) =>
+                      setNursingReportForm((prev) => ({ ...prev, incidents: value }))
+                    }
+                    placeholder="Sin incidencias / eventos..."
+                  />
+                  <InputText
+                    label="Plan de cuidados"
+                    value={nursingReportForm.carePlan}
+                    onChange={(value) =>
+                      setNursingReportForm((prev) => ({ ...prev, carePlan: value }))
+                    }
+                    placeholder="Continuar vigilancia y plan..."
+                  />
+                </div>
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={registerNursingShiftReport}
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    Guardar reporte
+                  </button>
                 </div>
               </div>
             </div>
-          )}
+          </div>
         </Panel>
       )}
 
@@ -2646,20 +3307,276 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       )}
 
       {activeTab === "care_plan" && (
-        <Panel title="Plan de cuidados" subtitle="Diagnosticos de enfermeria, objetivos e intervenciones">
-          <div className="space-y-2">
-            {patient.carePlan.length === 0 && (
-              <p className="text-xs text-slate-500">No hay plan de cuidados estructurado.</p>
-            )}
-            {patient.carePlan.map((entry) => (
-              <article key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-sm font-semibold text-slate-900">{entry.nursingDiagnosis}</p>
-                <p className="text-xs text-slate-600">Objetivo: {entry.objective}</p>
-                <ListBlock title="Intervenciones" items={entry.interventions} />
-                <p className="text-[11px] text-slate-500">Evaluacion: {entry.evaluation}</p>
-                <p className="text-[11px] text-slate-500">Observaciones: {entry.observations}</p>
-              </article>
-            ))}
+        <Panel
+          title="Plan de cuidados"
+          subtitle="Ingreso estructurado por hora, objetivos e intervenciones de enfermeria"
+        >
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)]">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+              <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Planes registrados
+              </p>
+              {effectiveCarePlans.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-slate-200 bg-white px-2 py-2 text-[11px] text-slate-500">
+                  No hay plan de cuidados estructurado.
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {effectiveCarePlans.map((entry) => (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      onClick={() => setSelectedCarePlanId(entry.id)}
+                      className={[
+                        "w-full rounded-lg border px-2 py-1.5 text-left text-[11px]",
+                        selectedCarePlan?.id === entry.id
+                          ? "border-sky-300 bg-sky-50 text-sky-700"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100",
+                      ].join(" ")}
+                    >
+                      <p className="font-semibold">{entry.nursingDiagnosis}</p>
+                      <p className="text-[10px]">{entry.objective}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
+                <SummaryRow label="Diagnostico" value={selectedCarePlan?.nursingDiagnosis ?? "-"} />
+                <SummaryRow label="Objetivo" value={selectedCarePlan?.objective ?? "-"} />
+                <SummaryRow label="Evaluacion" value={selectedCarePlan?.evaluation ?? "-"} />
+                <SummaryRow
+                  label="Intervenciones"
+                  value={`${selectedCarePlan?.interventions.length ?? 0}`}
+                />
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-2">
+                <p className="mb-1 text-[11px] font-semibold text-slate-600">
+                  Detalle del plan seleccionado
+                </p>
+                {selectedCarePlan ? (
+                  <div className="space-y-2">
+                    <ListBlock title="Intervenciones" items={selectedCarePlan.interventions} />
+                    {selectedCarePlan.hourlyEntries?.length ? (
+                      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-50">
+                        <table className="min-w-[620px] w-full border-collapse text-[11px]">
+                          <thead>
+                            <tr className="bg-slate-100 text-slate-600">
+                              <th className="border border-slate-200 px-2 py-1 text-left">Hora</th>
+                              <th className="border border-slate-200 px-2 py-1 text-left">Foco</th>
+                              <th className="border border-slate-200 px-2 py-1 text-left">
+                                Intervencion
+                              </th>
+                              <th className="border border-slate-200 px-2 py-1 text-left">
+                                Respuesta
+                              </th>
+                              <th className="border border-slate-200 px-2 py-1 text-left">Estado</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedCarePlan.hourlyEntries.map((entry) => (
+                              <tr key={`${selectedCarePlan.id}-${entry.id}`}>
+                                <td className="border border-slate-200 bg-white px-2 py-1 font-semibold text-slate-700">
+                                  {entry.hour}
+                                </td>
+                                <td className="border border-slate-200 bg-white px-2 py-1 text-slate-600">
+                                  {entry.focus}
+                                </td>
+                                <td className="border border-slate-200 bg-white px-2 py-1 text-slate-700">
+                                  {entry.intervention}
+                                </td>
+                                <td className="border border-slate-200 bg-white px-2 py-1 text-slate-600">
+                                  {entry.response}
+                                </td>
+                                <td className="border border-slate-200 bg-white px-2 py-1 text-slate-600">
+                                  {entry.status}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                        Este plan no tiene seguimiento horario.
+                      </p>
+                    )}
+                    <p className="text-[11px] text-slate-500">Observaciones: {selectedCarePlan.observations}</p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">Selecciona un plan para ver su detalle.</p>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-2">
+                <p className="mb-1 text-[11px] font-semibold text-slate-600">
+                  Registrar plan de cuidados
+                </p>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  <InputText
+                    label="Diagnostico de enfermeria"
+                    value={carePlanForm.nursingDiagnosis}
+                    onChange={(value) =>
+                      setCarePlanForm((prev) => ({ ...prev, nursingDiagnosis: value }))
+                    }
+                    placeholder="Riesgo de perfusion ineficaz..."
+                  />
+                  <InputText
+                    label="Objetivo"
+                    value={carePlanForm.objective}
+                    onChange={(value) => setCarePlanForm((prev) => ({ ...prev, objective: value }))}
+                    placeholder="Mantener estabilidad hemodinamica..."
+                  />
+                  <InputText
+                    label="Intervenciones base"
+                    value={carePlanForm.baseInterventions}
+                    onChange={(value) =>
+                      setCarePlanForm((prev) => ({ ...prev, baseInterventions: value }))
+                    }
+                    placeholder="Separar por ; Ej: Control TA ; Control diuresis"
+                  />
+                  <InputText
+                    label="Evaluacion"
+                    value={carePlanForm.evaluation}
+                    onChange={(value) => setCarePlanForm((prev) => ({ ...prev, evaluation: value }))}
+                    placeholder="Evolucion parcial favorable..."
+                  />
+                </div>
+
+                <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-[11px] font-semibold text-slate-700">
+                    Seguimiento horario del plan
+                  </p>
+                  <div className="mt-1 max-h-20 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1">
+                    <div className="flex flex-wrap gap-1">
+                      {carePlanHourOptions.map((hour) => (
+                        <button
+                          key={`care-hour-pill-${hour}`}
+                          type="button"
+                          onClick={() => setCarePlanHourForm((prev) => ({ ...prev, hour }))}
+                          className={[
+                            "rounded-lg border px-2 py-0.5 text-[11px] transition",
+                            carePlanHourForm.hour === hour
+                              ? "border-sky-300 bg-sky-50 text-sky-700"
+                              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100",
+                          ].join(" ")}
+                        >
+                          {hour}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-5">
+                    <InputSelect
+                      label="Hora"
+                      value={carePlanHourForm.hour}
+                      onChange={(value) => setCarePlanHourForm((prev) => ({ ...prev, hour: value }))}
+                      options={carePlanHourOptions}
+                    />
+                    <InputSelect
+                      label="Foco"
+                      value={carePlanHourForm.focus}
+                      onChange={(value) => setCarePlanHourForm((prev) => ({ ...prev, focus: value }))}
+                      options={[
+                        "Intervencion",
+                        "Monitoreo",
+                        "Educacion",
+                        "Seguridad",
+                        "Reevaluacion",
+                      ]}
+                    />
+                    <InputText
+                      label="Intervencion"
+                      value={carePlanHourForm.intervention}
+                      onChange={(value) =>
+                        setCarePlanHourForm((prev) => ({ ...prev, intervention: value }))
+                      }
+                      placeholder="Accion de enfermeria"
+                    />
+                    <InputText
+                      label="Respuesta"
+                      value={carePlanHourForm.response}
+                      onChange={(value) => setCarePlanHourForm((prev) => ({ ...prev, response: value }))}
+                      placeholder="Respuesta del paciente"
+                    />
+                    <InputSelect
+                      label="Estado"
+                      value={carePlanHourForm.status}
+                      onChange={(value) => setCarePlanHourForm((prev) => ({ ...prev, status: value }))}
+                      options={["Pendiente", "En curso", "Cumplido", "Requiere ajuste"]}
+                    />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-slate-500">
+                      Registros horarios en borrador: {carePlanHourEntries.length}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={addCarePlanHourEntry}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      Agregar hora
+                    </button>
+                  </div>
+                  {carePlanHourEntries.length > 0 ? (
+                    <div className="mt-2 space-y-1">
+                      {carePlanHourEntries.map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1"
+                        >
+                          <p className="text-[11px] text-slate-700">
+                            <span className="font-semibold">{entry.hour}</span> · {entry.focus}:{" "}
+                            {entry.intervention}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-slate-500">
+                              {entry.response} · {entry.status}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeCarePlanHourEntry(entry.id)}
+                              className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100"
+                            >
+                              Quitar
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="mt-2">
+                  <label>
+                    <span className="mb-1 block text-[11px] font-semibold text-slate-600">
+                      Observaciones
+                    </span>
+                    <textarea
+                      value={carePlanForm.observations}
+                      onChange={(event) =>
+                        setCarePlanForm((prev) => ({ ...prev, observations: event.target.value }))
+                      }
+                      placeholder="Observaciones del plan y respuesta general..."
+                      className="min-h-[88px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none focus:border-sky-300 focus:bg-white"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={registerCarePlan}
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    Guardar plan
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </Panel>
       )}
@@ -3198,6 +4115,40 @@ function isHourInShift(hour: number, shift: string) {
   return hour >= 23 || hour <= 6;
 }
 
+function getNursingShiftHours(shift: string) {
+  if (/manana|mañana/i.test(shift)) {
+    return ["07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00"];
+  }
+
+  if (/tarde/i.test(shift)) {
+    return ["15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"];
+  }
+
+  return ["23:00", "00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00"];
+}
+
+function sortNursingHourEntriesByShift(entries: NursingHourEntry[], shift: string) {
+  const hourOrder = new Map(getNursingShiftHours(shift).map((hour, index) => [hour, index]));
+
+  return [...entries].sort((a, b) => {
+    const aIndex = hourOrder.get(a.hour) ?? Number.MAX_SAFE_INTEGER;
+    const bIndex = hourOrder.get(b.hour) ?? Number.MAX_SAFE_INTEGER;
+
+    if (aIndex === bIndex) {
+      return a.hour.localeCompare(b.hour);
+    }
+    return aIndex - bIndex;
+  });
+}
+
+function getCarePlanHourOptions() {
+  return Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, "0")}:00`);
+}
+
+function sortCarePlanHourEntries(entries: CarePlanHourEntry[]) {
+  return [...entries].sort((a, b) => a.hour.localeCompare(b.hour));
+}
+
 function groupVitalsByHour(vitals: VitalSignRecord[]) {
   return vitals.reduce<Record<string, VitalSignRecord>>((acc, vital) => {
     const hourLabel = normalizeHourLabel(vital.recordedAt);
@@ -3233,12 +4184,12 @@ function parseBloodPressure(value?: string) {
   };
 }
 
-function getInsulinLabel(patient: PatientRecord, vital: VitalSignRecord | null) {
+function getInsulinLabel(medicationRecords: MedicationRecord[], vital: VitalSignRecord | null) {
   if (!vital) {
     return "-";
   }
 
-  const insulinMedication = patient.medicationRecords.find((record) =>
+  const insulinMedication = medicationRecords.find((record) =>
     /insulina/i.test(record.name)
   );
   if (!insulinMedication) {
@@ -3462,7 +4413,7 @@ function buildAdministrationSlots(entry: KardexAdministrationRecord) {
   });
 }
 
-function formatNursingShiftNarrative(report: PatientRecord["nursingShiftReports"][number] | null) {
+function formatNursingShiftNarrative(report: NursingShiftReportRecord | null) {
   if (!report) {
     return "Sin reporte de enfermeria disponible para este paciente.";
   }
