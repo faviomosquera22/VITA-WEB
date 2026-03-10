@@ -169,9 +169,18 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   });
   const [fluidForm, setFluidForm] = useState({
     shift: "Manana",
-    intakeTotal: "",
-    outputTotal: "",
+    oral: "",
+    intravenous: "",
+    dilutedMedication: "",
+    enteralParenteral: "",
+    intakeOther: "",
     diuresis: "",
+    vomiting: "",
+    drains: "",
+    liquidStools: "",
+    aspiration: "",
+    insensibleLoss: "",
+    outputOther: "",
     observations: "",
   });
   const [nursingNoteDraft, setNursingNoteDraft] = useState("");
@@ -261,6 +270,48 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   const latestVitalDate = splitDateTime(effectiveVitals[0]?.recordedAt ?? patient.admissionDate).date;
   const invasiveRows = buildInvasiveProcedureRows(patient);
   const fluidBalanceSheet = buildFluidBalanceSheet(effectiveFluidBalances, patient.admissionDate);
+  const fluidDraftSummary = useMemo(() => {
+    const intake = {
+      oral: parseMlValue(fluidForm.oral),
+      intravenous: parseMlValue(fluidForm.intravenous),
+      dilutedMedication: parseMlValue(fluidForm.dilutedMedication),
+      enteralParenteral: parseMlValue(fluidForm.enteralParenteral),
+      other: parseMlValue(fluidForm.intakeOther),
+    };
+
+    const output = {
+      diuresis: parseMlValue(fluidForm.diuresis),
+      vomiting: parseMlValue(fluidForm.vomiting),
+      drains: parseMlValue(fluidForm.drains),
+      liquidStools: parseMlValue(fluidForm.liquidStools),
+      aspiration: parseMlValue(fluidForm.aspiration),
+      insensibleLoss: parseMlValue(fluidForm.insensibleLoss),
+      other: parseMlValue(fluidForm.outputOther),
+    };
+
+    const intakeTotal =
+      intake.oral +
+      intake.intravenous +
+      intake.dilutedMedication +
+      intake.enteralParenteral +
+      intake.other;
+    const outputTotal =
+      output.diuresis +
+      output.vomiting +
+      output.drains +
+      output.liquidStools +
+      output.aspiration +
+      output.insensibleLoss +
+      output.other;
+
+    return {
+      intake,
+      output,
+      intakeTotal,
+      outputTotal,
+      balance: intakeTotal - outputTotal,
+    };
+  }, [fluidForm]);
   const selectedNursingNote =
     effectiveNursingNotes.find((note) => note.id === selectedNursingNoteId) ??
     effectiveNursingNotes[0] ??
@@ -361,14 +412,11 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   };
 
   const registerFluidBalance = () => {
-    if (!fluidForm.intakeTotal || !fluidForm.outputTotal || !fluidForm.diuresis) {
+    if (fluidDraftSummary.intakeTotal <= 0 && fluidDraftSummary.outputTotal <= 0) {
       return;
     }
 
-    const intakeTotal = Number(fluidForm.intakeTotal);
-    const outputTotal = Number(fluidForm.outputTotal);
-    const diuresis = Number(fluidForm.diuresis);
-    if (![intakeTotal, outputTotal, diuresis].every((value) => Number.isFinite(value))) {
+    if (fluidDraftSummary.output.diuresis <= 0) {
       return;
     }
 
@@ -377,38 +425,8 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
         id: `fb-local-${Date.now()}`,
         shift: fluidForm.shift,
         date: latestVitalDate,
-        intake: {
-          oral: Math.round(intakeTotal * 0.25),
-          intravenous: Math.round(intakeTotal * 0.55),
-          dilutedMedication: Math.round(intakeTotal * 0.1),
-          enteralParenteral: Math.round(intakeTotal * 0.05),
-          other: Math.max(
-            0,
-            intakeTotal -
-              (Math.round(intakeTotal * 0.25) +
-                Math.round(intakeTotal * 0.55) +
-                Math.round(intakeTotal * 0.1) +
-                Math.round(intakeTotal * 0.05))
-          ),
-        },
-        output: {
-          diuresis,
-          vomiting: Math.round(Math.max(0, outputTotal - diuresis) * 0.2),
-          drains: Math.round(Math.max(0, outputTotal - diuresis) * 0.25),
-          liquidStools: Math.round(Math.max(0, outputTotal - diuresis) * 0.15),
-          aspiration: Math.round(Math.max(0, outputTotal - diuresis) * 0.1),
-          insensibleLoss: Math.round(Math.max(0, outputTotal - diuresis) * 0.2),
-          other: Math.max(
-            0,
-            outputTotal -
-              (diuresis +
-                Math.round(Math.max(0, outputTotal - diuresis) * 0.2) +
-                Math.round(Math.max(0, outputTotal - diuresis) * 0.25) +
-                Math.round(Math.max(0, outputTotal - diuresis) * 0.15) +
-                Math.round(Math.max(0, outputTotal - diuresis) * 0.1) +
-                Math.round(Math.max(0, outputTotal - diuresis) * 0.2))
-          ),
-        },
+        intake: fluidDraftSummary.intake,
+        output: fluidDraftSummary.output,
         observations: fluidForm.observations || "Registro manual de balance por turno.",
       },
       ...prev,
@@ -417,15 +435,24 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     addAuditRecord(
       "fluid_balance",
       "Registro de balance hidrico",
-      `Turno ${fluidForm.shift}. Ingreso ${intakeTotal} ml, egreso ${outputTotal} ml, diuresis ${diuresis} ml. ${fluidForm.observations}`
+      `Turno ${fluidForm.shift}. Ingreso ${fluidDraftSummary.intakeTotal} ml, egreso ${fluidDraftSummary.outputTotal} ml, diuresis ${fluidDraftSummary.output.diuresis} ml, balance ${fluidDraftSummary.balance} ml. ${fluidForm.observations}`
     );
-    setFluidForm((prev) => ({
-      ...prev,
-      intakeTotal: "",
-      outputTotal: "",
+    setFluidForm({
+      shift: fluidForm.shift,
+      oral: "",
+      intravenous: "",
+      dilutedMedication: "",
+      enteralParenteral: "",
+      intakeOther: "",
       diuresis: "",
+      vomiting: "",
+      drains: "",
+      liquidStools: "",
+      aspiration: "",
+      insensibleLoss: "",
+      outputOther: "",
       observations: "",
-    }));
+    });
   };
 
   const registerNursingNote = () => {
@@ -1511,56 +1538,193 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
 
                 <div className="border-t border-slate-300 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Registrar balance por turno
+                    Registrar balance hidrico por turno
                   </p>
-                  <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-5">
-                    <InputSelect
-                      label="Turno"
-                      value={fluidForm.shift}
-                      onChange={(value) => setFluidForm((prev) => ({ ...prev, shift: value }))}
-                      options={["Manana", "Tarde", "Noche"]}
-                    />
-                    <InputText
-                      label="Ingreso total (ml)"
-                      value={fluidForm.intakeTotal}
-                      onChange={(value) =>
-                        setFluidForm((prev) => ({ ...prev, intakeTotal: value }))
-                      }
-                      placeholder="1200"
-                    />
-                    <InputText
-                      label="Egreso total (ml)"
-                      value={fluidForm.outputTotal}
-                      onChange={(value) =>
-                        setFluidForm((prev) => ({ ...prev, outputTotal: value }))
-                      }
-                      placeholder="980"
-                    />
-                    <InputText
-                      label="Diuresis (ml)"
-                      value={fluidForm.diuresis}
-                      onChange={(value) =>
-                        setFluidForm((prev) => ({ ...prev, diuresis: value }))
-                      }
-                      placeholder="620"
-                    />
-                    <InputText
-                      label="Observaciones"
-                      value={fluidForm.observations}
-                      onChange={(value) =>
-                        setFluidForm((prev) => ({ ...prev, observations: value }))
-                      }
-                      placeholder="Paciente tolera via oral..."
-                    />
-                  </div>
-                  <div className="mt-2">
-                    <button
-                      type="button"
-                      onClick={registerFluidBalance}
-                      className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                    >
-                      Guardar balance
-                    </button>
+                  <div className="mt-2 grid grid-cols-1 gap-3 xl:grid-cols-[1.15fr_1.15fr_0.9fr]">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        Ingresos (ml)
+                      </p>
+                      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <InputText
+                          type="number"
+                          label="Oral"
+                          value={fluidForm.oral}
+                          onChange={(value) => setFluidForm((prev) => ({ ...prev, oral: value }))}
+                          placeholder="450"
+                        />
+                        <InputText
+                          type="number"
+                          label="Intravenoso"
+                          value={fluidForm.intravenous}
+                          onChange={(value) =>
+                            setFluidForm((prev) => ({ ...prev, intravenous: value }))
+                          }
+                          placeholder="700"
+                        />
+                        <InputText
+                          type="number"
+                          label="Medicacion diluida"
+                          value={fluidForm.dilutedMedication}
+                          onChange={(value) =>
+                            setFluidForm((prev) => ({ ...prev, dilutedMedication: value }))
+                          }
+                          placeholder="120"
+                        />
+                        <InputText
+                          type="number"
+                          label="Enteral/Parenteral"
+                          value={fluidForm.enteralParenteral}
+                          onChange={(value) =>
+                            setFluidForm((prev) => ({ ...prev, enteralParenteral: value }))
+                          }
+                          placeholder="0"
+                        />
+                        <InputText
+                          type="number"
+                          label="Otros ingresos"
+                          value={fluidForm.intakeOther}
+                          onChange={(value) =>
+                            setFluidForm((prev) => ({ ...prev, intakeOther: value }))
+                          }
+                          placeholder="0"
+                        />
+                        <div className="flex items-end">
+                          <div className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                              Total ingresos
+                            </p>
+                            <p className="text-xs font-semibold text-slate-800">
+                              {fluidDraftSummary.intakeTotal} ml
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        Egresos (ml)
+                      </p>
+                      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <InputText
+                          type="number"
+                          label="Diuresis"
+                          value={fluidForm.diuresis}
+                          onChange={(value) => setFluidForm((prev) => ({ ...prev, diuresis: value }))}
+                          placeholder="620"
+                        />
+                        <InputText
+                          type="number"
+                          label="Vomitos"
+                          value={fluidForm.vomiting}
+                          onChange={(value) => setFluidForm((prev) => ({ ...prev, vomiting: value }))}
+                          placeholder="0"
+                        />
+                        <InputText
+                          type="number"
+                          label="Drenajes"
+                          value={fluidForm.drains}
+                          onChange={(value) => setFluidForm((prev) => ({ ...prev, drains: value }))}
+                          placeholder="0"
+                        />
+                        <InputText
+                          type="number"
+                          label="Deposiciones liquidas"
+                          value={fluidForm.liquidStools}
+                          onChange={(value) =>
+                            setFluidForm((prev) => ({ ...prev, liquidStools: value }))
+                          }
+                          placeholder="0"
+                        />
+                        <InputText
+                          type="number"
+                          label="Aspiracion"
+                          value={fluidForm.aspiration}
+                          onChange={(value) => setFluidForm((prev) => ({ ...prev, aspiration: value }))}
+                          placeholder="0"
+                        />
+                        <InputText
+                          type="number"
+                          label="Perdidas insensibles"
+                          value={fluidForm.insensibleLoss}
+                          onChange={(value) =>
+                            setFluidForm((prev) => ({ ...prev, insensibleLoss: value }))
+                          }
+                          placeholder="250"
+                        />
+                        <InputText
+                          type="number"
+                          label="Otros egresos"
+                          value={fluidForm.outputOther}
+                          onChange={(value) =>
+                            setFluidForm((prev) => ({ ...prev, outputOther: value }))
+                          }
+                          placeholder="0"
+                        />
+                        <div className="flex items-end">
+                          <div className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                              Total egresos
+                            </p>
+                            <p className="text-xs font-semibold text-slate-800">
+                              {fluidDraftSummary.outputTotal} ml
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <InputSelect
+                        label="Turno"
+                        value={fluidForm.shift}
+                        onChange={(value) => setFluidForm((prev) => ({ ...prev, shift: value }))}
+                        options={["Manana", "Tarde", "Noche"]}
+                      />
+
+                      <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          Balance del turno
+                        </p>
+                        <p className="mt-1 text-xs text-slate-700">
+                          Ingreso: <span className="font-semibold">{fluidDraftSummary.intakeTotal} ml</span>
+                        </p>
+                        <p className="text-xs text-slate-700">
+                          Egreso: <span className="font-semibold">{fluidDraftSummary.outputTotal} ml</span>
+                        </p>
+                        <p
+                          className={[
+                            "text-xs font-semibold",
+                            fluidDraftSummary.balance < 0 ? "text-rose-700" : "text-emerald-700",
+                          ].join(" ")}
+                        >
+                          Balance: {fluidDraftSummary.balance} ml
+                        </p>
+                      </div>
+
+                      <div className="mt-2">
+                        <label className="mb-1 block text-[11px] font-semibold text-slate-600">
+                          Observaciones
+                        </label>
+                        <textarea
+                          value={fluidForm.observations}
+                          onChange={(event) =>
+                            setFluidForm((prev) => ({ ...prev, observations: event.target.value }))
+                          }
+                          placeholder="Paciente tolera via oral, sin complicaciones..."
+                          className="min-h-[88px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={registerFluidBalance}
+                        className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        Guardar balance hidrico
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2321,6 +2485,14 @@ function getCurrentDateTimeLabel() {
 
 function getCurrentDateLabel() {
   return getCurrentDateTimeLabel().split(" ")[0] ?? "-";
+}
+
+function parseMlValue(value: string) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0;
+  }
+  return parsed;
 }
 
 function computeVitalFlags({
