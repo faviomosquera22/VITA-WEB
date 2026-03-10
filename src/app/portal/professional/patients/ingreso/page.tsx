@@ -389,16 +389,21 @@ export default function PatientIntakePage() {
           `Paciente ya existe en Vita: ${payload.paciente.nombreCompleto} (HC ${payload.paciente.historiaClinicaNumero}).`
         );
       } else {
+        const hasRcNames =
+          Boolean(payload.registroCivil.nombres.trim()) &&
+          Boolean(payload.registroCivil.apellidos.trim());
         setCedulaLookupMessage(
-          `Datos cargados desde Registro Civil para ${payload.registroCivil.nombres} ${payload.registroCivil.apellidos}.`
+          hasRcNames
+            ? `Datos cargados desde Registro Civil para ${payload.registroCivil.nombres} ${payload.registroCivil.apellidos}.`
+            : "Cedula valida. Completa nombres y apellidos manualmente para continuar."
         );
         setForm((prev) => ({
           ...prev,
-          source: "registro_civil",
+          source: hasRcNames ? "registro_civil" : "manual",
           documentType: "cedula",
           documentNumber: payload.registroCivil.cedula,
-          firstNames: payload.registroCivil.nombres,
-          lastNames: payload.registroCivil.apellidos,
+          firstNames: payload.registroCivil.nombres || prev.firstNames,
+          lastNames: payload.registroCivil.apellidos || prev.lastNames,
           birthDate: payload.registroCivil.fecha_nacimiento ?? prev.birthDate,
           sexBiological: payload.registroCivil.sexo ?? prev.sexBiological,
           gender: payload.registroCivil.sexo ?? prev.gender,

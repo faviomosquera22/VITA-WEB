@@ -61,6 +61,16 @@ export default function BuscadorPaciente() {
       return;
     }
 
+    if (
+      !data.registroCivil.nombres.trim() ||
+      !data.registroCivil.apellidos.trim()
+    ) {
+      setRegistroError(
+        "No hay nombres/apellidos precargados. Usa 'Completar ingreso clinico' para llenar datos manualmente."
+      );
+      return;
+    }
+
     setIsRegistrando(true);
 
     try {

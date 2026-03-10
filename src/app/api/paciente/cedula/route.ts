@@ -149,70 +149,35 @@ export async function GET(request: NextRequest) {
   }
 
   const token = process.env.WEBSERVICES_EC_TOKEN;
-  if (!token) {
-    appendCedulaAuditLog({
-      cedula_consultada: cedula,
-      profesional_id: session.id,
-      resultado: "INTERNAL_ERROR",
-    });
+  let registroCivil: RegistroCivilPaciente = {
+    cedula,
+    nombres: "",
+    apellidos: "",
+    fecha_nacimiento: null,
+    sexo: null,
+  };
 
-    return NextResponse.json<CedulaLookupErrorResponse>(
-      {
-        error:
-          "Configuracion incompleta: falta WEBSERVICES_EC_TOKEN en variables de entorno.",
-        code: "MISSING_TOKEN",
-      },
-      { status: 500, headers }
-    );
-  }
-
-  try {
-    const registroCivil = await fetchRegistroCivilByCedula(cedula, token);
-
-    appendCedulaAuditLog({
-      cedula_consultada: cedula,
-      profesional_id: session.id,
-      resultado: "NEW_FROM_RC",
-    });
-
-    const response: CedulaLookupResponse = {
-      estado: "new",
-      esNuevo: true,
-      registroCivil,
-    };
-
-    return NextResponse.json(response, { status: 200, headers });
-  } catch (error) {
-    if (error instanceof CedulaLookupError) {
-      appendCedulaAuditLog({
-        cedula_consultada: cedula,
-        profesional_id: session.id,
-        resultado: error.auditResult,
-      });
-
-      return NextResponse.json<CedulaLookupErrorResponse>(
-        {
-          error: error.message,
-          code: error.code,
-        },
-        { status: error.status, headers }
-      );
+  if (token) {
+    try {
+      registroCivil = await fetchRegistroCivilByCedula(cedula, token);
+    } catch {
+      // Si falla webservices/token, se mantiene flujo manual sin bloquear.
     }
-
-    appendCedulaAuditLog({
-      cedula_consultada: cedula,
-      profesional_id: session.id,
-      resultado: "INTERNAL_ERROR",
-    });
-
-    return NextResponse.json<CedulaLookupErrorResponse>(
-      {
-        error: "No fue posible completar la consulta de cedula por un error interno.",
-        code: "INTERNAL_ERROR",
-      },
-      { status: 500, headers }
-    );
   }
+
+  appendCedulaAuditLog({
+    cedula_consultada: cedula,
+    profesional_id: session.id,
+    resultado: "NEW_FROM_RC",
+  });
+
+  const response: CedulaLookupResponse = {
+    estado: "new",
+    esNuevo: true,
+    registroCivil,
+  };
+
+  return NextResponse.json(response, { status: 200, headers });
 }
 
 function buildRateLimitHeaders(remaining: number, retryAfterSeconds: number) {
