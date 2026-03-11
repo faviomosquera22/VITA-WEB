@@ -520,7 +520,7 @@ export const professionalSidebarModules: SidebarModuleItem[] = [
   {
     id: "triage_intake",
     label: "Ingreso de triaje",
-    path: "/portal/professional/triage/ingreso",
+    path: "/portal/professional/triage/ingreso?section=diagnostico_triaje",
     section: "main",
     roles: ["professional", "institution"],
   },

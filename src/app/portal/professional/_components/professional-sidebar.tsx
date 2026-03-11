@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type JSX } from "react";
 
 import {
@@ -11,6 +11,11 @@ import {
   type SidebarSectionId,
   type UserRole,
 } from "../_data/clinical-mock-data";
+import {
+  isTriageIntakeSectionId,
+  triageIntakeSections,
+  type TriageIntakeSectionId,
+} from "../_data/triage-intake-sections";
 
 const sectionOrder: SidebarSectionId[] = [
   "main",
@@ -163,6 +168,7 @@ const modulePathMatchers: Array<{
 
 export default function ProfessionalSidebar({ role }: { role: UserRole }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") {
@@ -188,6 +194,14 @@ export default function ProfessionalSidebar({ role }: { role: UserRole }) {
     const matched = modulePathMatchers.find((item) => item.matcher(pathname));
     return matched?.id ?? "home";
   }, [pathname]);
+
+  const activeTriageSection = useMemo<TriageIntakeSectionId>(() => {
+    const section = searchParams.get("section");
+    if (isTriageIntakeSectionId(section)) {
+      return section;
+    }
+    return "diagnostico_triaje";
+  }, [searchParams]);
 
   const visibleItems = useMemo(
     () => professionalSidebarModules.filter((item) => item.roles.includes(role)),
@@ -283,6 +297,10 @@ export default function ProfessionalSidebar({ role }: { role: UserRole }) {
                       {items.map((item) => {
                         const isActive = activeModule === item.id;
                         const icon = moduleIconMap[item.id];
+                        const showTriageSubsections =
+                          !isCollapsed &&
+                          item.id === "triage_intake" &&
+                          pathname.startsWith("/portal/professional/triage/ingreso");
 
                         return (
                           <li key={item.id}>
@@ -308,6 +326,33 @@ export default function ProfessionalSidebar({ role }: { role: UserRole }) {
                               )}
                               {!isCollapsed && <span className="truncate">{item.label}</span>}
                             </Link>
+
+                            {showTriageSubsections ? (
+                              <ul className="mt-1 space-y-1 pl-6">
+                                {triageIntakeSections.map((section) => {
+                                  const isSectionActive = activeTriageSection === section.id;
+
+                                  return (
+                                    <li key={section.id}>
+                                      <Link
+                                        href={`/portal/professional/triage/ingreso?section=${section.id}`}
+                                        className={[
+                                          "flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11px] transition",
+                                          isSectionActive
+                                            ? "border-emerald-200 bg-emerald-50 font-semibold text-emerald-700"
+                                            : "border-transparent text-slate-500 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-700",
+                                        ].join(" ")}
+                                      >
+                                        <span className="w-4 shrink-0 text-center font-semibold">
+                                          {section.code}
+                                        </span>
+                                        <span className="truncate">{section.shortLabel}</span>
+                                      </Link>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            ) : null}
                           </li>
                         );
                       })}
