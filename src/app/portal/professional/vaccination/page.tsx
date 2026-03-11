@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { ModulePage, Panel, StatCard } from "../_components/clinical-ui";
 import {
@@ -76,6 +76,9 @@ export default function VaccinationPage() {
   const [campaignFilter, setCampaignFilter] = useState<"all" | string>("all");
   const [showMspScheme, setShowMspScheme] = useState(false);
   const [showVaccineHistory, setShowVaccineHistory] = useState(false);
+  const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
+  const [selectedPendingKey, setSelectedPendingKey] = useState<string | null>(null);
+  const [highlightRegistration, setHighlightRegistration] = useState(false);
   const [feedback, setFeedback] = useState<VaccinationFeedback | null>(null);
   const [activityLog, setActivityLog] = useState<VaccinationActivity[]>([]);
   const [applicationForm, setApplicationForm] = useState({
@@ -141,6 +144,7 @@ export default function VaccinationPage() {
   const activeInventoryId = stockForm.inventoryId || currentCenterInventory[0]?.id || "";
   const stockRowSelected =
     currentCenterInventory.find((item) => item.id === activeInventoryId) ?? null;
+  const registrationPanelRef = useRef<HTMLDivElement | null>(null);
   const pendingVaccinesOrdered = useMemo(() => {
     if (!selectedPatient) {
       return [];
@@ -177,8 +181,41 @@ export default function VaccinationPage() {
       ...prev,
       vaccineName: nextSuggested || prev.vaccineName,
     }));
+    setSelectedPendingKey(null);
+    setSelectionNotice(null);
+    setHighlightRegistration(false);
     setShowVaccineHistory(false);
     setFeedback(null);
+  };
+
+  const selectPendingForApplication = (entry: {
+    vaccine: string;
+    suggestedDate: string;
+    availability: string;
+  }) => {
+    const pendingKey = `${entry.vaccine}-${entry.suggestedDate}`;
+    setSelectedPendingKey(pendingKey);
+    setSelectionNotice(
+      `Vacuna ${entry.vaccine} cargada en el formulario. Revisa dosis/fecha y confirma registro.`
+    );
+    setFeedback(null);
+    setApplicationForm((prev) => ({
+      ...prev,
+      vaccineName: entry.vaccine,
+      date: normalizeDateInput(entry.suggestedDate) ?? prev.date,
+      doseType: inferDoseType(entry.vaccine, prev.doseType),
+    }));
+
+    const stockCandidate = currentCenterInventory.find((item) =>
+      isSameVaccineName(item.vaccine, entry.vaccine)
+    );
+    if (stockCandidate) {
+      setStockForm((prev) => ({ ...prev, inventoryId: stockCandidate.id }));
+    }
+
+    setHighlightRegistration(true);
+    window.setTimeout(() => setHighlightRegistration(false), 1400);
+    registrationPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const registerVaccine = () => {
@@ -287,6 +324,8 @@ export default function VaccinationPage() {
 
     const successMessage = `Vacuna ${vaccineName} registrada para ${selectedPatient.fullName}.`;
     setFeedback({ tone: "success", message: successMessage });
+    setSelectionNotice(null);
+    setSelectedPendingKey(null);
     setActivityLog((prev) =>
       [
         {
@@ -562,22 +601,29 @@ export default function VaccinationPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() =>
-                        setApplicationForm((prev) => ({
-                          ...prev,
-                          vaccineName: entry.vaccine,
-                          date: entry.suggestedDate || prev.date,
-                        }))
-                      }
-                      className="rounded-full border border-sky-300 bg-sky-50 px-3 py-1 text-[11px] font-semibold text-sky-700 hover:bg-sky-100"
+                      onClick={() => selectPendingForApplication(entry)}
+                      className={[
+                        "rounded-full border px-3 py-1 text-[11px] font-semibold transition",
+                        selectedPendingKey === `${entry.vaccine}-${entry.suggestedDate}`
+                          ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                          : "border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100",
+                      ].join(" ")}
                     >
-                      Seleccionar para aplicar
+                      {selectedPendingKey === `${entry.vaccine}-${entry.suggestedDate}`
+                        ? "Cargada en formulario"
+                        : "Seleccionar para aplicar"}
                     </button>
                   </div>
                 </article>
               ))}
             </div>
           )}
+
+          {selectionNotice ? (
+            <p className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+              {selectionNotice}
+            </p>
+          ) : null}
 
           {showVaccineHistory ? (
             <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
@@ -618,10 +664,17 @@ export default function VaccinationPage() {
       ) : null}
 
       {selectedPatient ? (
-        <Panel
-          title="Registro de vacuna aplicada y ajuste de stock"
-          subtitle="Flujo operativo: seleccion de vacuna, aplicacion inmediata y control de inventario en el centro"
-        >
+        <div ref={registrationPanelRef}>
+          <Panel
+            title="Registro de vacuna aplicada y ajuste de stock"
+            subtitle="Flujo operativo: seleccion de vacuna, aplicacion inmediata y control de inventario en el centro"
+          >
+            <div
+              className={[
+                "rounded-xl transition",
+                highlightRegistration ? "ring-2 ring-sky-300 ring-offset-2" : "",
+              ].join(" ")}
+            >
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -808,6 +861,7 @@ export default function VaccinationPage() {
               </div>
             </section>
           </div>
+            </div>
 
           {feedback ? (
             <p
@@ -846,7 +900,8 @@ export default function VaccinationPage() {
               </div>
             )}
           </div>
-        </Panel>
+          </Panel>
+        </div>
       ) : null}
     </ModulePage>
   );
@@ -949,6 +1004,38 @@ function extractVaccinationTag(observations: string, tag: "Dosis" | "Centro") {
   const matcher = new RegExp(`${tag}:\\s*([^|]+)`, "i");
   const match = observations.match(matcher);
   return match?.[1]?.trim();
+}
+
+function inferDoseType(vaccineName: string, fallback: string) {
+  const normalized = normalizeVaccineName(vaccineName);
+  if (normalized.includes("refuerzo")) {
+    return "Refuerzo";
+  }
+  if (normalized.includes("primera") || normalized.includes("1ra")) {
+    return "Primera";
+  }
+  if (normalized.includes("influenza") || normalized.includes("anual")) {
+    return "Dosis anual";
+  }
+  return fallback;
+}
+
+function normalizeDateInput(value: string) {
+  if (!value.trim()) {
+    return null;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const slashFormat = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!slashFormat) {
+    return null;
+  }
+
+  const [, day, month, year] = slashFormat;
+  return `${year}-${month}-${day}`;
 }
 
 function getCurrentTimestamp() {
