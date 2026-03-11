@@ -118,6 +118,49 @@ type FormState = {
 
 const bloodGroups = ["", "O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
 
+type IntakeStepId = 1 | 2 | 3 | 4;
+
+const intakeSteps: Array<{
+  id: IntakeStepId;
+  title: string;
+  description: string;
+}> = [
+  {
+    id: 1,
+    title: "Identificacion",
+    description: "Datos administrativos, contacto y financiamiento",
+  },
+  {
+    id: 2,
+    title: "Antecedentes",
+    description: "Base clinica y alergias",
+  },
+  {
+    id: 3,
+    title: "Consulta",
+    description: "Anamnesis, examen fisico y diagnostico",
+  },
+  {
+    id: 4,
+    title: "Plan",
+    description: "Plan terapeutico y registro final",
+  },
+];
+
+const intakeStepRequiredFields: Record<
+  IntakeStepId,
+  Array<{ key: keyof FormState; label: string }>
+> = {
+  1: [
+    { key: "documentNumber", label: "Documento" },
+    { key: "firstNames", label: "Nombres" },
+    { key: "lastNames", label: "Apellidos" },
+  ],
+  2: [],
+  3: [{ key: "literalReason", label: "Motivo de consulta" }],
+  4: [],
+};
+
 const emptyForm: FormState = {
   source: "manual",
   documentType: "cedula",
@@ -235,6 +278,8 @@ export default function PatientIntakePage() {
   const [cedulaLookupError, setCedulaLookupError] = useState<string | null>(null);
   const [cedulaLookupExistingUrl, setCedulaLookupExistingUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeStep, setActiveStep] = useState<IntakeStepId>(1);
+  const [wizardError, setWizardError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [createdRecord, setCreatedRecord] = useState<RegisteredPatientRecord | null>(null);
@@ -295,6 +340,28 @@ export default function PatientIntakePage() {
     if (!form.literalReason.trim()) missing.push("Motivo de consulta");
     return missing;
   }, [form.documentNumber, form.firstNames, form.lastNames, form.literalReason]);
+  const missingByStep = useMemo(() => {
+    const byStep = {
+      1: [] as string[],
+      2: [] as string[],
+      3: [] as string[],
+      4: [] as string[],
+    };
+
+    intakeSteps.forEach((step) => {
+      const missing = intakeStepRequiredFields[step.id]
+        .filter((item) => {
+          const value = form[item.key];
+          return typeof value === "string" ? !value.trim() : !value;
+        })
+        .map((item) => item.label);
+      byStep[step.id] = missing;
+    });
+
+    return byStep;
+  }, [form]);
+  const activeStepMeta = intakeSteps.find((step) => step.id === activeStep) ?? intakeSteps[0];
+  const canGoNext = activeStep < 4 && missingByStep[activeStep].length === 0;
 
   const onChange =
     (key: keyof FormState) =>
@@ -303,8 +370,50 @@ export default function PatientIntakePage() {
         event.target instanceof HTMLInputElement && event.target.type === "checkbox"
           ? event.target.checked
           : event.target.value;
+      setWizardError(null);
       setForm((prev) => ({ ...prev, [key]: value }));
     };
+
+  const goToStep = (stepId: IntakeStepId) => {
+    if (stepId <= activeStep) {
+      setWizardError(null);
+      setActiveStep(stepId);
+      return;
+    }
+
+    for (let current = activeStep; current < stepId; current += 1) {
+      const stepIndex = current as IntakeStepId;
+      if (missingByStep[stepIndex].length > 0) {
+        const blockedStep = intakeSteps.find((step) => step.id === stepIndex);
+        setWizardError(
+          `Completa ${missingByStep[stepIndex].join(", ")} antes de avanzar desde ${blockedStep?.title ?? "el paso actual"}.`
+        );
+        return;
+      }
+    }
+
+    setWizardError(null);
+    setActiveStep(stepId);
+  };
+
+  const goNextStep = () => {
+    if (activeStep >= 4) {
+      return;
+    }
+
+    if (missingByStep[activeStep].length > 0) {
+      setWizardError(`Completa ${missingByStep[activeStep].join(", ")} para continuar.`);
+      return;
+    }
+
+    setWizardError(null);
+    setActiveStep((prev) => (prev + 1) as IntakeStepId);
+  };
+
+  const goPreviousStep = () => {
+    setWizardError(null);
+    setActiveStep((prev) => Math.max(1, prev - 1) as IntakeStepId);
+  };
 
   const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -479,360 +588,448 @@ export default function PatientIntakePage() {
       </div>
 
       <form onSubmit={onSubmit} className="space-y-4">
-        <Panel title="1) Identificacion del paciente" subtitle="Datos base de historia clinica y estadistica poblacional">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <SelectField
-              label="Tipo documento"
-              value={form.documentType}
-              onChange={onChange("documentType")}
-              options={[
-                { value: "cedula", label: "Cedula" },
-                { value: "pasaporte", label: "Pasaporte" },
-                { value: "carne_refugiado", label: "Carne refugiado" },
-              ]}
-            />
-            <InputField label="Numero documento *" value={form.documentNumber} onChange={onChange("documentNumber")} />
-            <InputField label="Nombres *" value={form.firstNames} onChange={onChange("firstNames")} />
-            <InputField label="Apellidos *" value={form.lastNames} onChange={onChange("lastNames")} />
-            <InputField label="Fecha nacimiento" type="date" value={form.birthDate} onChange={onChange("birthDate")} />
-            <InputField label="Sexo biologico" value={form.sexBiological} onChange={onChange("sexBiological")} />
-            <InputField label="Genero" value={form.gender} onChange={onChange("gender")} />
-            <InputField label="Nacionalidad" value={form.nationality} onChange={onChange("nationality")} />
-            <InputField label="Etnia" value={form.ethnicity} onChange={onChange("ethnicity")} />
-            <InputField label="Estado civil" value={form.civilStatus} onChange={onChange("civilStatus")} />
-            <InputField label="Nivel instruccion" value={form.educationLevel} onChange={onChange("educationLevel")} />
-            <InputField label="Ocupacion" value={form.occupation} onChange={onChange("occupation")} />
-            <InputField label="Lugar de trabajo" value={form.workplace} onChange={onChange("workplace")} />
-            <InputField label="Religion" value={form.religion} onChange={onChange("religion")} />
-            <SelectField
-              label="Grupo sanguineo"
-              value={form.bloodGroup}
-              onChange={onChange("bloodGroup")}
-              options={bloodGroups.map((item) => ({ value: item, label: item || "Seleccione" }))}
-            />
+        <div className="sticky top-2 z-20 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/85">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Wizard de ingreso
+              </p>
+              <p className="text-sm font-semibold text-slate-900">
+                Paso {activeStepMeta.id} de 4 · {activeStepMeta.title}
+              </p>
+              <p className="text-[11px] text-slate-500">{activeStepMeta.description}</p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {intakeSteps.map((step) => {
+                const active = step.id === activeStep;
+                const completed =
+                  step.id < activeStep && missingByStep[step.id].length === 0;
+                const missingCount = missingByStep[step.id].length;
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    onClick={() => goToStep(step.id)}
+                    className={[
+                      "rounded-full border px-3 py-1 text-[11px] font-semibold transition",
+                      active
+                        ? "border-sky-300 bg-sky-50 text-sky-800"
+                        : completed
+                          ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                          : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
+                    ].join(" ")}
+                  >
+                    {step.id}. {step.title}
+                    {missingCount > 0 ? ` (${missingCount})` : ""}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </Panel>
+          {wizardError ? <p className="mt-2 text-xs text-red-700">{wizardError}</p> : null}
+        </div>
 
-        <Panel title="2) Contacto y ubicacion" subtitle="Direccion, georreferencia y red de apoyo">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <InputField label="Direccion" value={form.address} onChange={onChange("address")} />
-            <InputField label="Parroquia" value={form.parish} onChange={onChange("parish")} />
-            <InputField label="Canton" value={form.canton} onChange={onChange("canton")} />
-            <InputField label="Provincia" value={form.province} onChange={onChange("province")} />
-            <InputField label="GPS lat" value={form.gpsLat} onChange={onChange("gpsLat")} />
-            <InputField label="GPS lng" value={form.gpsLng} onChange={onChange("gpsLng")} />
-            <InputField label="Telefono principal" value={form.phonePrimary} onChange={onChange("phonePrimary")} />
-            <InputField label="Telefono secundario" value={form.phoneSecondary} onChange={onChange("phoneSecondary")} />
-            <InputField label="WhatsApp" value={form.whatsapp} onChange={onChange("whatsapp")} />
-            <InputField label="Email" type="email" value={form.email} onChange={onChange("email")} />
-            <InputField label="Contacto emergencia" value={form.emergencyName} onChange={onChange("emergencyName")} />
-            <InputField label="Relacion" value={form.emergencyRelationship} onChange={onChange("emergencyRelationship")} />
-            <InputField label="Telefono emergencia" value={form.emergencyPhone} onChange={onChange("emergencyPhone")} />
-            <InputField label="Representante legal" value={form.legalRepresentative} onChange={onChange("legalRepresentative")} />
-          </div>
-        </Panel>
+        {activeStep === 1 && (
+          <>
+            <Panel title="1) Identificacion del paciente" subtitle="Datos base de historia clinica y estadistica poblacional">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <SelectField
+                  label="Tipo documento"
+                  value={form.documentType}
+                  onChange={onChange("documentType")}
+                  options={[
+                    { value: "cedula", label: "Cedula" },
+                    { value: "pasaporte", label: "Pasaporte" },
+                    { value: "carne_refugiado", label: "Carne refugiado" },
+                  ]}
+                />
+                <InputField label="Numero documento *" value={form.documentNumber} onChange={onChange("documentNumber")} />
+                <InputField label="Nombres *" value={form.firstNames} onChange={onChange("firstNames")} />
+                <InputField label="Apellidos *" value={form.lastNames} onChange={onChange("lastNames")} />
+                <InputField label="Fecha nacimiento" type="date" value={form.birthDate} onChange={onChange("birthDate")} />
+                <InputField label="Sexo biologico" value={form.sexBiological} onChange={onChange("sexBiological")} />
+                <InputField label="Genero" value={form.gender} onChange={onChange("gender")} />
+                <InputField label="Nacionalidad" value={form.nationality} onChange={onChange("nationality")} />
+                <InputField label="Etnia" value={form.ethnicity} onChange={onChange("ethnicity")} />
+                <InputField label="Estado civil" value={form.civilStatus} onChange={onChange("civilStatus")} />
+                <InputField label="Nivel instruccion" value={form.educationLevel} onChange={onChange("educationLevel")} />
+                <InputField label="Ocupacion" value={form.occupation} onChange={onChange("occupation")} />
+                <InputField label="Lugar de trabajo" value={form.workplace} onChange={onChange("workplace")} />
+                <InputField label="Religion" value={form.religion} onChange={onChange("religion")} />
+                <SelectField
+                  label="Grupo sanguineo"
+                  value={form.bloodGroup}
+                  onChange={onChange("bloodGroup")}
+                  options={bloodGroups.map((item) => ({ value: item, label: item || "Seleccione" }))}
+                />
+              </div>
+            </Panel>
 
-        <Panel title="3) Afiliacion y financiamiento" subtitle="Cobertura de seguro y condicion administrativa">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <SelectField
-              label="Tipo afiliacion"
-              value={form.affiliationType}
-              onChange={onChange("affiliationType")}
-              options={[
-                { value: "particular", label: "Particular" },
-                { value: "IESS", label: "IESS" },
-                { value: "ISSFA", label: "ISSFA" },
-                { value: "ISSPOL", label: "ISSPOL" },
-                { value: "privado", label: "Seguro privado" },
-                { value: "otro", label: "Otro" },
-              ]}
-            />
-            <InputField label="Numero IESS" value={form.iessNumber} onChange={onChange("iessNumber")} />
-            <InputField label="Aseguradora privada" value={form.privateInsurer} onChange={onChange("privateInsurer")} />
-            <InputField label="Poliza" value={form.privatePolicyNumber} onChange={onChange("privatePolicyNumber")} />
-            <InputField label="Empresa empleadora" value={form.employer} onChange={onChange("employer")} />
-            <InputField label="Copago/exoneracion" value={form.copayExemption} onChange={onChange("copayExemption")} />
-            <InputField label="% discapacidad" value={form.disabilityPercent} onChange={onChange("disabilityPercent")} />
-            <InputField label="Nro CONADIS" value={form.conadisNumber} onChange={onChange("conadisNumber")} />
-          </div>
-        </Panel>
+            <Panel title="2) Contacto y ubicacion" subtitle="Direccion, georreferencia y red de apoyo">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <InputField label="Direccion" value={form.address} onChange={onChange("address")} />
+                <InputField label="Parroquia" value={form.parish} onChange={onChange("parish")} />
+                <InputField label="Canton" value={form.canton} onChange={onChange("canton")} />
+                <InputField label="Provincia" value={form.province} onChange={onChange("province")} />
+                <InputField label="GPS lat" value={form.gpsLat} onChange={onChange("gpsLat")} />
+                <InputField label="GPS lng" value={form.gpsLng} onChange={onChange("gpsLng")} />
+                <InputField label="Telefono principal" value={form.phonePrimary} onChange={onChange("phonePrimary")} />
+                <InputField label="Telefono secundario" value={form.phoneSecondary} onChange={onChange("phoneSecondary")} />
+                <InputField label="WhatsApp" value={form.whatsapp} onChange={onChange("whatsapp")} />
+                <InputField label="Email" type="email" value={form.email} onChange={onChange("email")} />
+                <InputField label="Contacto emergencia" value={form.emergencyName} onChange={onChange("emergencyName")} />
+                <InputField label="Relacion" value={form.emergencyRelationship} onChange={onChange("emergencyRelationship")} />
+                <InputField label="Telefono emergencia" value={form.emergencyPhone} onChange={onChange("emergencyPhone")} />
+                <InputField label="Representante legal" value={form.legalRepresentative} onChange={onChange("legalRepresentative")} />
+              </div>
+            </Panel>
 
-        <Panel title="4) Antecedentes y alergias" subtitle="Base clinica para seguridad farmacologica y riesgo">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <TextAreaField
-              label="Antecedentes patologicos (uno por linea)"
-              value={form.personalPathological}
-              onChange={onChange("personalPathological")}
-            />
-            <TextAreaField
-              label="Antecedentes familiares"
-              value={form.familyHistory}
-              onChange={onChange("familyHistory")}
-            />
-            <TextAreaField label="Cirugias" value={form.surgeries} onChange={onChange("surgeries")} />
-            <TextAreaField
-              label="Hospitalizaciones previas"
-              value={form.previousHospitalizations}
-              onChange={onChange("previousHospitalizations")}
-            />
-            <TextAreaField
-              label="Alergias medicamentosas"
-              value={form.allergiesMedications}
-              onChange={onChange("allergiesMedications")}
-            />
-            <TextAreaField
-              label="Alergias alimentarias"
-              value={form.allergiesFoods}
-              onChange={onChange("allergiesFoods")}
-            />
-            <TextAreaField
-              label="Alergias ambientales"
-              value={form.allergiesEnvironmental}
-              onChange={onChange("allergiesEnvironmental")}
-            />
-            <TextAreaField
-              label="Alergias a contraste/latex"
-              value={form.allergiesContrastLatex}
-              onChange={onChange("allergiesContrastLatex")}
-            />
-          </div>
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
-            <InputField label="Tabaco" value={form.tobacco} onChange={onChange("tobacco")} />
-            <InputField label="Alcohol" value={form.alcohol} onChange={onChange("alcohol")} />
-            <InputField label="Drogas" value={form.drugs} onChange={onChange("drugs")} />
-            <InputField
-              label="Actividad fisica (min/sem)"
-              value={form.physicalActivityMinutesPerWeek}
-              onChange={onChange("physicalActivityMinutesPerWeek")}
-            />
-            <InputField label="Dieta" value={form.dietType} onChange={onChange("dietType")} />
-            <InputField label="Sueno (horas)" value={form.sleepHours} onChange={onChange("sleepHours")} />
-            <InputField
-              label="Riesgo ocupacional"
-              value={form.occupationalRiskExposure}
-              onChange={onChange("occupationalRiskExposure")}
-            />
-          </div>
-        </Panel>
+            <Panel title="3) Afiliacion y financiamiento" subtitle="Cobertura de seguro y condicion administrativa">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <SelectField
+                  label="Tipo afiliacion"
+                  value={form.affiliationType}
+                  onChange={onChange("affiliationType")}
+                  options={[
+                    { value: "particular", label: "Particular" },
+                    { value: "IESS", label: "IESS" },
+                    { value: "ISSFA", label: "ISSFA" },
+                    { value: "ISSPOL", label: "ISSPOL" },
+                    { value: "privado", label: "Seguro privado" },
+                    { value: "otro", label: "Otro" },
+                  ]}
+                />
+                <InputField label="Numero IESS" value={form.iessNumber} onChange={onChange("iessNumber")} />
+                <InputField label="Aseguradora privada" value={form.privateInsurer} onChange={onChange("privateInsurer")} />
+                <InputField label="Poliza" value={form.privatePolicyNumber} onChange={onChange("privatePolicyNumber")} />
+                <InputField label="Empresa empleadora" value={form.employer} onChange={onChange("employer")} />
+                <InputField label="Copago/exoneracion" value={form.copayExemption} onChange={onChange("copayExemption")} />
+                <InputField label="% discapacidad" value={form.disabilityPercent} onChange={onChange("disabilityPercent")} />
+                <InputField label="Nro CONADIS" value={form.conadisNumber} onChange={onChange("conadisNumber")} />
+              </div>
+            </Panel>
+          </>
+        )}
 
-        <Panel title="5) Consulta, examen fisico y diagnostico" subtitle="Nucleo de atencion medica estructurada">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <SelectField
-              label="Tipo consulta"
-              value={form.consultationType}
-              onChange={onChange("consultationType")}
-              options={[
-                { value: "primera_vez", label: "Primera vez" },
-                { value: "subsecuente", label: "Subsecuente" },
-                { value: "urgencia", label: "Urgencia" },
-                { value: "teleconsulta", label: "Teleconsulta" },
-              ]}
-            />
-            <InputField label="Motivo consulta *" value={form.literalReason} onChange={onChange("literalReason")} />
-            <InputField label="Tiempo evolucion" value={form.evolutionTime} onChange={onChange("evolutionTime")} />
-            <InputField label="Sintoma principal" value={form.mainSymptom} onChange={onChange("mainSymptom")} />
-            <TextAreaField
-              label="Enfermedad actual (cronologica)"
-              value={form.currentIllnessNarrative}
-              onChange={onChange("currentIllnessNarrative")}
-            />
-            <TextAreaField
-              label="Tratamientos previos del episodio"
-              value={form.previousEpisodeTreatments}
-              onChange={onChange("previousEpisodeTreatments")}
-            />
-            <TextAreaField label="Rev. sistemas: General" value={form.reviewGeneral} onChange={onChange("reviewGeneral")} />
-            <TextAreaField
-              label="Rev. sistemas: Cardiovascular"
-              value={form.reviewCardiovascular}
-              onChange={onChange("reviewCardiovascular")}
-            />
-            <TextAreaField
-              label="Rev. sistemas: Respiratorio"
-              value={form.reviewRespiratory}
-              onChange={onChange("reviewRespiratory")}
-            />
-            <TextAreaField
-              label="Rev. sistemas: Digestivo"
-              value={form.reviewDigestive}
-              onChange={onChange("reviewDigestive")}
-            />
-            <TextAreaField
-              label="Rev. sistemas: Genitourinario"
-              value={form.reviewGenitourinary}
-              onChange={onChange("reviewGenitourinary")}
-            />
-            <TextAreaField
-              label="Rev. sistemas: Neurologico"
-              value={form.reviewNeurologic}
-              onChange={onChange("reviewNeurologic")}
-            />
-            <TextAreaField
-              label="Rev. sistemas: Musculoesqueletico"
-              value={form.reviewMusculoskeletal}
-              onChange={onChange("reviewMusculoskeletal")}
-            />
-            <TextAreaField
-              label="Rev. sistemas: Dermatologico"
-              value={form.reviewDermatologic}
-              onChange={onChange("reviewDermatologic")}
-            />
-            <TextAreaField
-              label="Rev. sistemas: Psiquiatrico"
-              value={form.reviewPsychiatric}
-              onChange={onChange("reviewPsychiatric")}
-            />
-          </div>
+        {activeStep === 2 && (
+          <Panel title="4) Antecedentes y alergias" subtitle="Base clinica para seguridad farmacologica y riesgo">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <TextAreaField
+                label="Antecedentes patologicos (uno por linea)"
+                value={form.personalPathological}
+                onChange={onChange("personalPathological")}
+              />
+              <TextAreaField
+                label="Antecedentes familiares"
+                value={form.familyHistory}
+                onChange={onChange("familyHistory")}
+              />
+              <TextAreaField label="Cirugias" value={form.surgeries} onChange={onChange("surgeries")} />
+              <TextAreaField
+                label="Hospitalizaciones previas"
+                value={form.previousHospitalizations}
+                onChange={onChange("previousHospitalizations")}
+              />
+              <TextAreaField
+                label="Alergias medicamentosas"
+                value={form.allergiesMedications}
+                onChange={onChange("allergiesMedications")}
+              />
+              <TextAreaField
+                label="Alergias alimentarias"
+                value={form.allergiesFoods}
+                onChange={onChange("allergiesFoods")}
+              />
+              <TextAreaField
+                label="Alergias ambientales"
+                value={form.allergiesEnvironmental}
+                onChange={onChange("allergiesEnvironmental")}
+              />
+              <TextAreaField
+                label="Alergias a contraste/latex"
+                value={form.allergiesContrastLatex}
+                onChange={onChange("allergiesContrastLatex")}
+              />
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+              <InputField label="Tabaco" value={form.tobacco} onChange={onChange("tobacco")} />
+              <InputField label="Alcohol" value={form.alcohol} onChange={onChange("alcohol")} />
+              <InputField label="Drogas" value={form.drugs} onChange={onChange("drugs")} />
+              <InputField
+                label="Actividad fisica (min/sem)"
+                value={form.physicalActivityMinutesPerWeek}
+                onChange={onChange("physicalActivityMinutesPerWeek")}
+              />
+              <InputField label="Dieta" value={form.dietType} onChange={onChange("dietType")} />
+              <InputField label="Sueno (horas)" value={form.sleepHours} onChange={onChange("sleepHours")} />
+              <InputField
+                label="Riesgo ocupacional"
+                value={form.occupationalRiskExposure}
+                onChange={onChange("occupationalRiskExposure")}
+              />
+            </div>
+          </Panel>
+        )}
 
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
-            <InputField label="PA" value={form.bloodPressure} onChange={onChange("bloodPressure")} />
-            <InputField label="FC" value={form.heartRate} onChange={onChange("heartRate")} />
-            <InputField label="FR" value={form.respiratoryRate} onChange={onChange("respiratoryRate")} />
-            <InputField label="Temp" value={form.temperature} onChange={onChange("temperature")} />
-            <InputField label="SpO2" value={form.spo2} onChange={onChange("spo2")} />
-            <InputField label="Peso (kg)" value={form.weightKg} onChange={onChange("weightKg")} />
-            <InputField label="Talla (cm)" value={form.heightCm} onChange={onChange("heightCm")} />
-            <InputField label="Glucometria" value={form.capillaryGlucose} onChange={onChange("capillaryGlucose")} />
-            <InputField label="Dolor (0-10)" value={form.painScale} onChange={onChange("painScale")} />
-            <InputField label="Glasgow" value={form.glasgow} onChange={onChange("glasgow")} />
-            <TextAreaField
-              label="Aspecto general"
-              value={form.generalAppearance}
-              onChange={onChange("generalAppearance")}
-            />
-            <TextAreaField label="Piel y faneras" value={form.skin} onChange={onChange("skin")} />
-            <TextAreaField label="Cabeza y cuello" value={form.headNeck} onChange={onChange("headNeck")} />
-            <TextAreaField label="OONG" value={form.ent} onChange={onChange("ent")} />
-            <TextAreaField label="Torax y pulmones" value={form.thoraxLungs} onChange={onChange("thoraxLungs")} />
-            <TextAreaField
-              label="Cardiovascular"
-              value={form.cardiovascularExam}
-              onChange={onChange("cardiovascularExam")}
-            />
-            <TextAreaField label="Abdomen" value={form.abdomen} onChange={onChange("abdomen")} />
-            <TextAreaField label="Extremidades" value={form.extremities} onChange={onChange("extremities")} />
-            <TextAreaField label="Neurologico" value={form.neurologicExam} onChange={onChange("neurologicExam")} />
-            <TextAreaField
-              label="Genitourinario"
-              value={form.genitourinaryExam}
-              onChange={onChange("genitourinaryExam")}
-            />
-            <TextAreaField label="Rectal" value={form.rectalExam} onChange={onChange("rectalExam")} />
-            <TextAreaField label="Ginecologico" value={form.gynecoExam} onChange={onChange("gynecoExam")} />
-          </div>
+        {activeStep === 3 && (
+          <Panel title="5) Consulta, examen fisico y diagnostico" subtitle="Nucleo de atencion medica estructurada">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              <SelectField
+                label="Tipo consulta"
+                value={form.consultationType}
+                onChange={onChange("consultationType")}
+                options={[
+                  { value: "primera_vez", label: "Primera vez" },
+                  { value: "subsecuente", label: "Subsecuente" },
+                  { value: "urgencia", label: "Urgencia" },
+                  { value: "teleconsulta", label: "Teleconsulta" },
+                ]}
+              />
+              <InputField label="Motivo consulta *" value={form.literalReason} onChange={onChange("literalReason")} />
+              <InputField label="Tiempo evolucion" value={form.evolutionTime} onChange={onChange("evolutionTime")} />
+              <InputField label="Sintoma principal" value={form.mainSymptom} onChange={onChange("mainSymptom")} />
+              <TextAreaField
+                label="Enfermedad actual (cronologica)"
+                value={form.currentIllnessNarrative}
+                onChange={onChange("currentIllnessNarrative")}
+              />
+              <TextAreaField
+                label="Tratamientos previos del episodio"
+                value={form.previousEpisodeTreatments}
+                onChange={onChange("previousEpisodeTreatments")}
+              />
+              <TextAreaField label="Rev. sistemas: General" value={form.reviewGeneral} onChange={onChange("reviewGeneral")} />
+              <TextAreaField
+                label="Rev. sistemas: Cardiovascular"
+                value={form.reviewCardiovascular}
+                onChange={onChange("reviewCardiovascular")}
+              />
+              <TextAreaField
+                label="Rev. sistemas: Respiratorio"
+                value={form.reviewRespiratory}
+                onChange={onChange("reviewRespiratory")}
+              />
+              <TextAreaField
+                label="Rev. sistemas: Digestivo"
+                value={form.reviewDigestive}
+                onChange={onChange("reviewDigestive")}
+              />
+              <TextAreaField
+                label="Rev. sistemas: Genitourinario"
+                value={form.reviewGenitourinary}
+                onChange={onChange("reviewGenitourinary")}
+              />
+              <TextAreaField
+                label="Rev. sistemas: Neurologico"
+                value={form.reviewNeurologic}
+                onChange={onChange("reviewNeurologic")}
+              />
+              <TextAreaField
+                label="Rev. sistemas: Musculoesqueletico"
+                value={form.reviewMusculoskeletal}
+                onChange={onChange("reviewMusculoskeletal")}
+              />
+              <TextAreaField
+                label="Rev. sistemas: Dermatologico"
+                value={form.reviewDermatologic}
+                onChange={onChange("reviewDermatologic")}
+              />
+              <TextAreaField
+                label="Rev. sistemas: Psiquiatrico"
+                value={form.reviewPsychiatric}
+                onChange={onChange("reviewPsychiatric")}
+              />
+            </div>
 
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
-            <InputField label="Codigo CIE-11" value={form.cie11Code} onChange={onChange("cie11Code")} />
-            <InputField
-              label="Descripcion diagnostico"
-              value={form.diagnosisDescription}
-              onChange={onChange("diagnosisDescription")}
-            />
-            <SelectField
-              label="Tipo diagnostico"
-              value={form.diagnosisType}
-              onChange={onChange("diagnosisType")}
-              options={[
-                { value: "definitivo", label: "Definitivo" },
-                { value: "presuntivo", label: "Presuntivo" },
-                { value: "descartado", label: "Descartado" },
-              ]}
-            />
-            <SelectField
-              label="Condicion"
-              value={form.diagnosisCondition}
-              onChange={onChange("diagnosisCondition")}
-              options={[
-                { value: "principal", label: "Principal" },
-                { value: "secundario", label: "Secundario" },
-                { value: "complicacion", label: "Complicacion" },
-              ]}
-            />
-            <CheckField
-              label="Relacionado a embarazo"
-              checked={form.pregnancyRelated}
-              onChange={onChange("pregnancyRelated")}
-            />
-          </div>
-        </Panel>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+              <InputField label="PA" value={form.bloodPressure} onChange={onChange("bloodPressure")} />
+              <InputField label="FC" value={form.heartRate} onChange={onChange("heartRate")} />
+              <InputField label="FR" value={form.respiratoryRate} onChange={onChange("respiratoryRate")} />
+              <InputField label="Temp" value={form.temperature} onChange={onChange("temperature")} />
+              <InputField label="SpO2" value={form.spo2} onChange={onChange("spo2")} />
+              <InputField label="Peso (kg)" value={form.weightKg} onChange={onChange("weightKg")} />
+              <InputField label="Talla (cm)" value={form.heightCm} onChange={onChange("heightCm")} />
+              <InputField label="Glucometria" value={form.capillaryGlucose} onChange={onChange("capillaryGlucose")} />
+              <InputField label="Dolor (0-10)" value={form.painScale} onChange={onChange("painScale")} />
+              <InputField label="Glasgow" value={form.glasgow} onChange={onChange("glasgow")} />
+              <TextAreaField
+                label="Aspecto general"
+                value={form.generalAppearance}
+                onChange={onChange("generalAppearance")}
+              />
+              <TextAreaField label="Piel y faneras" value={form.skin} onChange={onChange("skin")} />
+              <TextAreaField label="Cabeza y cuello" value={form.headNeck} onChange={onChange("headNeck")} />
+              <TextAreaField label="OONG" value={form.ent} onChange={onChange("ent")} />
+              <TextAreaField label="Torax y pulmones" value={form.thoraxLungs} onChange={onChange("thoraxLungs")} />
+              <TextAreaField
+                label="Cardiovascular"
+                value={form.cardiovascularExam}
+                onChange={onChange("cardiovascularExam")}
+              />
+              <TextAreaField label="Abdomen" value={form.abdomen} onChange={onChange("abdomen")} />
+              <TextAreaField label="Extremidades" value={form.extremities} onChange={onChange("extremities")} />
+              <TextAreaField label="Neurologico" value={form.neurologicExam} onChange={onChange("neurologicExam")} />
+              <TextAreaField
+                label="Genitourinario"
+                value={form.genitourinaryExam}
+                onChange={onChange("genitourinaryExam")}
+              />
+              <TextAreaField label="Rectal" value={form.rectalExam} onChange={onChange("rectalExam")} />
+              <TextAreaField label="Ginecologico" value={form.gynecoExam} onChange={onChange("gynecoExam")} />
+            </div>
 
-        <Panel title="6) Plan terapeutico y prescripcion inicial" subtitle="Indicaciones farmacologicas y no farmacologicas">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <TextAreaField
-              label="Indicaciones no farmacologicas"
-              value={form.nonPharmacological}
-              onChange={onChange("nonPharmacological")}
-            />
-            <TextAreaField
-              label="Seguimiento y proximo control"
-              value={form.followUpInstructions}
-              onChange={onChange("followUpInstructions")}
-            />
-            <TextAreaField
-              label="Signos de alarma explicados"
-              value={form.alarmSignsExplained}
-              onChange={onChange("alarmSignsExplained")}
-            />
-            <TextAreaField
-              label="Referencia a otro nivel"
-              value={form.referralDestination}
-              onChange={onChange("referralDestination")}
-            />
-          </div>
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-            <InputField
-              label="DCI medicamento"
-              value={form.prescriptionDci}
-              onChange={onChange("prescriptionDci")}
-            />
-            <InputField label="Dosis" value={form.prescriptionDose} onChange={onChange("prescriptionDose")} />
-            <InputField label="Via" value={form.prescriptionRoute} onChange={onChange("prescriptionRoute")} />
-            <InputField
-              label="Frecuencia"
-              value={form.prescriptionFrequency}
-              onChange={onChange("prescriptionFrequency")}
-            />
-            <InputField
-              label="Duracion"
-              value={form.prescriptionDuration}
-              onChange={onChange("prescriptionDuration")}
-            />
-            <TextAreaField
-              label="Instrucciones al paciente"
-              value={form.prescriptionInstructions}
-              onChange={onChange("prescriptionInstructions")}
-            />
-          </div>
-        </Panel>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+              <InputField label="Codigo CIE-11" value={form.cie11Code} onChange={onChange("cie11Code")} />
+              <InputField
+                label="Descripcion diagnostico"
+                value={form.diagnosisDescription}
+                onChange={onChange("diagnosisDescription")}
+              />
+              <SelectField
+                label="Tipo diagnostico"
+                value={form.diagnosisType}
+                onChange={onChange("diagnosisType")}
+                options={[
+                  { value: "definitivo", label: "Definitivo" },
+                  { value: "presuntivo", label: "Presuntivo" },
+                  { value: "descartado", label: "Descartado" },
+                ]}
+              />
+              <SelectField
+                label="Condicion"
+                value={form.diagnosisCondition}
+                onChange={onChange("diagnosisCondition")}
+                options={[
+                  { value: "principal", label: "Principal" },
+                  { value: "secundario", label: "Secundario" },
+                  { value: "complicacion", label: "Complicacion" },
+                ]}
+              />
+              <CheckField
+                label="Relacionado a embarazo"
+                checked={form.pregnancyRelated}
+                onChange={onChange("pregnancyRelated")}
+              />
+            </div>
+          </Panel>
+        )}
+
+        {activeStep === 4 && (
+          <Panel title="6) Plan terapeutico y prescripcion inicial" subtitle="Indicaciones farmacologicas y no farmacologicas">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <TextAreaField
+                label="Indicaciones no farmacologicas"
+                value={form.nonPharmacological}
+                onChange={onChange("nonPharmacological")}
+              />
+              <TextAreaField
+                label="Seguimiento y proximo control"
+                value={form.followUpInstructions}
+                onChange={onChange("followUpInstructions")}
+              />
+              <TextAreaField
+                label="Signos de alarma explicados"
+                value={form.alarmSignsExplained}
+                onChange={onChange("alarmSignsExplained")}
+              />
+              <TextAreaField
+                label="Referencia a otro nivel"
+                value={form.referralDestination}
+                onChange={onChange("referralDestination")}
+              />
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+              <InputField
+                label="DCI medicamento"
+                value={form.prescriptionDci}
+                onChange={onChange("prescriptionDci")}
+              />
+              <InputField label="Dosis" value={form.prescriptionDose} onChange={onChange("prescriptionDose")} />
+              <InputField label="Via" value={form.prescriptionRoute} onChange={onChange("prescriptionRoute")} />
+              <InputField
+                label="Frecuencia"
+                value={form.prescriptionFrequency}
+                onChange={onChange("prescriptionFrequency")}
+              />
+              <InputField
+                label="Duracion"
+                value={form.prescriptionDuration}
+                onChange={onChange("prescriptionDuration")}
+              />
+              <TextAreaField
+                label="Instrucciones al paciente"
+                value={form.prescriptionInstructions}
+                onChange={onChange("prescriptionInstructions")}
+              />
+            </div>
+          </Panel>
+        )}
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="rounded-full border border-sky-300 bg-sky-600 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSubmitting ? "Guardando..." : "Registrar paciente"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setForm(emptyForm)}
-              className="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-            >
-              Limpiar formulario
-            </button>
-            {createdRecord ? (
-              <Link
-                href={`/portal/professional/patients/ingreso/${createdRecord.id}`}
-                className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs text-slate-600">
+              {activeStep < 4
+                ? `Paso ${activeStep} de 4 · faltan ${missingByStep[activeStep].length} campos obligatorios de este paso`
+                : "Paso final · revisa y confirma el registro"}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={goPreviousStep}
+                disabled={activeStep === 1}
+                className="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Abrir ficha registrada
-              </Link>
-            ) : null}
+                Anterior
+              </button>
+              {activeStep < 4 ? (
+                <button
+                  type="button"
+                  onClick={goNextStep}
+                  disabled={!canGoNext}
+                  className="rounded-full border border-sky-300 bg-sky-600 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Siguiente
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="rounded-full border border-sky-300 bg-sky-600 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSubmitting ? "Guardando..." : "Registrar paciente"}
+                </button>
+              )}
+            </div>
           </div>
-          {error ? <p className="mt-2 text-xs text-red-700">{error}</p> : null}
-          {success ? <p className="mt-2 text-xs text-emerald-700">{success}</p> : null}
         </div>
+
+        {activeStep === 4 && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setForm(emptyForm);
+                  setActiveStep(1);
+                  setWizardError(null);
+                }}
+                className="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                Limpiar formulario
+              </button>
+              {createdRecord ? (
+                <Link
+                  href={`/portal/professional/patients/ingreso/${createdRecord.id}`}
+                  className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                >
+                  Abrir ficha registrada
+                </Link>
+              ) : null}
+            </div>
+            {error ? <p className="mt-2 text-xs text-red-700">{error}</p> : null}
+            {success ? <p className="mt-2 text-xs text-emerald-700">{success}</p> : null}
+          </div>
+        )}
       </form>
 
       <Panel title="Registros recientes" subtitle="Ultimos pacientes creados desde ingreso clinico">

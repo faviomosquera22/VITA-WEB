@@ -160,6 +160,8 @@ type NursingShiftReportRecord = PatientRecord["nursingShiftReports"][number] & {
   hourlyEntries?: NursingHourEntry[];
 };
 
+type TimelineCategory = PatientRecord["timeline"][number]["category"];
+
 type CarePlanHourEntry = {
   id: string;
   hour: string;
@@ -311,6 +313,8 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   });
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyDateFilter, setHistoryDateFilter] = useState("");
+  const [timelineFilter, setTimelineFilter] = useState<"all" | TimelineCategory>("all");
+  const [timelineSearch, setTimelineSearch] = useState("");
 
   const activeTab = selectedTab ?? (isTab(requestedTab) ? requestedTab : "summary");
 
@@ -382,6 +386,22 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     () => [...patient.timeline].sort((a, b) => b.datetime.localeCompare(a.datetime)),
     [patient.timeline]
   );
+  const timelineFiltered = useMemo(() => {
+    const normalizedSearch = timelineSearch.trim().toLowerCase();
+
+    return timelineSorted.filter((event) => {
+      if (timelineFilter !== "all" && event.category !== timelineFilter) {
+        return false;
+      }
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      return `${event.category} ${event.detail} ${event.datetime}`
+        .toLowerCase()
+        .includes(normalizedSearch);
+    });
+  }, [timelineFilter, timelineSearch, timelineSorted]);
   const kardexAdministrations = getKardexAdministrations(patient);
   const medicationAllergies = patient.antecedentes.allergies.filter(
     (item) => !isNoKnownAllergy(item)
@@ -500,7 +520,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   const timelineGroups = useMemo(() => {
     const grouped = new Map<string, PatientRecord["timeline"]>();
 
-    for (const event of timelineSorted) {
+    for (const event of timelineFiltered) {
       const dateKey = splitDateTime(event.datetime).date;
       const current = grouped.get(dateKey) ?? [];
       current.push(event);
@@ -511,9 +531,9 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       date,
       events,
     }));
-  }, [timelineSorted]);
+  }, [timelineFiltered]);
   const timelineCategoryCounts = useMemo(() => {
-    const counts = new Map<PatientRecord["timeline"][number]["category"], number>();
+    const counts = new Map<TimelineCategory, number>();
 
     for (const event of timelineSorted) {
       counts.set(event.category, (counts.get(event.category) ?? 0) + 1);
@@ -523,6 +543,28 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       .map(([category, count]) => ({ category, count }))
       .sort((a, b) => b.count - a.count);
   }, [timelineSorted]);
+  const timelineFilteredCategoryCounts = useMemo(() => {
+    const counts = new Map<TimelineCategory, number>();
+
+    for (const event of timelineFiltered) {
+      counts.set(event.category, (counts.get(event.category) ?? 0) + 1);
+    }
+
+    return Array.from(counts.entries())
+      .map(([category, count]) => ({ category, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [timelineFiltered]);
+  const timelineCategoryOptions = useMemo(
+    () => timelineCategoryCounts.map((item) => item.category),
+    [timelineCategoryCounts]
+  );
+  const timelineCategoryCountMap = useMemo(() => {
+    const counts = new Map<TimelineCategory, number>();
+    for (const item of timelineCategoryCounts) {
+      counts.set(item.category, item.count);
+    }
+    return counts;
+  }, [timelineCategoryCounts]);
   const moduleHistoryEntries = useMemo<ModuleHistoryEntry[]>(() => {
     const makeEntry = (
       id: string,
@@ -1487,8 +1529,68 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
         )}
       </header>
 
+      <div className="sticky top-2 z-20 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/85">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-slate-900">
+              {patient.fullName} · {patient.age} anios · HC {patient.medicalRecordNumber}
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
+                Area: {patient.serviceArea ?? patient.careMode}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
+                Estado: {patient.currentStatus}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
+                Ultimo control: {patient.lastControlAt}
+              </span>
+              <RiskBadge risk={patient.riskLevel} />
+              <TriageBadge triage={patient.triageColor} />
+              {medicationAllergies.length > 0 ? (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-800">
+                  Alergias: {medicationAllergies.slice(0, 2).join(" · ")}
+                </span>
+              ) : (
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
+                  Sin alergias medicamentosas
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            <StickyTabButton
+              label="Resumen"
+              active={activeTab === "summary"}
+              onClick={() => setSelectedTab("summary")}
+            />
+            <StickyTabButton
+              label="Diagnosticos"
+              active={activeTab === "diagnoses"}
+              onClick={() => setSelectedTab("diagnoses")}
+            />
+            <StickyTabButton
+              label="Timeline"
+              active={activeTab === "timeline"}
+              onClick={() => setSelectedTab("timeline")}
+            />
+            <StickyTabButton
+              label="Signos"
+              active={activeTab === "vitals"}
+              onClick={() => setSelectedTab("vitals")}
+            />
+            <StickyTabButton
+              label="Registrar nota"
+              active={activeTab === "medical_notes"}
+              onClick={() => setSelectedTab("medical_notes")}
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-3 xl:sticky xl:top-3">
+        <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-3 xl:sticky xl:top-24">
           <div className="mb-3 border-b border-slate-200 pb-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
               Submodulos de ficha
@@ -3854,29 +3956,87 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       {activeTab === "timeline" && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <QuickStatCard label="Eventos totales" value={timelineSorted.length} hint="Linea de tiempo completa" />
-            <QuickStatCard label="Categorias activas" value={timelineCategoryCounts.length} hint="Tipos de evento registrados" />
-            <QuickStatCard label="Primer evento" value={timelineSorted[timelineSorted.length - 1]?.datetime ?? "-"} hint="Inicio de trazabilidad" />
-            <QuickStatCard label="Ultimo evento" value={timelineSorted[0]?.datetime ?? "-"} hint="Actualizacion mas reciente" />
+            <QuickStatCard label="Eventos totales" value={timelineSorted.length} hint="Timeline completa del paciente" />
+            <QuickStatCard
+              label="Eventos visibles"
+              value={timelineFiltered.length}
+              hint="Resultado de filtros activos"
+            />
+            <QuickStatCard
+              label="Categorias visibles"
+              value={timelineFilteredCategoryCounts.length}
+              hint="Tipos de evento filtrados"
+            />
+            <QuickStatCard
+              label="Ultimo evento visible"
+              value={timelineFiltered[0]?.datetime ?? "-"}
+              hint="Registro mas reciente en pantalla"
+            />
           </div>
 
-          <Panel title="Historial / linea de tiempo clinica" subtitle="Eventos agrupados por fecha y priorizados por categoria">
+          <Panel
+            title="Timeline clinica unificada"
+            subtitle="Un solo historial cronologico con filtros por categoria y busqueda por texto"
+          >
+            <div className="mb-3 grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Buscar en historial
+                <input
+                  value={timelineSearch}
+                  onChange={(event) => setTimelineSearch(event.target.value)}
+                  placeholder="Ej. dolor toracico, medicacion, triaje"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-normal text-slate-700 focus:border-sky-500 focus:bg-white focus:outline-none"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setTimelineFilter("all");
+                  setTimelineSearch("");
+                }}
+                className="h-fit self-end rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                Limpiar filtros
+              </button>
+            </div>
+
             <div className="mb-3 flex flex-wrap gap-1.5">
-              {timelineCategoryCounts.map((item) => (
-                <div
-                  key={item.category}
-                  className="inline-flex items-center gap-1.5"
+              <button
+                type="button"
+                onClick={() => setTimelineFilter("all")}
+                className={[
+                  "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
+                  timelineFilter === "all"
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
+                ].join(" ")}
+              >
+                Todas ({timelineSorted.length})
+              </button>
+              {timelineCategoryOptions.map((category) => (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setTimelineFilter(category)}
+                  className={[
+                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
+                    timelineFilter === category
+                      ? "border-sky-300 bg-sky-50 text-sky-800"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                  ].join(" ")}
                 >
-                  <TimelineCategoryTag category={item.category} />
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                    {item.count}
+                  {category}
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-600">
+                    {timelineCategoryCountMap.get(category) ?? 0}
                   </span>
-                </div>
+                </button>
               ))}
             </div>
 
             {timelineGroups.length === 0 ? (
-              <p className="text-xs text-slate-500">Sin eventos historicos registrados.</p>
+              <p className="text-xs text-slate-500">
+                No hay eventos para los filtros actuales. Ajusta categoria o texto de busqueda.
+              </p>
             ) : (
               <div className="space-y-4">
                 {timelineGroups.map((group) => (
@@ -4385,6 +4545,31 @@ function ActionChip({ label }: { label: string }) {
     <button
       type="button"
       className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100"
+    >
+      {label}
+    </button>
+  );
+}
+
+function StickyTabButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
+        active
+          ? "border-sky-300 bg-sky-50 text-sky-800"
+          : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
+      ].join(" ")}
     >
       {label}
     </button>
