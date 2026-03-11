@@ -236,7 +236,7 @@ export default function PatientsPage() {
                   <th className="px-3 py-2 font-semibold">Paciente</th>
                   <th className="px-3 py-2 font-semibold">Documento</th>
                   <th className="px-3 py-2 font-semibold">Motivo</th>
-                  <th className="px-3 py-2 font-semibold">Ficha</th>
+                  <th className="px-3 py-2 text-center font-semibold">Ficha</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -246,10 +246,10 @@ export default function PatientsPage() {
                     <td className="px-3 py-2 text-slate-700">{entry.fullName}</td>
                     <td className="px-3 py-2 text-slate-700">{entry.documentNumber}</td>
                     <td className="px-3 py-2 text-slate-700">{entry.consultationReason}</td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2 text-center align-middle">
                       <Link
                         href={`/portal/professional/patients/ingreso/${entry.id}`}
-                        className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                        className="inline-flex items-center justify-center whitespace-nowrap rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold leading-none text-slate-700 hover:bg-slate-100"
                       >
                         Ver ficha
                       </Link>
@@ -404,7 +404,7 @@ export default function PatientsPage() {
                 <th className="px-3 py-2 font-semibold">Ultima actualizacion</th>
                 <th className="px-3 py-2 font-semibold">Profesional</th>
                 <th className="px-3 py-2 font-semibold">Patron alterado</th>
-                <th className="px-3 py-2 font-semibold">Ficha</th>
+                <th className="px-3 py-2 text-center font-semibold">Ficha</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -441,10 +441,10 @@ export default function PatientsPage() {
                       ))}
                     </div>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2 text-center align-middle">
                     <Link
                       href={`/portal/professional/patients/${patient.id}`}
-                      className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+                      className="inline-flex items-center justify-center whitespace-nowrap rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium leading-none text-slate-700 hover:bg-slate-100"
                     >
                       Ver ficha
                     </Link>
@@ -486,7 +486,7 @@ export default function PatientsPage() {
                 <RiskBadge risk={patient.riskLevel} />
                 <Link
                   href={`/portal/professional/patients/${patient.id}`}
-                  className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700"
+                  className="inline-flex items-center justify-center whitespace-nowrap rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium leading-none text-slate-700 hover:bg-slate-100"
                 >
                   Ver ficha
                 </Link>

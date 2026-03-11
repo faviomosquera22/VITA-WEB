@@ -30,6 +30,7 @@ const moduleIconMap: Record<ProfessionalModuleId, (className: string) => JSX.Ele
   home: homeIcon,
   patients: patientsIcon,
   triage: triageIcon,
+  triage_intake: triageIntakeIcon,
   follow_up: followUpIcon,
   shift: shiftIcon,
   hce: hceIcon,
@@ -64,6 +65,10 @@ const modulePathMatchers: Array<{
       pathname.startsWith("/portal/professional/patient") ||
       pathname.startsWith("/portal/professional/care-plan") ||
       pathname.startsWith("/portal/professional/clinical-documents"),
+  },
+  {
+    id: "triage_intake",
+    matcher: (pathname) => pathname.startsWith("/portal/professional/triage/ingreso"),
   },
   {
     id: "triage",
@@ -383,6 +388,19 @@ function triageIcon(className: string) {
       <path d="M12 3l7 3v6c0 4.5-2.8 7.8-7 9-4.2-1.2-7-4.5-7-9V6l7-3z" />
       <path d="M12 8v5" />
       <path d="M12 16h.01" />
+    </>
+  );
+}
+
+function triageIntakeIcon(className: string) {
+  return iconBase(
+    className,
+    <>
+      <path d="M8 3h8l4 4v14H8z" />
+      <path d="M16 3v4h4" />
+      <path d="M12 11h4" />
+      <path d="M14 9v4" />
+      <path d="M11 16h6" />
     </>
   );
 }

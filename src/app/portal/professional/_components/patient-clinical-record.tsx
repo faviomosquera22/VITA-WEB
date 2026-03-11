@@ -315,6 +315,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   const [historyDateFilter, setHistoryDateFilter] = useState("");
   const [timelineFilter, setTimelineFilter] = useState<"all" | TimelineCategory>("all");
   const [timelineSearch, setTimelineSearch] = useState("");
+  const [quickActionFeedback, setQuickActionFeedback] = useState("");
 
   const activeTab = selectedTab ?? (isTab(requestedTab) ? requestedTab : "summary");
 
@@ -956,6 +957,83 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     ]);
   };
 
+  const openTabFromQuickAction = (tab: PatientTabId) => {
+    setSelectedTab(tab);
+    setHistoryOpen(false);
+  };
+
+  const handleExportPdf = () => {
+    openTabFromQuickAction("reports");
+    addAuditRecord("reports", "Exportacion PDF", "Se abrio la impresion para exportar la ficha en PDF.");
+    setQuickActionFeedback("Se abrio el dialogo de impresion para exportar PDF.");
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  };
+
+  const handleGenerateClinicalSummary = () => {
+    openTabFromQuickAction("reports");
+    setModuleRecordForm((prev) => ({
+      title: prev.title || `Resumen clinico ${patient.fullName}`,
+      details:
+        prev.details ||
+        `Resumen clinico generado para ${patient.fullName}. Incluir diagnosticos, evolucion y plan terapeutico.`,
+    }));
+    addAuditRecord(
+      "reports",
+      "Generacion de resumen clinico",
+      "Se preparo un borrador de resumen clinico en el modulo de reportes."
+    );
+    setQuickActionFeedback("Se preparo un borrador de resumen clinico en Reportes.");
+  };
+
+  const handleHeaderEditData = () => {
+    openTabFromQuickAction("personal");
+    addAuditRecord("personal", "Acceso rapido: editar datos", "Se abrio el modulo de datos personales.");
+    setQuickActionFeedback("Edita datos desde el modulo Datos personales.");
+  };
+
+  const handleHeaderGenerateReport = () => {
+    handleGenerateClinicalSummary();
+  };
+
+  const handleHeaderViewAlerts = () => {
+    openTabFromQuickAction("summary");
+    const hasAlerts = patient.activeAlerts.length > 0;
+    addAuditRecord(
+      "summary",
+      "Revision de alertas",
+      hasAlerts ? "Se revisaron alertas activas del paciente." : "Paciente sin alertas activas."
+    );
+    setQuickActionFeedback(
+      hasAlerts ? "Mostrando bloque de alertas activas." : "Paciente sin alertas activas registradas."
+    );
+    if (hasAlerts && typeof window !== "undefined") {
+      window.setTimeout(() => {
+        document.getElementById("patient-alerts-panel")?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }, 60);
+    }
+  };
+
+  const handleHeaderAddNote = () => {
+    openTabFromQuickAction("medical_notes");
+    addAuditRecord("medical_notes", "Acceso rapido: agregar nota", "Se abrio el modulo de notas medicas.");
+    setQuickActionFeedback("Ahora puedes registrar la nota en el modulo Medicina.");
+  };
+
+  const handleGenerateNursingReport = () => {
+    openTabFromQuickAction("nursing_report");
+    addAuditRecord(
+      "nursing_report",
+      "Generacion de reporte de enfermeria",
+      "Se abrio el modulo de reporte de enfermeria para generar el registro."
+    );
+    setQuickActionFeedback("Se abrio Reporte de enfermeria para generar el registro.");
+  };
+
   const registerVitalRecord = () => {
     if (
       !vitalForm.heartRate ||
@@ -1483,12 +1561,15 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
               </span>
             </div>
             <div className="flex flex-wrap gap-2 text-[11px]">
-              <ActionChip label="Editar datos" />
-              <ActionChip label="Generar reporte" />
-              <ActionChip label="Exportar PDF" />
-              <ActionChip label="Ver alertas" />
-              <ActionChip label="Agregar nota" />
+              <ActionChip label="Editar datos" onClick={handleHeaderEditData} />
+              <ActionChip label="Generar reporte" onClick={handleHeaderGenerateReport} />
+              <ActionChip label="Exportar PDF" onClick={handleExportPdf} />
+              <ActionChip label="Ver alertas" onClick={handleHeaderViewAlerts} />
+              <ActionChip label="Agregar nota" onClick={handleHeaderAddNote} />
             </div>
+            {quickActionFeedback ? (
+              <p className="text-[11px] text-slate-500">{quickActionFeedback}</p>
+            ) : null}
           </div>
         </div>
 
@@ -1511,7 +1592,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
         </div>
 
         {patient.activeAlerts.length > 0 && (
-          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <div id="patient-alerts-panel" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
               Alertas activas
             </p>
@@ -3930,9 +4011,9 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       {activeTab === "reports" && (
         <Panel title="Reportes clinicos del paciente" subtitle="Generacion y trazabilidad documental">
           <div className="mb-3 flex flex-wrap gap-2 text-[11px]">
-            <ActionChip label="Generar resumen clinico" />
-            <ActionChip label="Exportar PDF" />
-            <ActionChip label="Generar reporte de enfermeria" />
+            <ActionChip label="Generar resumen clinico" onClick={handleGenerateClinicalSummary} />
+            <ActionChip label="Exportar PDF" onClick={handleExportPdf} />
+            <ActionChip label="Generar reporte de enfermeria" onClick={handleGenerateNursingReport} />
           </div>
           <div className="space-y-2">
             {patient.documents.map((document) => (
@@ -4540,11 +4621,23 @@ function HeaderField({
   );
 }
 
-function ActionChip({ label }: { label: string }) {
+function ActionChip({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick?: () => void;
+}) {
   return (
     <button
       type="button"
-      className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100"
+      onClick={onClick}
+      className={[
+        "rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
+        onClick
+          ? "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+          : "cursor-default border-slate-200 bg-slate-100 text-slate-400",
+      ].join(" ")}
     >
       {label}
     </button>

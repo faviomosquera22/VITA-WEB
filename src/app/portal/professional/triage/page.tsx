@@ -57,12 +57,20 @@ export default function TriagePage() {
       title="Triaje"
       subtitle="Clasificacion global y registro orientativo por paciente con seguimiento de reevaluaciones."
       actions={
-        <Link
-          href="/portal/professional/patients"
-          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
-        >
-          Ver pacientes
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/portal/professional/triage/ingreso"
+            className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+          >
+            Ingreso de triaje
+          </Link>
+          <Link
+            href="/portal/professional/patients"
+            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+          >
+            Ver pacientes
+          </Link>
+        </div>
       }
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">

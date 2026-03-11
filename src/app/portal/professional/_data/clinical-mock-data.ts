@@ -6,6 +6,7 @@ export type ProfessionalModuleId =
   | "home"
   | "patients"
   | "triage"
+  | "triage_intake"
   | "follow_up"
   | "shift"
   | "hce"
@@ -513,6 +514,13 @@ export const professionalSidebarModules: SidebarModuleItem[] = [
     id: "triage",
     label: "Triaje",
     path: "/portal/professional/triage",
+    section: "main",
+    roles: ["professional", "institution"],
+  },
+  {
+    id: "triage_intake",
+    label: "Ingreso de triaje",
+    path: "/portal/professional/triage/ingreso",
     section: "main",
     roles: ["professional", "institution"],
   },
