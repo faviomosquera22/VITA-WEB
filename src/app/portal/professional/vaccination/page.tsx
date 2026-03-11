@@ -29,11 +29,53 @@ type VaccinationFeedback = {
   message: string;
 };
 
+type MspSchemeRow = {
+  stage: string;
+  ageRange: string;
+  vaccines: string;
+  notes: string;
+};
+
+const mspNationalScheme: MspSchemeRow[] = [
+  {
+    stage: "Recien nacido",
+    ageRange: "0 dias",
+    vaccines: "BCG, Hepatitis B",
+    notes: "Aplicacion en sala de parto / neonatologia.",
+  },
+  {
+    stage: "Lactante",
+    ageRange: "2, 4 y 6 meses",
+    vaccines: "Pentavalente, Polio, Rotavirus, Neumococo",
+    notes: "Control pediatrico y verificacion de carnet.",
+  },
+  {
+    stage: "Infancia",
+    ageRange: "12 y 18 meses",
+    vaccines: "SRP, Fiebre amarilla, Refuerzos DPT/polio",
+    notes: "Refuerzo segun antecedentes del nino.",
+  },
+  {
+    stage: "Escolar y adolescente",
+    ageRange: "5 a 15 anios",
+    vaccines: "Refuerzos Td / VPH (segun cohorte vigente)",
+    notes: "Campanias escolares MSP.",
+  },
+  {
+    stage: "Adultos y grupos de riesgo",
+    ageRange: ">= 18 anios",
+    vaccines: "Influenza, Td, Hepatitis B, Neumococo",
+    notes: "Priorizacion por comorbilidades y embarazo.",
+  },
+];
+
 export default function VaccinationPage() {
   const [patientRecords, setPatientRecords] = useState<PatientRecord[]>(mockPatients);
   const [inventoryRecords, setInventoryRecords] = useState<VaccineInventoryRecord[]>(vaccineInventory);
   const [centerId, setCenterId] = useState(currentClinicalContext.centerId);
   const [campaignFilter, setCampaignFilter] = useState<"all" | string>("all");
+  const [showMspScheme, setShowMspScheme] = useState(false);
+  const [showVaccineHistory, setShowVaccineHistory] = useState(false);
   const [feedback, setFeedback] = useState<VaccinationFeedback | null>(null);
   const [activityLog, setActivityLog] = useState<VaccinationActivity[]>([]);
   const [applicationForm, setApplicationForm] = useState({
@@ -99,6 +141,33 @@ export default function VaccinationPage() {
   const activeInventoryId = stockForm.inventoryId || currentCenterInventory[0]?.id || "";
   const stockRowSelected =
     currentCenterInventory.find((item) => item.id === activeInventoryId) ?? null;
+  const pendingVaccinesOrdered = useMemo(() => {
+    if (!selectedPatient) {
+      return [];
+    }
+
+    return [...selectedPatient.vaccination.pending].sort((a, b) =>
+      a.suggestedDate.localeCompare(b.suggestedDate)
+    );
+  }, [selectedPatient]);
+  const vaccinationHistoryRows = useMemo(() => {
+    if (!selectedPatient) {
+      return [];
+    }
+
+    return [...selectedPatient.vaccination.applied]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .map((entry) => ({
+        vaccine: entry.vaccine,
+        date: entry.date,
+        dose:
+          extractVaccinationTag(entry.observations, "Dosis")?.split("·")[0].trim() ??
+          "No registrada",
+        center: extractVaccinationTag(entry.observations, "Centro") ?? "No registrado",
+        lot: entry.lot ?? "No registrado",
+        observations: entry.observations,
+      }));
+  }, [selectedPatient]);
 
   const handleSelectPatient = (patientId: string) => {
     setSelectedPatientId(patientId);
@@ -108,6 +177,7 @@ export default function VaccinationPage() {
       ...prev,
       vaccineName: nextSuggested || prev.vaccineName,
     }));
+    setShowVaccineHistory(false);
     setFeedback(null);
   };
 
@@ -301,6 +371,15 @@ export default function VaccinationPage() {
     <ModulePage
       title="Vacunacion"
       subtitle="Busqueda por paciente, registro de dosis aplicada y control de disponibilidad por centro."
+      actions={
+        <button
+          type="button"
+          onClick={() => setShowMspScheme((prev) => !prev)}
+          className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+        >
+          {showMspScheme ? "Ocultar esquema MSP" : "Ver esquema MSP"}
+        </button>
+      }
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <StatCard label="Vacunas aplicadas" value={appliedCount} hint="Historial administrado" />
@@ -316,6 +395,36 @@ export default function VaccinationPage() {
           hint="Vacunas no disponibles"
         />
       </div>
+
+      {showMspScheme ? (
+        <Panel
+          title="Esquema nacional de vacunacion MSP (referencial)"
+          subtitle="Consulta rapida por etapa de vida para apoyo en decision clinica"
+        >
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="px-3 py-2 font-semibold">Etapa</th>
+                  <th className="px-3 py-2 font-semibold">Edad / rango</th>
+                  <th className="px-3 py-2 font-semibold">Vacunas sugeridas</th>
+                  <th className="px-3 py-2 font-semibold">Notas</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {mspNationalScheme.map((row) => (
+                  <tr key={`${row.stage}-${row.ageRange}`}>
+                    <td className="px-3 py-2 text-slate-800">{row.stage}</td>
+                    <td className="px-3 py-2 text-slate-700">{row.ageRange}</td>
+                    <td className="px-3 py-2 text-slate-700">{row.vaccines}</td>
+                    <td className="px-3 py-2 text-slate-600">{row.notes}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      ) : null}
 
       <Panel
         title="Disponibilidad por centro de salud"
@@ -404,59 +513,109 @@ export default function VaccinationPage() {
       {selectedPatient ? (
         <Panel
           title="Vacunas faltantes del paciente seleccionado"
-          subtitle="Pendientes del esquema para priorizar aplicacion y seguimiento"
+          subtitle="Pendientes ordenadas por fecha sugerida para priorizar aplicacion"
         >
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <Field
-              label="Vacunas faltantes"
-              value={
-                selectedPatient.vaccination.pending.length
-                  ? selectedPatient.vaccination.pending.map((entry) => entry.vaccine).join(", ")
-                  : "Sin vacunas pendientes"
-              }
-            />
-            <Field
-              label="Proxima vacuna sugerida"
-              value={selectedPatient.vaccination.pending[0]?.vaccine ?? "No aplica"}
-            />
-            <Field
-              label="Fecha sugerida"
-              value={selectedPatient.vaccination.pending[0]?.suggestedDate ?? "No aplica"}
-            />
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <Field
+                label="Total faltantes"
+                value={`${pendingVaccinesOrdered.length}`}
+              />
+              <Field
+                label="Proxima sugerida"
+                value={pendingVaccinesOrdered[0]?.vaccine ?? "No aplica"}
+              />
+              <Field
+                label="Fecha proxima"
+                value={pendingVaccinesOrdered[0]?.suggestedDate ?? "No aplica"}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowVaccineHistory((prev) => !prev)}
+              className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              {showVaccineHistory ? "Ocultar historial de vacunas" : "Ver historial de vacunas"}
+            </button>
           </div>
+
+          {pendingVaccinesOrdered.length === 0 ? (
+            <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+              El paciente no tiene vacunas pendientes registradas.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {pendingVaccinesOrdered.map((entry, index) => (
+                <article
+                  key={`${entry.vaccine}-${entry.suggestedDate}`}
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-900">
+                        {index + 1}. {entry.vaccine}
+                      </p>
+                      <p className="text-[11px] text-slate-600">
+                        Fecha sugerida: {entry.suggestedDate} · Lugar sugerido: {entry.availability}
+                      </p>
+                      <p className="text-[11px] text-slate-500">{entry.observations}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setApplicationForm((prev) => ({
+                          ...prev,
+                          vaccineName: entry.vaccine,
+                          date: entry.suggestedDate || prev.date,
+                        }))
+                      }
+                      className="rounded-full border border-sky-300 bg-sky-50 px-3 py-1 text-[11px] font-semibold text-sky-700 hover:bg-sky-100"
+                    >
+                      Seleccionar para aplicar
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+
+          {showVaccineHistory ? (
+            <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Historial de vacunas aplicadas
+              </p>
+              {vaccinationHistoryRows.length === 0 ? (
+                <p className="mt-1 text-xs text-slate-500">No hay vacunas aplicadas registradas.</p>
+              ) : (
+                <div className="mt-2 overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="px-3 py-2 font-semibold">Vacuna</th>
+                        <th className="px-3 py-2 font-semibold">Dosis</th>
+                        <th className="px-3 py-2 font-semibold">Fecha</th>
+                        <th className="px-3 py-2 font-semibold">Lugar</th>
+                        <th className="px-3 py-2 font-semibold">Lote</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {vaccinationHistoryRows.map((row) => (
+                        <tr key={`${row.vaccine}-${row.date}-${row.lot}`}>
+                          <td className="px-3 py-2 text-slate-800">{row.vaccine}</td>
+                          <td className="px-3 py-2 text-slate-700">{row.dose}</td>
+                          <td className="px-3 py-2 text-slate-700">{row.date}</td>
+                          <td className="px-3 py-2 text-slate-700">{row.center}</td>
+                          <td className="px-3 py-2 text-slate-600">{row.lot}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : null}
         </Panel>
       ) : null}
-
-      <Panel title="Vista global por paciente" subtitle="Esquemas completos/incompletos y alertas de atraso">
-        <div className="space-y-2">
-          {filteredPatients.map((patient) => (
-            <article key={patient.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <p className="text-sm font-semibold text-slate-900">{patient.fullName}</p>
-              <p className="text-xs text-slate-600">
-                Aplicadas: {patient.vaccination.applied.length} · Pendientes:{" "}
-                {patient.vaccination.pending.length}
-              </p>
-              <p className="mt-1 text-[11px] font-medium text-slate-700">
-                Vacunas faltantes:{" "}
-                {patient.vaccination.pending.length
-                  ? patient.vaccination.pending.map((entry) => entry.vaccine).join(", ")
-                  : "Ninguna"}
-              </p>
-              <div className="mt-1 space-y-1 text-[11px] text-slate-500">
-                {patient.vaccination.pending.length === 0 ? (
-                  <p>Sin pendientes de vacunacion.</p>
-                ) : (
-                  patient.vaccination.pending.map((entry) => (
-                    <p key={`${entry.vaccine}-${entry.suggestedDate}`}>
-                      {entry.vaccine} · {entry.suggestedDate} · {entry.availability}
-                    </p>
-                  ))
-                )}
-              </div>
-            </article>
-          ))}
-        </div>
-      </Panel>
 
       {selectedPatient ? (
         <Panel
@@ -784,6 +943,12 @@ function isSameVaccineName(left: string, right: string) {
     leftNormalized.includes(rightNormalized) ||
     rightNormalized.includes(leftNormalized)
   );
+}
+
+function extractVaccinationTag(observations: string, tag: "Dosis" | "Centro") {
+  const matcher = new RegExp(`${tag}:\\s*([^|]+)`, "i");
+  const match = observations.match(matcher);
+  return match?.[1]?.trim();
 }
 
 function getCurrentTimestamp() {
