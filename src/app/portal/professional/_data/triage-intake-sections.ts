@@ -1,17 +1,11 @@
 export type TriageIntakeSectionId =
-  | "diagnostico_triaje"
-  | "inicio_atencion"
-  | "accidentes"
-  | "antecedentes_personales"
-  | "enfermedad_actual"
-  | "constantes_vitales"
-  | "examen_fisico"
-  | "examen_fisico_critico"
-  | "embarazo_parto"
-  | "examenes_complementarios"
-  | "diagnosticos"
-  | "plan_tratamiento"
-  | "condicion_egreso";
+  | "ingreso_identificacion"
+  | "motivo_discriminador"
+  | "signos_vitales"
+  | "hallazgos_criticos"
+  | "antecedentes_enfermedad"
+  | "subprotocolos"
+  | "resultado";
 
 export interface TriageIntakeSection {
   id: TriageIntakeSectionId;
@@ -23,95 +17,53 @@ export interface TriageIntakeSection {
 
 export const triageIntakeSections: TriageIntakeSection[] = [
   {
-    id: "diagnostico_triaje",
+    id: "ingreso_identificacion",
+    code: "A",
+    label: "Ingreso e Identificacion",
+    shortLabel: "Ingreso",
+    helper: "Datos generales y de identificacion del paciente.",
+  },
+  {
+    id: "motivo_discriminador",
     code: "B",
-    label: "Diagnostico Triaje",
-    shortLabel: "Diag. triaje",
-    helper: "Clasificacion inicial, prioridad y conducta inmediata.",
+    label: "Motivo y Discriminador",
+    shortLabel: "Motivo",
+    helper: "Motivo de consulta y discriminador clinico principal.",
   },
   {
-    id: "inicio_atencion",
+    id: "signos_vitales",
     code: "C",
-    label: "Inicio de Atencion",
-    shortLabel: "Inicio atencion",
-    helper: "Datos administrativos y hora de apertura de la atencion.",
+    label: "Signos Vitales",
+    shortLabel: "Signos",
+    helper: "Captura de constantes vitales y deteccion de valores criticos.",
   },
   {
-    id: "accidentes",
+    id: "hallazgos_criticos",
     code: "D",
-    label: "Accidentes",
-    shortLabel: "Accidentes",
-    helper: "Registro de evento accidental, mecanismo y contexto.",
+    label: "Hallazgos Criticos",
+    shortLabel: "Criticos",
+    helper: "Banderas clinicas inmediatas de alto riesgo.",
   },
   {
-    id: "antecedentes_personales",
+    id: "antecedentes_enfermedad",
     code: "E",
-    label: "Antecedentes Personales",
+    label: "Antecedentes y Enfermedad Actual",
     shortLabel: "Antecedentes",
-    helper: "Historia clinica previa relevante para la atencion actual.",
+    helper: "Contexto clinico para completar el nucleo general obligatorio.",
   },
   {
-    id: "enfermedad_actual",
-    code: "F",
-    label: "Enfermedad Actual",
-    shortLabel: "Enf. actual",
-    helper: "Motivo de consulta, evolucion y sintomas vigentes.",
+    id: "subprotocolos",
+    code: "S",
+    label: "Subprotocolos Automaticos",
+    shortLabel: "Subprotocolos",
+    helper: "Protocolos MSP activados automaticamente segun contexto clinico.",
   },
   {
-    id: "constantes_vitales",
-    code: "G",
-    label: "Constantes Vitales",
-    shortLabel: "Constantes",
-    helper: "Signos vitales iniciales para estratificacion de riesgo.",
-  },
-  {
-    id: "examen_fisico",
-    code: "H",
-    label: "Examen Fisico",
-    shortLabel: "Examen fisico",
-    helper: "Hallazgos sistematicos del examen fisico general.",
-  },
-  {
-    id: "examen_fisico_critico",
-    code: "I",
-    label: "Examen Fisico Critico",
-    shortLabel: "Fisico critico",
-    helper: "Evaluacion rapida ABCD en contexto de urgencia.",
-  },
-  {
-    id: "embarazo_parto",
-    code: "J",
-    label: "Embarazo Parto",
-    shortLabel: "Embarazo/parto",
-    helper: "Datos obstetricos para pacientes gestantes o puerperio.",
-  },
-  {
-    id: "examenes_complementarios",
-    code: "K",
-    label: "Examenes Complementarios",
-    shortLabel: "Examenes comp.",
-    helper: "Solicitudes y resultados de apoyo diagnostico.",
-  },
-  {
-    id: "diagnosticos",
-    code: "L",
-    label: "Diagnosticos",
-    shortLabel: "Diagnosticos",
-    helper: "Diagnosticos codificados y clasificacion clinica.",
-  },
-  {
-    id: "plan_tratamiento",
-    code: "N",
-    label: "Plan de Tratamiento",
-    shortLabel: "Plan",
-    helper: "Plan terapeutico inicial, indicaciones y seguimiento.",
-  },
-  {
-    id: "condicion_egreso",
-    code: "O",
-    label: "Condicion al Egreso",
-    shortLabel: "Condicion egreso",
-    helper: "Estado final, recomendaciones y destino al egreso.",
+    id: "resultado",
+    code: "R",
+    label: "Resultado Integrado",
+    shortLabel: "Resultado",
+    helper: "Color sugerido, prioridad final, razones y acciones inmediatas.",
   },
 ];
 

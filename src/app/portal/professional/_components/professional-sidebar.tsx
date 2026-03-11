@@ -200,7 +200,7 @@ export default function ProfessionalSidebar({ role }: { role: UserRole }) {
     if (isTriageIntakeSectionId(section)) {
       return section;
     }
-    return "diagnostico_triaje";
+    return "ingreso_identificacion";
   }, [searchParams]);
 
   const visibleItems = useMemo(

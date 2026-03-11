@@ -59,7 +59,7 @@ export default function TriagePage() {
       actions={
         <div className="flex gap-2">
           <Link
-            href="/portal/professional/triage/ingreso?section=diagnostico_triaje"
+            href="/portal/professional/triage/ingreso?section=ingreso_identificacion"
             className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
           >
             Agregar px en triaje

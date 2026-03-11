@@ -1,0 +1,65 @@
+{
+  "waitTimes": {
+    "1": 0,
+    "2": 10,
+    "3": 30,
+    "4": 60,
+    "5": 120
+  },
+  "adultVitals": {
+    "criticalSpo2": 90,
+    "criticalSystolicBpLow": 90,
+    "criticalSystolicBpHigh": 220,
+    "criticalHeartRateLow": 40,
+    "criticalHeartRateHigh": 130,
+    "criticalRespiratoryRateLow": 8,
+    "criticalRespiratoryRateHigh": 30,
+    "warningTemperatureHigh": 39
+  },
+  "pediatricVitals": [
+    {
+      "minAgeInclusive": 0,
+      "maxAgeInclusive": 1,
+      "criticalHeartRateHigh": 180,
+      "criticalRespiratoryRateHigh": 60,
+      "criticalSystolicBpLow": 70
+    },
+    {
+      "minAgeInclusive": 2,
+      "maxAgeInclusive": 5,
+      "criticalHeartRateHigh": 160,
+      "criticalRespiratoryRateHigh": 45,
+      "criticalSystolicBpLow": 75
+    },
+    {
+      "minAgeInclusive": 6,
+      "maxAgeInclusive": 12,
+      "criticalHeartRateHigh": 140,
+      "criticalRespiratoryRateHigh": 35,
+      "criticalSystolicBpLow": 80
+    },
+    {
+      "minAgeInclusive": 13,
+      "maxAgeInclusive": 15,
+      "criticalHeartRateHigh": 130,
+      "criticalRespiratoryRateHigh": 30,
+      "criticalSystolicBpLow": 85
+    }
+  ],
+  "obstetric": {
+    "severeSystolicBp": 160,
+    "severeDiastolicBp": 110
+  },
+  "burns": {
+    "highSurfaceAdult": 20,
+    "highSurfacePediatric": 10,
+    "moderateSurfaceAdult": 10,
+    "moderateSurfacePediatric": 5
+  },
+  "intoxications": {
+    "urgentIngestionHours": 2
+  },
+  "sexualViolence": {
+    "urgentWindowHours": 72
+  }
+}
