@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { ModulePage, Panel, StatCard } from "../_components/clinical-ui";
 import {
@@ -8,25 +8,156 @@ import {
   PatientFinder,
   usePatientSelection,
 } from "../_components/patient-workspace";
-import { mockPatients } from "../_data/clinical-mock-data";
+import { mockPatients, type MedicationRecord, type PatientRecord } from "../_data/clinical-mock-data";
+
+type MedicationDraft = {
+  name: string;
+  dose: string;
+  route: string;
+  days: string;
+  quantity: string;
+  schedule: string;
+  frequency: string;
+  indication: string;
+  notes: string;
+};
+
+const defaultDraft: MedicationDraft = {
+  name: "",
+  dose: "",
+  route: "",
+  days: "",
+  quantity: "",
+  schedule: "",
+  frequency: "",
+  indication: "",
+  notes: "",
+};
+
+const routeOptions = ["Oral", "IV", "IM", "SC", "Topica", "Inhalada", "Sublingual", "Rectal"];
 
 export default function MedicationPage() {
   const { search, setSearch, selectedPatientId, setSelectedPatientId, filteredPatients, selectedPatient } =
     usePatientSelection(mockPatients);
 
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [draft, setDraft] = useState<MedicationDraft>(defaultDraft);
+  const [addedByPatient, setAddedByPatient] = useState<Record<string, MedicationRecord[]>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
+
+  const medicationCatalog = useMemo(() => {
+    const fromRecords = mockPatients.flatMap((patient) => patient.medicationRecords.map((record) => record.name));
+    const extras = [
+      "Paracetamol",
+      "Ibuprofeno",
+      "Omeprazol",
+      "Ceftriaxona",
+      "Metamizol",
+      "Insulina regular",
+      "Enoxaparina",
+      "Losartan",
+      "Metformina",
+      "Salbutamol",
+    ];
+
+    return Array.from(new Set([...fromRecords, ...extras])).sort((a, b) => a.localeCompare(b));
+  }, []);
+
+  const getMedicationForPatient = useCallback(
+    (patient: PatientRecord) => [
+      ...(addedByPatient[patient.id] ?? []),
+      ...patient.medicationRecords,
+    ],
+    [addedByPatient]
+  );
+
   const medicationRows = useMemo(
     () =>
       filteredPatients.flatMap((patient) =>
-        patient.medicationRecords.map((record) => ({
+        getMedicationForPatient(patient).map((record) => ({
           patient,
           record,
         }))
       ),
-    [filteredPatients]
+    [filteredPatients, getMedicationForPatient]
   );
+
+  const selectedPatientMedication = useMemo(() => {
+    if (!selectedPatient) {
+      return [] as MedicationRecord[];
+    }
+
+    return getMedicationForPatient(selectedPatient);
+  }, [selectedPatient, getMedicationForPatient]);
 
   const pending = medicationRows.filter((item) => item.record.administrationStatus === "Pendiente");
   const omissions = medicationRows.filter((item) => item.record.administrationStatus === "Omitido");
+
+  const medicationSelected = draft.name.trim().length > 0;
+
+  const handleAddMedication = () => {
+    setFormError(null);
+    setFormSuccess(null);
+
+    if (!selectedPatient) {
+      setFormError("Selecciona un paciente antes de agregar medicacion.");
+      return;
+    }
+
+    if (!draft.name.trim()) {
+      setFormError("Primero selecciona el medicamento.");
+      return;
+    }
+
+    if (!draft.dose.trim() || !draft.route.trim() || !draft.days.trim() || !draft.quantity.trim() || !draft.schedule.trim()) {
+      setFormError("Completa dosis, via, dias, cantidad y horario.");
+      return;
+    }
+
+    const days = Number(draft.days);
+    const quantity = Number(draft.quantity);
+
+    if (!Number.isFinite(days) || days <= 0) {
+      setFormError("Dias debe ser un numero mayor a 0.");
+      return;
+    }
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setFormError("Cantidad debe ser un numero mayor a 0.");
+      return;
+    }
+
+    const startDate = formatDate(new Date());
+    const endDate = formatDate(addDays(new Date(), days));
+
+    const newRecord: MedicationRecord = {
+      id: `med-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name: draft.name.trim(),
+      dose: draft.dose.trim(),
+      frequency: draft.frequency.trim() || `Durante ${days} dias`,
+      route: draft.route.trim(),
+      schedule: draft.schedule.trim(),
+      startDate,
+      endDate,
+      indication: draft.indication.trim() || "Indicacion clinica registrada en modulo de medicacion.",
+      prescriber: selectedPatient.assignedProfessional,
+      adherence: "En seguimiento",
+      administrationStatus: "Pendiente",
+      notes: [
+        `Cantidad prescrita: ${quantity}.`,
+        draft.notes.trim() || "Sin observaciones adicionales.",
+      ].join(" "),
+    };
+
+    setAddedByPatient((prev) => ({
+      ...prev,
+      [selectedPatient.id]: [newRecord, ...(prev[selectedPatient.id] ?? [])],
+    }));
+
+    setDraft(defaultDraft);
+    setFormSuccess(`Medicamento agregado para ${selectedPatient.fullName}: ${newRecord.name}.`);
+  };
 
   return (
     <ModulePage
@@ -35,9 +166,10 @@ export default function MedicationPage() {
       actions={
         <button
           type="button"
+          onClick={() => setShowAddForm((prev) => !prev)}
           className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
         >
-          Agregar medicamento
+          {showAddForm ? "Ocultar formulario" : "Agregar medicamento"}
         </button>
       }
     >
@@ -63,6 +195,161 @@ export default function MedicationPage() {
       />
 
       {selectedPatient ? <PatientContextSummary patient={selectedPatient} compact /> : null}
+
+      {showAddForm ? (
+        <Panel
+          title="Nuevo medicamento"
+          subtitle="Flujo sugerido: 1) selecciona el medicamento 2) completa dosis, via, dias, cantidad y horario"
+        >
+          <div className="space-y-3">
+            <div className="rounded-xl border border-sky-200 bg-sky-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Paso 1</p>
+              <p className="mb-2 text-sm font-semibold text-slate-900">Selecciona el medicamento</p>
+
+              <label className="block">
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Medicamento
+                </span>
+                <input
+                  list="medication-catalog"
+                  value={draft.name}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-sky-500 focus:outline-none"
+                  placeholder="Ej. Paracetamol"
+                />
+                <datalist id="medication-catalog">
+                  {medicationCatalog.map((item) => (
+                    <option key={item} value={item} />
+                  ))}
+                </datalist>
+              </label>
+
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {medicationCatalog.slice(0, 8).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setDraft((prev) => ({ ...prev, name: item }))}
+                    className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[11px] text-sky-700 hover:bg-sky-100"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {medicationSelected ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Paso 2</p>
+                <p className="mb-2 text-sm font-semibold text-slate-900">Completa la prescripcion</p>
+
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  <MedicationInput
+                    label="Dosis"
+                    value={draft.dose}
+                    onChange={(value) => setDraft((prev) => ({ ...prev, dose: value }))}
+                    placeholder="Ej. 500 mg"
+                  />
+
+                  <label>
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Via de administracion
+                    </span>
+                    <select
+                      value={draft.route}
+                      onChange={(event) => setDraft((prev) => ({ ...prev, route: event.target.value }))}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 focus:border-sky-500 focus:bg-white focus:outline-none"
+                    >
+                      <option value="">Seleccionar</option>
+                      {routeOptions.map((route) => (
+                        <option key={route} value={route}>
+                          {route}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <MedicationInput
+                    label="Dias"
+                    value={draft.days}
+                    onChange={(value) => setDraft((prev) => ({ ...prev, days: value }))}
+                    placeholder="Ej. 5"
+                    type="number"
+                  />
+
+                  <MedicationInput
+                    label="Cantidad"
+                    value={draft.quantity}
+                    onChange={(value) => setDraft((prev) => ({ ...prev, quantity: value }))}
+                    placeholder="Ej. 10"
+                    type="number"
+                  />
+
+                  <MedicationInput
+                    label="Horario"
+                    value={draft.schedule}
+                    onChange={(value) => setDraft((prev) => ({ ...prev, schedule: value }))}
+                    placeholder="Ej. 08:00 - 20:00"
+                  />
+
+                  <MedicationInput
+                    label="Frecuencia (opcional)"
+                    value={draft.frequency}
+                    onChange={(value) => setDraft((prev) => ({ ...prev, frequency: value }))}
+                    placeholder="Ej. Cada 12 horas"
+                  />
+
+                  <MedicationInput
+                    label="Indicacion (opcional)"
+                    value={draft.indication}
+                    onChange={(value) => setDraft((prev) => ({ ...prev, indication: value }))}
+                    placeholder="Ej. Analgesia"
+                  />
+                </div>
+
+                <label className="mt-2 block">
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Observaciones (opcional)
+                  </span>
+                  <textarea
+                    value={draft.notes}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, notes: event.target.value }))}
+                    className="min-h-[74px] w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 focus:border-sky-500 focus:bg-white focus:outline-none"
+                    placeholder="Notas adicionales"
+                  />
+                </label>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAddMedication}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    Guardar medicamento
+                  </button>
+
+                  {selectedPatient ? (
+                    <span className="text-[11px] text-slate-500">Paciente actual: {selectedPatient.fullName}</span>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                Selecciona primero el medicamento para continuar al paso 2.
+              </p>
+            )}
+
+            {formError ? (
+              <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{formError}</p>
+            ) : null}
+            {formSuccess ? (
+              <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                {formSuccess}
+              </p>
+            ) : null}
+          </div>
+        </Panel>
+      ) : null}
 
       <Panel title="Vista global de medicacion" subtitle="Pendientes, cambios recientes y estados de administracion">
         <div className="space-y-2">
@@ -91,8 +378,8 @@ export default function MedicationPage() {
                       record.administrationStatus === "Pendiente"
                         ? "border-amber-200 bg-amber-50 text-amber-700"
                         : record.administrationStatus === "Administrado"
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-rose-200 bg-rose-50 text-rose-700",
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-rose-200 bg-rose-50 text-rose-700",
                     ].join(" ")}
                   >
                     {record.administrationStatus}
@@ -111,7 +398,7 @@ export default function MedicationPage() {
           subtitle="Edicion de dosis/frecuencia/via, registro de administracion y observaciones"
         >
           <div className="space-y-2">
-            {selectedPatient.medicationRecords.map((record) => (
+            {selectedPatientMedication.map((record) => (
               <article key={record.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
                   <MedicationField label="Farmaco" value={record.name} />
@@ -157,6 +444,33 @@ export default function MedicationPage() {
   );
 }
 
+function MedicationInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: "text" | "number";
+}) {
+  return (
+    <label>
+      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 focus:border-sky-500 focus:bg-white focus:outline-none"
+      />
+    </label>
+  );
+}
+
 function MedicationField({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
@@ -164,4 +478,17 @@ function MedicationField({ label, value }: { label: string; value: string }) {
       <p className="mt-0.5 text-xs text-slate-700">{value}</p>
     </div>
   );
+}
+
+function formatDate(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(base: Date, days: number) {
+  const next = new Date(base);
+  next.setDate(next.getDate() + days);
+  return next;
 }
