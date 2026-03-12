@@ -8,6 +8,11 @@ import {
   PatientFinder,
   usePatientSelection,
 } from "../_components/patient-workspace";
+import {
+  medicationCatalogBase,
+  medicationCatalogTotal,
+  type MedicationCatalogItem,
+} from "../_data/medication-catalog";
 import { mockPatients, type MedicationRecord, type PatientRecord } from "../_data/clinical-mock-data";
 
 type MedicationDraft = {
@@ -20,11 +25,6 @@ type MedicationDraft = {
   frequency: string;
   indication: string;
   notes: string;
-};
-
-type MedicationCatalogItem = {
-  name: string;
-  presentations: string[];
 };
 
 const defaultDraft: MedicationDraft = {
@@ -59,21 +59,15 @@ export default function MedicationPage() {
         presentation: record.dose.trim(),
       }))
     );
-    const extras: Array<{ name: string; presentation: string }> = [
-      { name: "Paracetamol", presentation: "500 mg tableta" },
-      { name: "Ibuprofeno", presentation: "400 mg tableta" },
-      { name: "Omeprazol", presentation: "20 mg capsula" },
-      { name: "Ceftriaxona", presentation: "1 g vial" },
-      { name: "Metamizol", presentation: "1 g ampolla" },
-      { name: "Insulina regular", presentation: "100 UI/mL frasco" },
-      { name: "Enoxaparina", presentation: "40 mg/0.4 mL jeringa" },
-      { name: "Losartan", presentation: "50 mg tableta" },
-      { name: "Metformina", presentation: "850 mg tableta" },
-      { name: "Salbutamol", presentation: "100 mcg inhalador" },
-    ];
+    const fromCatalog = medicationCatalogBase.flatMap((item) =>
+      item.presentations.map((presentation) => ({
+        name: item.name,
+        presentation,
+      }))
+    );
 
     const index = new Map<string, Set<string>>();
-    [...fromRecords, ...extras].forEach((entry) => {
+    [...fromRecords, ...fromCatalog].forEach((entry) => {
       if (!index.has(entry.name)) {
         index.set(entry.name, new Set<string>());
       }
@@ -86,6 +80,7 @@ export default function MedicationPage() {
       .map(([name, presentations]) => ({
         name,
         presentations: Array.from(presentations).sort((a, b) => a.localeCompare(b)),
+        therapeuticGroup: "catalogo",
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, []);
@@ -247,6 +242,9 @@ export default function MedicationPage() {
             <div className="rounded-xl border border-sky-200 bg-sky-50 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Paso 1</p>
               <p className="mb-2 text-sm font-semibold text-slate-900">Selecciona el medicamento</p>
+              <p className="mb-2 text-[11px] text-slate-600">
+                Catalogo activo: {medicationCatalogTotal} medicamentos con presentaciones.
+              </p>
 
               <label className="block">
                 <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
