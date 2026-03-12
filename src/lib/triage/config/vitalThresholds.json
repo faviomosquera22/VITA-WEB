@@ -1,0 +1,85 @@
+{
+  "adult": {
+    "systolicBP": {
+      "priority1": { "low": 80, "high": 220 },
+      "priority2": { "low": 90, "high": 200 },
+      "priority3": { "low": 100, "high": 180 }
+    },
+    "heartRate": {
+      "priority1": { "low": 40, "high": 150 },
+      "priority2": { "low": 50, "high": 130 },
+      "priority3": { "low": 60, "high": 100 }
+    },
+    "respiratoryRate": {
+      "priority1": { "low": 8, "high": 30 },
+      "priority2": { "low": 10, "high": 25 },
+      "priority3": { "low": 12, "high": 22 }
+    },
+    "spo2": {
+      "priority1": { "low": 0, "high": 85 },
+      "priority2": { "low": 86, "high": 93 },
+      "priority3": { "low": 94, "high": 95 }
+    },
+    "temperature": {
+      "priority1": { "low": 0, "high": 34.9, "highCritical": 41 },
+      "priority2": { "low": 39.5, "high": 40.9 },
+      "priority3": { "low": 38.5, "high": 39.4 }
+    },
+    "glasgow": {
+      "priority1": { "low": 3, "high": 8 },
+      "priority2": { "low": 9, "high": 12 },
+      "priority3": { "low": 13, "high": 14 }
+    },
+    "glucometry": {
+      "priority1": { "low": 0, "high": 39, "highCritical": 500 },
+      "priority2": { "low": 40, "high": 60, "highCritical": 499 },
+      "priority3": { "low": 61, "high": 79, "highCritical": 399 }
+    },
+    "painScale": {
+      "priority2": { "low": 8, "high": 10 },
+      "priority3": { "low": 5, "high": 7 }
+    }
+  },
+  "pediatric": {
+    "neonate": {
+      "ageMinDays": 0,
+      "ageMaxDays": 28,
+      "heartRate": { "priority1": { "high": 200 }, "priority2": { "high": 180 }, "priority3": { "high": 170 } },
+      "respiratoryRate": { "priority1": { "high": 70 }, "priority2": { "high": 60 }, "priority3": { "high": 55 } },
+      "systolicBP": { "priority1": { "low": 60 }, "priority2": { "low": 70 }, "priority3": { "low": 75 } },
+      "spo2": { "priority1": { "low": 85 }, "priority2": { "low": 92 }, "priority3": { "low": 94 } }
+    },
+    "infant": {
+      "ageMinMonths": 1,
+      "ageMaxMonths": 12,
+      "heartRate": { "priority1": { "high": 190 }, "priority2": { "high": 170 }, "priority3": { "high": 160 } },
+      "respiratoryRate": { "priority1": { "high": 60 }, "priority2": { "high": 50 }, "priority3": { "high": 45 } },
+      "systolicBP": { "priority1": { "low": 65 }, "priority2": { "low": 75 }, "priority3": { "low": 80 } },
+      "spo2": { "priority1": { "low": 85 }, "priority2": { "low": 92 }, "priority3": { "low": 94 } }
+    },
+    "toddler": {
+      "ageMinYears": 1,
+      "ageMaxYears": 5,
+      "heartRate": { "priority1": { "high": 180 }, "priority2": { "high": 160 }, "priority3": { "high": 150 } },
+      "respiratoryRate": { "priority1": { "high": 50 }, "priority2": { "high": 40 }, "priority3": { "high": 35 } },
+      "systolicBP": { "priority1": { "low": 70 }, "priority2": { "low": 80 }, "priority3": { "low": 85 } },
+      "spo2": { "priority1": { "low": 85 }, "priority2": { "low": 92 }, "priority3": { "low": 94 } }
+    },
+    "school": {
+      "ageMinYears": 6,
+      "ageMaxYears": 11,
+      "heartRate": { "priority1": { "high": 160 }, "priority2": { "high": 140 }, "priority3": { "high": 130 } },
+      "respiratoryRate": { "priority1": { "high": 40 }, "priority2": { "high": 30 }, "priority3": { "high": 26 } },
+      "systolicBP": { "priority1": { "low": 75 }, "priority2": { "low": 85 }, "priority3": { "low": 90 } },
+      "spo2": { "priority1": { "low": 85 }, "priority2": { "low": 92 }, "priority3": { "low": 94 } }
+    },
+    "adolescent": {
+      "ageMinYears": 12,
+      "ageMaxYears": 17,
+      "heartRate": { "priority1": { "high": 150 }, "priority2": { "high": 130 }, "priority3": { "high": 120 } },
+      "respiratoryRate": { "priority1": { "high": 35 }, "priority2": { "high": 28 }, "priority3": { "high": 24 } },
+      "systolicBP": { "priority1": { "low": 80 }, "priority2": { "low": 90 }, "priority3": { "low": 95 } },
+      "spo2": { "priority1": { "low": 85 }, "priority2": { "low": 92 }, "priority3": { "low": 94 } }
+    }
+  }
+}

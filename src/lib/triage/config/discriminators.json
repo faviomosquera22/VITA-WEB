@@ -1,0 +1,83 @@
+[
+  {
+    "id": "chest_pain",
+    "label": "Dolor toracico",
+    "system": "cardiovascular",
+    "basePriority": 2,
+    "suggestsSubprotocols": [],
+    "mandatoryVitals": ["heartRate", "systolicBP", "spo2"],
+    "criticalIfCombinedWith": ["diaphoresis", "radiating_pain", "syncope"]
+  },
+  {
+    "id": "dyspnea",
+    "label": "Disnea",
+    "system": "respiratorio",
+    "basePriority": 2,
+    "suggestsSubprotocols": [],
+    "mandatoryVitals": ["respiratoryRate", "spo2", "heartRate"],
+    "criticalIfCombinedWith": ["cyanosis", "accessory_muscles", "unable_to_speak"]
+  },
+  {
+    "id": "trauma_mva",
+    "label": "Trauma por accidente de transito",
+    "system": "trauma",
+    "basePriority": 2,
+    "suggestsSubprotocols": ["TRAUMA"],
+    "mandatoryVitals": ["heartRate", "systolicBP", "glasgowTotal", "spo2"],
+    "criticalIfCombinedWith": []
+  },
+  {
+    "id": "burn_injury",
+    "label": "Quemadura",
+    "system": "trauma",
+    "basePriority": 2,
+    "suggestsSubprotocols": ["BURNS"],
+    "mandatoryVitals": ["heartRate", "systolicBP", "temperature", "spo2"],
+    "criticalIfCombinedWith": ["airway_burn", "inhalation"]
+  },
+  {
+    "id": "sexual_violence",
+    "label": "Violencia sexual",
+    "system": "legal",
+    "basePriority": 2,
+    "suggestsSubprotocols": ["SEXUAL_VIOLENCE"],
+    "mandatoryVitals": ["heartRate", "systolicBP", "spo2"],
+    "criticalIfCombinedWith": ["active_bleeding", "dissociation", "suicidal_ideation"]
+  },
+  {
+    "id": "obstetric_emergency",
+    "label": "Complicacion obstetrica",
+    "system": "obstetrico",
+    "basePriority": 2,
+    "suggestsSubprotocols": ["OBSTETRIC"],
+    "mandatoryVitals": ["systolicBP", "heartRate", "respiratoryRate", "fetalHeartRate"],
+    "criticalIfCombinedWith": ["vaginal_bleeding", "seizure", "fetal_distress"]
+  },
+  {
+    "id": "intoxication",
+    "label": "Intoxicacion",
+    "system": "toxicologia",
+    "basePriority": 2,
+    "suggestsSubprotocols": ["INTOXICATION"],
+    "mandatoryVitals": ["heartRate", "systolicBP", "respiratoryRate", "glasgowTotal"],
+    "criticalIfCombinedWith": ["miosis", "salivation", "seizures"]
+  },
+  {
+    "id": "mental_health_crisis",
+    "label": "Crisis de salud mental",
+    "system": "salud_mental",
+    "basePriority": 3,
+    "suggestsSubprotocols": ["MENTAL_HEALTH"],
+    "mandatoryVitals": ["heartRate", "systolicBP", "respiratoryRate", "glasgowTotal"],
+    "criticalIfCombinedWith": ["violent_behavior", "specific_plan", "recent_attempt"]
+  },
+  {
+    "id": "fever",
+    "label": "Fiebre",
+    "system": "general",
+    "basePriority": 3,
+    "suggestsSubprotocols": [],
+    "mandatoryVitals": ["temperature", "heartRate", "respiratoryRate"],
+    "criticalIfCombinedWith": ["petechiae", "altered_consciousness", "hypotension"]
+  }
+]

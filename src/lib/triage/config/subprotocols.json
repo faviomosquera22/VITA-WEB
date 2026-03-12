@@ -1,0 +1,54 @@
+[
+  {
+    "id": "TRAUMA",
+    "keywords": ["trauma", "accidente", "fractura", "caida", "golpe", "herida", "choque"],
+    "discriminatorIds": ["trauma_mva"],
+    "thresholds": {}
+  },
+  {
+    "id": "BURNS",
+    "keywords": ["quemadura", "fuego", "escaldadura", "electrica", "quimica", "humo"],
+    "discriminatorIds": ["burn_injury"],
+    "thresholds": {
+      "adultCriticalTbsa": 20,
+      "pediatricCriticalTbsa": 15,
+      "adultModerateTbsaLow": 10,
+      "adultModerateTbsaHigh": 19,
+      "pediatricModerateTbsaLow": 5,
+      "pediatricModerateTbsaHigh": 14
+    }
+  },
+  {
+    "id": "SEXUAL_VIOLENCE",
+    "keywords": ["violencia sexual", "abuso sexual", "agresion sexual", "violacion"],
+    "discriminatorIds": ["sexual_violence"],
+    "thresholds": {
+      "forensicHours": 72,
+      "emergencyContraceptionHours": 120
+    }
+  },
+  {
+    "id": "OBSTETRIC",
+    "keywords": ["embarazo", "gestante", "parto", "obstetrico", "sangrado vaginal", "puerperio"],
+    "discriminatorIds": ["obstetric_emergency"],
+    "thresholds": {
+      "fetalHeartRateLow": 100,
+      "fetalHeartRateHigh": 180,
+      "pretermWeeks": 34
+    }
+  },
+  {
+    "id": "INTOXICATION",
+    "keywords": ["intoxicacion", "veneno", "organofosforado", "sobredosis", "caustico", "monoxido"],
+    "discriminatorIds": ["intoxication"],
+    "thresholds": {}
+  },
+  {
+    "id": "MENTAL_HEALTH",
+    "keywords": ["agitacion", "suicidio", "autolesion", "psiquiatrico", "psicosis", "ansiedad"],
+    "discriminatorIds": ["mental_health_crisis"],
+    "thresholds": {
+      "recentAttemptDays": 30
+    }
+  }
+]
