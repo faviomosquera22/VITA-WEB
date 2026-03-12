@@ -22,6 +22,11 @@ type MedicationDraft = {
   notes: string;
 };
 
+type MedicationCatalogItem = {
+  name: string;
+  presentations: string[];
+};
+
 const defaultDraft: MedicationDraft = {
   name: "",
   dose: "",
@@ -45,24 +50,57 @@ export default function MedicationPage() {
   const [addedByPatient, setAddedByPatient] = useState<Record<string, MedicationRecord[]>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [catalogSearch, setCatalogSearch] = useState("");
 
-  const medicationCatalog = useMemo(() => {
-    const fromRecords = mockPatients.flatMap((patient) => patient.medicationRecords.map((record) => record.name));
-    const extras = [
-      "Paracetamol",
-      "Ibuprofeno",
-      "Omeprazol",
-      "Ceftriaxona",
-      "Metamizol",
-      "Insulina regular",
-      "Enoxaparina",
-      "Losartan",
-      "Metformina",
-      "Salbutamol",
+  const medicationCatalog = useMemo<MedicationCatalogItem[]>(() => {
+    const fromRecords = mockPatients.flatMap((patient) =>
+      patient.medicationRecords.map((record) => ({
+        name: record.name.trim(),
+        presentation: record.dose.trim(),
+      }))
+    );
+    const extras: Array<{ name: string; presentation: string }> = [
+      { name: "Paracetamol", presentation: "500 mg tableta" },
+      { name: "Ibuprofeno", presentation: "400 mg tableta" },
+      { name: "Omeprazol", presentation: "20 mg capsula" },
+      { name: "Ceftriaxona", presentation: "1 g vial" },
+      { name: "Metamizol", presentation: "1 g ampolla" },
+      { name: "Insulina regular", presentation: "100 UI/mL frasco" },
+      { name: "Enoxaparina", presentation: "40 mg/0.4 mL jeringa" },
+      { name: "Losartan", presentation: "50 mg tableta" },
+      { name: "Metformina", presentation: "850 mg tableta" },
+      { name: "Salbutamol", presentation: "100 mcg inhalador" },
     ];
 
-    return Array.from(new Set([...fromRecords, ...extras])).sort((a, b) => a.localeCompare(b));
+    const index = new Map<string, Set<string>>();
+    [...fromRecords, ...extras].forEach((entry) => {
+      if (!index.has(entry.name)) {
+        index.set(entry.name, new Set<string>());
+      }
+      if (entry.presentation) {
+        index.get(entry.name)?.add(entry.presentation);
+      }
+    });
+
+    return Array.from(index.entries())
+      .map(([name, presentations]) => ({
+        name,
+        presentations: Array.from(presentations).sort((a, b) => a.localeCompare(b)),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, []);
+
+  const filteredMedicationCatalog = useMemo(() => {
+    const normalized = catalogSearch.trim().toLowerCase();
+    if (!normalized) {
+      return medicationCatalog;
+    }
+
+    return medicationCatalog.filter((item) => {
+      const terms = `${item.name} ${item.presentations.join(" ")}`.toLowerCase();
+      return terms.includes(normalized);
+    });
+  }, [catalogSearch, medicationCatalog]);
 
   const getMedicationForPatient = useCallback(
     (patient: PatientRecord) => [
@@ -95,6 +133,10 @@ export default function MedicationPage() {
   const omissions = medicationRows.filter((item) => item.record.administrationStatus === "Omitido");
 
   const medicationSelected = draft.name.trim().length > 0;
+  const selectedCatalogItem = useMemo(
+    () => medicationCatalog.find((item) => item.name === draft.name.trim()) ?? null,
+    [medicationCatalog, draft.name]
+  );
 
   const handleAddMedication = () => {
     setFormError(null);
@@ -208,34 +250,101 @@ export default function MedicationPage() {
 
               <label className="block">
                 <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  Medicamento
+                  Buscar medicamento
                 </span>
                 <input
-                  list="medication-catalog"
-                  value={draft.name}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
+                  value={catalogSearch}
+                  onChange={(event) => setCatalogSearch(event.target.value)}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-sky-500 focus:outline-none"
-                  placeholder="Ej. Paracetamol"
+                  placeholder="Ej. paracetamol, 500 mg, vial..."
                 />
-                <datalist id="medication-catalog">
-                  {medicationCatalog.map((item) => (
-                    <option key={item} value={item} />
-                  ))}
-                </datalist>
               </label>
+
+              <div className="mt-2 max-h-52 space-y-1 overflow-y-auto rounded-lg border border-sky-100 bg-white p-2">
+                {filteredMedicationCatalog.length === 0 ? (
+                  <p className="px-2 py-1 text-[11px] text-slate-500">No se encontraron medicamentos.</p>
+                ) : (
+                  filteredMedicationCatalog.map((item) => (
+                    <button
+                      key={item.name}
+                      type="button"
+                      onClick={() =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          name: item.name,
+                          dose: prev.dose || item.presentations[0] || "",
+                        }))
+                      }
+                      className={[
+                        "w-full rounded-lg border px-2 py-2 text-left transition",
+                        draft.name === item.name
+                          ? "border-sky-300 bg-sky-50"
+                          : "border-slate-200 bg-white hover:bg-slate-50",
+                      ].join(" ")}
+                    >
+                      <p className="text-xs font-semibold text-slate-900">{item.name}</p>
+                      <p className="text-[11px] text-slate-600">
+                        Presentacion: {item.presentations.join(" · ")}
+                      </p>
+                    </button>
+                  ))
+                )}
+              </div>
 
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {medicationCatalog.slice(0, 8).map((item) => (
                   <button
-                    key={item}
+                    key={item.name}
                     type="button"
-                    onClick={() => setDraft((prev) => ({ ...prev, name: item }))}
+                    onClick={() =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        name: item.name,
+                        dose: prev.dose || item.presentations[0] || "",
+                      }))
+                    }
                     className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[11px] text-sky-700 hover:bg-sky-100"
                   >
-                    {item}
+                    {item.name}
                   </button>
                 ))}
               </div>
+
+              {selectedCatalogItem ? (
+                <div className="mt-2 rounded-lg border border-sky-200 bg-sky-100 p-2">
+                  <p className="text-[11px] font-semibold text-sky-800">
+                    Seleccionado: {selectedCatalogItem.name}
+                  </p>
+                  {selectedCatalogItem.presentations.length > 1 ? (
+                    <label className="mt-1 block">
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-sky-700">
+                        Presentacion
+                      </span>
+                      <select
+                        value={draft.dose}
+                        onChange={(event) =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            dose: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-lg border border-sky-200 bg-white px-2 py-2 text-xs text-slate-700 focus:border-sky-500 focus:outline-none"
+                      >
+                        <option value="">Seleccionar presentacion</option>
+                        {selectedCatalogItem.presentations.map((presentation) => (
+                          <option key={presentation} value={presentation}>
+                            {presentation}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-slate-700">
+                      Presentacion: {selectedCatalogItem.presentations[0] ?? "No registrada"}
+                    </p>
+                  )}
+                </div>
+              ) : null}
             </div>
 
             {medicationSelected ? (
@@ -245,7 +354,7 @@ export default function MedicationPage() {
 
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
                   <MedicationInput
-                    label="Dosis"
+                    label="Presentacion / dosis"
                     value={draft.dose}
                     onChange={(value) => setDraft((prev) => ({ ...prev, dose: value }))}
                     placeholder="Ej. 500 mg"
