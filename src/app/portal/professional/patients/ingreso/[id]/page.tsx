@@ -116,6 +116,12 @@ export default function RegisteredPatientDetailPage() {
             Pacientes
           </Link>
           <Link
+            href={`/portal/professional/reports?patientId=${record.id}`}
+            className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100"
+          >
+            Formularios MSP
+          </Link>
+          <Link
             href="/portal/professional/patients/ingreso"
             className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >

@@ -1478,6 +1478,14 @@ export default function PatientIntakePage() {
                   Abrir ficha registrada
                 </Link>
               ) : null}
+              {createdRecord ? (
+                <Link
+                  href={`/portal/professional/reports?patientId=${createdRecord.id}`}
+                  className="rounded-full border border-sky-300 bg-sky-50 px-4 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100"
+                >
+                  Generar formularios MSP
+                </Link>
+              ) : null}
             </div>
             {error ? <p className="mt-2 text-xs text-red-700">{error}</p> : null}
             {success ? <p className="mt-2 text-xs text-emerald-700">{success}</p> : null}
