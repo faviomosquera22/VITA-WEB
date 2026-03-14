@@ -50,6 +50,18 @@ body {
   }
 }
 
+@keyframes landing-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.86);
+  }
+}
+
 .landing-enter {
   opacity: 0;
   animation: landing-rise 0.75s ease-out forwards;
@@ -67,9 +79,14 @@ body {
   animation: landing-float 7s ease-in-out infinite;
 }
 
+.landing-pulse {
+  animation: landing-pulse 1.8s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .landing-enter,
-  .landing-float {
+  .landing-float,
+  .landing-pulse {
     animation: none;
     opacity: 1;
     transform: none;

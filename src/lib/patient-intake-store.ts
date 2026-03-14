@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import type { SessionUser } from "@/lib/auth";
+import { normalizeRegisteredPatientRecord } from "@/lib/patient-intake-msp";
 import type {
   PatientIntakePayload,
   RegisteredPatientRecord,
@@ -43,18 +44,19 @@ function readStore(): PatientIntakeStoreData {
   try {
     ensureStoreFile();
     const fileContent = fs.readFileSync(DATA_FILE, "utf8");
-    return JSON.parse(fileContent) as PatientIntakeStoreData;
+    return normalizeStoreData(JSON.parse(fileContent) as PatientIntakeStoreData);
   } catch {
-    return cloneData(memoryStore);
+    return normalizeStoreData(cloneData(memoryStore));
   }
 }
 
 function writeStore(data: PatientIntakeStoreData) {
-  memoryStore = cloneData(data);
+  const normalizedData = normalizeStoreData(data);
+  memoryStore = cloneData(normalizedData);
 
   try {
     ensureStoreFile();
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
+    fs.writeFileSync(DATA_FILE, JSON.stringify(normalizedData, null, 2), "utf8");
   } catch {
     // Ignore persistence errors; memory fallback remains available.
   }
@@ -118,6 +120,16 @@ function buildSummary(record: RegisteredPatientRecord): RegisteredPatientSummary
     age: record.identification.age,
     consultationReason: record.consultation.literalReason || "Sin motivo registrado",
     principalDiagnosis: primaryDiagnosis?.description || "Sin diagnostico registrado",
+    mspScore: record.mspCompliance.score,
+    criticalPendingCount: record.mspCompliance.criticalPendingItems.length,
+  };
+}
+
+function normalizeStoreData(data: PatientIntakeStoreData): PatientIntakeStoreData {
+  return {
+    records: Array.isArray(data.records)
+      ? data.records.map((record) => normalizeRegisteredPatientRecord(record))
+      : [],
   };
 }
 
@@ -146,7 +158,7 @@ export function createRegisteredPatient(
   const createdAt = nowIso();
   const age = calculateAge(payload.identification.birthDate);
 
-  const record: RegisteredPatientRecord = {
+  const record = normalizeRegisteredPatientRecord({
     id: newPatientId(),
     medicalRecordNumber: buildMedicalRecordNumber(store.records.length),
     source: payload.source,
@@ -170,6 +182,9 @@ export function createRegisteredPatient(
     imaging: payload.imaging,
     hospitalization: payload.hospitalization,
     urgency: payload.urgency,
+    admission: payload.admission,
+    consent: payload.consent,
+    interconsultation: payload.interconsultation,
     nursingReport: payload.nursingReport,
     appointments: payload.appointments,
     referrals: payload.referrals,
@@ -178,7 +193,13 @@ export function createRegisteredPatient(
     pharmacyContext: payload.pharmacyContext,
     indicatorsContext: payload.indicatorsContext,
     compliance: payload.compliance,
-  };
+    mspCompliance: {
+      score: 0,
+      criticalPendingItems: [],
+      forms: [],
+      generatedAt: createdAt,
+    },
+  });
 
   if (!record.consultation.establishment) {
     record.consultation.establishment = "Hospital General Norte";

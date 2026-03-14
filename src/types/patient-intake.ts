@@ -17,6 +17,7 @@ export interface PatientIdentification {
   occupation: string;
   workplace: string;
   religion: string;
+  bloodGroup: string;
   photoUrl: string;
 }
 
@@ -173,12 +174,16 @@ export interface PatientLaboratory {
   requests: string[];
   criticalResults: string[];
   criticalResultAcknowledged: boolean;
+  priority: string;
+  clinicalJustification: string;
 }
 
 export interface PatientImaging {
   requests: string[];
   reports: string[];
   pacsLinks: string[];
+  priority: string;
+  clinicalJustification: string;
 }
 
 export interface PatientHospitalization {
@@ -222,17 +227,79 @@ export interface PatientAppointments {
 }
 
 export interface PatientReferrals {
+  referralType: string;
   referenceCode: string;
   referenceReason: string;
   destination: string;
+  clinicalSummary: string;
+  relevantFindings: string;
+  treatmentsPerformed: string;
+  recommendedTreatment: string;
   counterReferenceSummary: string;
 }
 
 export interface PatientPublicHealth {
   notifiableDisease: boolean;
+  suspectedCondition: string;
   siveAlertCode: string;
   outbreakCluster: string;
   surveillanceNotes: string;
+  reportedAt: string | null;
+}
+
+export interface PatientAdmissionContext {
+  admissionArea: string;
+  sourceEstablishment: string;
+  sourceService: string;
+  bedOrDesk: string;
+}
+
+export interface PatientConsentRecord {
+  required: boolean;
+  obtained: boolean;
+  type: string;
+  scope: string;
+  explainedRisks: string;
+  explainedBenefits: string;
+  explainedAlternatives: string;
+  obtainedBy: string;
+  obtainedAt: string | null;
+  witnessName: string;
+  representativeName: string;
+  representativeRelationship: string;
+  decisionCapacity: string;
+  refusalReason: string;
+}
+
+export interface PatientInterconsultation {
+  requested: boolean;
+  specialty: string;
+  priority: string;
+  reason: string;
+  clinicalSummary: string;
+  requestedAt: string | null;
+  responseSummary: string;
+}
+
+export type PatientMspChecklistStatus =
+  | "completo"
+  | "incompleto"
+  | "no_aplica";
+
+export interface PatientMspChecklistItem {
+  code: string;
+  title: string;
+  reference: string;
+  required: boolean;
+  status: PatientMspChecklistStatus;
+  pendingItems: string[];
+}
+
+export interface PatientMspComplianceSnapshot {
+  score: number;
+  criticalPendingItems: string[];
+  forms: PatientMspChecklistItem[];
+  generatedAt: string;
 }
 
 export interface PatientProgramTracking {
@@ -288,6 +355,9 @@ export interface RegisteredPatientRecord {
   imaging: PatientImaging;
   hospitalization: PatientHospitalization;
   urgency: PatientUrgencyTriage;
+  admission: PatientAdmissionContext;
+  consent: PatientConsentRecord;
+  interconsultation: PatientInterconsultation;
   nursingReport: PatientNursingReport;
   appointments: PatientAppointments;
   referrals: PatientReferrals;
@@ -296,6 +366,7 @@ export interface RegisteredPatientRecord {
   pharmacyContext: PatientPharmacyContext;
   indicatorsContext: PatientIndicatorsContext;
   compliance: PatientCompliance;
+  mspCompliance: PatientMspComplianceSnapshot;
 }
 
 export type PatientIntakePayload = Omit<
@@ -307,6 +378,7 @@ export type PatientIntakePayload = Omit<
   | "identification"
   | "createdByUserId"
   | "createdByUserName"
+  | "mspCompliance"
 > & {
   identification: Omit<PatientIdentification, "age">;
 };
@@ -321,4 +393,6 @@ export interface RegisteredPatientSummary {
   age: number | null;
   consultationReason: string;
   principalDiagnosis: string;
+  mspScore: number;
+  criticalPendingCount: number;
 }

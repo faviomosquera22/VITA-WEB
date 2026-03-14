@@ -3,6 +3,10 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getRequestSession, unauthorizedResponse } from "@/lib/auth";
 import { appendAuditEvent } from "@/lib/clinical-store";
 import {
+  computeBodyMassIndex,
+  validatePatientIntakePayload,
+} from "@/lib/patient-intake-msp";
+import {
   createRegisteredPatient,
   listRegisteredPatientSummaries,
 } from "@/lib/patient-intake-store";
@@ -45,7 +49,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const payload = normalizePatientIntakePayload(body, session.name);
+  const payload = normalizePatientIntakePayload(body, session.name, session.centerName);
 
   if (!payload.identification.documentNumber) {
     return NextResponse.json(
@@ -72,6 +76,17 @@ export async function POST(request: NextRequest) {
     payload.identification.documentNumber = cedula;
   }
 
+  const validation = validatePatientIntakePayload(payload);
+  if (validation.errors.length > 0) {
+    return NextResponse.json(
+      {
+        error: validation.errors.join(" "),
+        details: validation.errors,
+      },
+      { status: 400 }
+    );
+  }
+
   const created = createRegisteredPatient(payload, session);
 
   appendAuditEvent({
@@ -93,7 +108,8 @@ export async function POST(request: NextRequest) {
 
 function normalizePatientIntakePayload(
   raw: unknown,
-  professionalName: string
+  professionalName: string,
+  centerName: string
 ): PatientIntakePayload {
   const root = asObject(raw);
   const identification = asObject(root.identification);
@@ -110,6 +126,9 @@ function normalizePatientIntakePayload(
   const imaging = asObject(root.imaging);
   const hospitalization = asObject(root.hospitalization);
   const urgency = asObject(root.urgency);
+  const admission = asObject(root.admission);
+  const consent = asObject(root.consent);
+  const interconsultation = asObject(root.interconsultation);
   const nursingReport = asObject(root.nursingReport);
   const appointments = asObject(root.appointments);
   const referrals = asObject(root.referrals);
@@ -118,6 +137,10 @@ function normalizePatientIntakePayload(
   const pharmacyContext = asObject(root.pharmacyContext);
   const indicatorsContext = asObject(root.indicatorsContext);
   const compliance = asObject(root.compliance);
+  const bmi = computeBodyMassIndex(
+    asString(physicalExam.weightKg),
+    asString(physicalExam.heightCm)
+  );
 
   const payload: PatientIntakePayload = {
     source: asPatientSource(root.source),
@@ -136,6 +159,7 @@ function normalizePatientIntakePayload(
       occupation: asString(identification.occupation),
       workplace: asString(identification.workplace),
       religion: asString(identification.religion),
+      bloodGroup: asString(identification.bloodGroup),
       photoUrl: asString(identification.photoUrl),
     },
     contact: {
@@ -199,8 +223,8 @@ function normalizePatientIntakePayload(
     },
     consultation: {
       consultedAt: asString(consultation.consultedAt) || new Date().toISOString(),
-      establishment: asString(consultation.establishment),
-      service: asString(consultation.service),
+      establishment: asString(consultation.establishment) || centerName,
+      service: asString(consultation.service) || "Consulta externa",
       professionalName: asString(consultation.professionalName) || professionalName,
       professionalSenescyt:
         asString(consultation.professionalSenescyt) || "SENESCYT-PENDIENTE",
@@ -232,7 +256,7 @@ function normalizePatientIntakePayload(
         spo2: asString(physicalExam.spo2),
         weightKg: asString(physicalExam.weightKg),
         heightCm: asString(physicalExam.heightCm),
-        bmi: asString(physicalExam.bmi),
+        bmi: asString(physicalExam.bmi) || bmi,
         abdominalPerimeterCm: asString(physicalExam.abdominalPerimeterCm),
         capillaryGlucose: asString(physicalExam.capillaryGlucose),
         painScale: asNullableNumber(physicalExam.painScale),
@@ -264,11 +288,15 @@ function normalizePatientIntakePayload(
       requests: asStringArray(laboratory.requests),
       criticalResults: asStringArray(laboratory.criticalResults),
       criticalResultAcknowledged: asBoolean(laboratory.criticalResultAcknowledged),
+      priority: asString(laboratory.priority),
+      clinicalJustification: asString(laboratory.clinicalJustification),
     },
     imaging: {
       requests: asStringArray(imaging.requests),
       reports: asStringArray(imaging.reports),
       pacsLinks: asStringArray(imaging.pacsLinks),
+      priority: asString(imaging.priority),
+      clinicalJustification: asString(imaging.clinicalJustification),
     },
     hospitalization: {
       admissionType: asString(hospitalization.admissionType),
@@ -294,6 +322,39 @@ function normalizePatientIntakePayload(
       maxWaitMinutes: asNullableNumber(urgency.maxWaitMinutes),
       retriageAutomatic: asBoolean(urgency.retriageAutomatic),
     },
+    admission: {
+      admissionArea: asString(admission.admissionArea),
+      sourceEstablishment: asString(admission.sourceEstablishment) || centerName,
+      sourceService: asString(admission.sourceService),
+      bedOrDesk: asString(admission.bedOrDesk),
+    },
+    consent: {
+      required: asBoolean(consent.required),
+      obtained: asBoolean(consent.obtained),
+      type: asString(consent.type),
+      scope: asString(consent.scope),
+      explainedRisks: asString(consent.explainedRisks),
+      explainedBenefits: asString(consent.explainedBenefits),
+      explainedAlternatives: asString(consent.explainedAlternatives),
+      obtainedBy: asString(consent.obtainedBy),
+      obtainedAt: asNullableString(consent.obtainedAt),
+      witnessName: asString(consent.witnessName),
+      representativeName: asString(consent.representativeName),
+      representativeRelationship: asString(consent.representativeRelationship),
+      decisionCapacity: asString(consent.decisionCapacity),
+      refusalReason: asString(consent.refusalReason),
+    },
+    interconsultation: {
+      requested: asBoolean(interconsultation.requested),
+      specialty: asString(interconsultation.specialty),
+      priority: asString(interconsultation.priority),
+      reason: asString(interconsultation.reason),
+      clinicalSummary: asString(interconsultation.clinicalSummary),
+      requestedAt: asBoolean(interconsultation.requested)
+        ? asNullableString(interconsultation.requestedAt) || new Date().toISOString()
+        : null,
+      responseSummary: asString(interconsultation.responseSummary),
+    },
     nursingReport: {
       shiftSummary: asString(nursingReport.shiftSummary),
       fallEvents: asString(nursingReport.fallEvents),
@@ -307,16 +368,25 @@ function normalizePatientIntakePayload(
       noShowHistory: asString(appointments.noShowHistory),
     },
     referrals: {
+      referralType: asString(referrals.referralType),
       referenceCode: asString(referrals.referenceCode),
       referenceReason: asString(referrals.referenceReason),
       destination: asString(referrals.destination),
+      clinicalSummary: asString(referrals.clinicalSummary),
+      relevantFindings: asString(referrals.relevantFindings),
+      treatmentsPerformed: asString(referrals.treatmentsPerformed),
+      recommendedTreatment: asString(referrals.recommendedTreatment),
       counterReferenceSummary: asString(referrals.counterReferenceSummary),
     },
     publicHealth: {
       notifiableDisease: asBoolean(publicHealth.notifiableDisease),
+      suspectedCondition: asString(publicHealth.suspectedCondition),
       siveAlertCode: asString(publicHealth.siveAlertCode),
       outbreakCluster: asString(publicHealth.outbreakCluster),
       surveillanceNotes: asString(publicHealth.surveillanceNotes),
+      reportedAt:
+        asNullableString(publicHealth.reportedAt) ||
+        (asBoolean(publicHealth.notifiableDisease) ? new Date().toISOString() : null),
     },
     programTracking: {
       diabetes: asBoolean(programTracking.diabetes),

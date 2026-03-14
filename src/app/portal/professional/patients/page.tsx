@@ -236,6 +236,7 @@ export default function PatientsPage() {
                   <th className="px-3 py-2 font-semibold">Paciente</th>
                   <th className="px-3 py-2 font-semibold">Documento</th>
                   <th className="px-3 py-2 font-semibold">Motivo</th>
+                  <th className="px-3 py-2 font-semibold">MSP</th>
                   <th className="px-3 py-2 text-center font-semibold">Ficha</th>
                 </tr>
               </thead>
@@ -246,6 +247,9 @@ export default function PatientsPage() {
                     <td className="px-3 py-2 text-slate-700">{entry.fullName}</td>
                     <td className="px-3 py-2 text-slate-700">{entry.documentNumber}</td>
                     <td className="px-3 py-2 text-slate-700">{entry.consultationReason}</td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {entry.mspScore}% · {entry.criticalPendingCount} pendientes
+                    </td>
                     <td className="px-3 py-2 text-center align-middle">
                       <Link
                         href={`/portal/professional/patients/ingreso/${entry.id}`}

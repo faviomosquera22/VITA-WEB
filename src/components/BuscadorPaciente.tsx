@@ -89,6 +89,7 @@ export default function BuscadorPaciente() {
             birthDate: data.registroCivil.fecha_nacimiento,
             sexBiological: data.registroCivil.sexo ?? "",
             gender: data.registroCivil.sexo ?? "",
+            bloodGroup: grupoSanguineo,
           },
           antecedentes: {
             allergies: {
@@ -97,12 +98,11 @@ export default function BuscadorPaciente() {
             },
           },
           consultation: {
+            establishment: "Hospital General Norte",
+            service: "Admision",
             literalReason: motivoConsulta.trim(),
             mainSymptom: motivoConsulta.trim(),
             currentIllnessNarrative: motivoConsulta.trim(),
-          },
-          indicatorsContext: {
-            administrative: `Grupo sanguineo: ${grupoSanguineo}`,
           },
         }),
       });

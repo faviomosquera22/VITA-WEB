@@ -1,211 +1,182 @@
+import Link from "next/link";
+
 import { ModulePage, Panel, StatCard } from "../_components/clinical-ui";
-import { listAuditEvents } from "@/lib/clinical-store";
+import { getMspComplianceDashboard } from "@/lib/msp-compliance";
 
-type PermissionRow = {
-  role: string;
-  psychiatricNotes: "Si" | "No" | "Restringido" | "Lectura";
-  medicationOrders: "Si" | "No" | "Restringido" | "Lectura";
-  dischargeSign: "Si" | "No" | "Restringido" | "Lectura";
-  adminReports: "Si" | "No" | "Restringido" | "Lectura";
-};
-
-const legalControls = [
-  {
-    id: "ctrl-1",
-    label: "Registro inmutable de notas firmadas",
-    status: "Activo",
-    detail: "Ninguna nota firmada puede editarse o eliminarse; solo se permiten adendas.",
-  },
-  {
-    id: "ctrl-2",
-    label: "Cifrado en transito y en reposo",
-    status: "Activo",
-    detail: "Transito TLS y almacenamiento cifrado en base de datos y respaldos.",
-  },
-  {
-    id: "ctrl-3",
-    label: "Respaldo automatico con RTO/RPO",
-    status: "Activo",
-    detail: "RTO 4h y RPO 15 min definidos para continuidad operacional.",
-  },
-  {
-    id: "ctrl-4",
-    label: "Consentimiento de tratamiento de datos",
-    status: "Activo",
-    detail: "Consentimiento informado y trazabilidad de aceptacion por paciente/tutor.",
-  },
-  {
-    id: "ctrl-5",
-    label: "2FA obligatorio para personal",
-    status: "En despliegue",
-    detail: "Autenticacion de doble factor para personal clinico y administrativo.",
-  },
-];
-
-const permissionMatrix: PermissionRow[] = [
-  {
-    role: "Recepcion",
-    psychiatricNotes: "No",
-    medicationOrders: "No",
-    dischargeSign: "No",
-    adminReports: "Si",
-  },
-  {
-    role: "Enfermeria",
-    psychiatricNotes: "No",
-    medicationOrders: "Si",
-    dischargeSign: "No",
-    adminReports: "No",
-  },
-  {
-    role: "Medicina",
-    psychiatricNotes: "Si",
-    medicationOrders: "Si",
-    dischargeSign: "Si",
-    adminReports: "No",
-  },
-  {
-    role: "Auditoria",
-    psychiatricNotes: "Restringido",
-    medicationOrders: "Lectura",
-    dischargeSign: "Lectura",
-    adminReports: "Si",
-  },
-];
-
-const securityIncidents = [
-  {
-    id: "sec-1",
-    datetime: "2026-03-09 18:22",
-    event: "Intento de acceso con credenciales invalidas",
-    severity: "Media",
-    action: "Bloqueo temporal y alerta a seguridad.",
-  },
-  {
-    id: "sec-2",
-    datetime: "2026-03-10 07:12",
-    event: "Consulta de historial fuera de servicio asignado",
-    severity: "Alta",
-    action: "Sesion auditada y revisada por cumplimiento.",
-  },
-];
+export const dynamic = "force-dynamic";
 
 export default function CompliancePage() {
-  const auditEvents = listAuditEvents(10);
-  const activeControls = legalControls.filter((item) => item.status === "Activo").length;
+  const dashboard = getMspComplianceDashboard();
 
   return (
     <ModulePage
-      title="Cumplimiento y seguridad"
-      subtitle="Auditoria de accesos, registro inmutable, permisos granulares, respaldo y doble factor."
+      title="Cumplimiento MSP y seguridad"
+      subtitle="Estado real de protocolos, formularios, seguridad, trazabilidad y brechas para operacion profesional."
+      actions={
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/portal/professional/patients/ingreso"
+            className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100"
+          >
+            Abrir ingreso clinico
+          </Link>
+          <Link
+            href="/portal/professional"
+            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Volver al inicio
+          </Link>
+        </div>
+      }
     >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <StatCard label="Controles activos" value={activeControls} hint={`${legalControls.length} controles definidos`} />
-        <StatCard label="Eventos auditados" value={auditEvents.length} hint="Bitacora reciente de accesos y acciones" />
-        <StatCard label="Incidentes de seguridad" value={securityIncidents.length} hint="Monitoreo operativo" />
-        <StatCard label="2FA personal" value="En despliegue" hint="Aplicacion progresiva por rol" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard
+          label="Dominios implementados"
+          value={dashboard.summary.implementedDomains}
+          hint={`${dashboard.summary.totalDomains} dominios evaluados`}
+        />
+        <StatCard
+          label="Dominios parciales"
+          value={dashboard.summary.partialDomains}
+          hint="Requieren cierre funcional o integracion"
+        />
+        <StatCard
+          label="Dominios pendientes"
+          value={dashboard.summary.pendingDomains}
+          hint="Imposibilitan declaracion 100% profesional"
+        />
+        <StatCard
+          label="Promedio MSP"
+          value={`${dashboard.summary.averageRecordScore}%`}
+          hint="Checklist promedio por expediente real"
+        />
+        <StatCard
+          label="Registros clinicos"
+          value={dashboard.summary.totalClinicalRecords}
+          hint="Base persistida para evaluacion"
+        />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <Panel title="Auditoria de accesos" subtitle="Quien accedio, cuando y sobre que entidad clinica">
-          <div className="space-y-2">
-            {auditEvents.length === 0 ? (
-              <p className="text-xs text-slate-500">Sin eventos recientes en la bitacora de auditoria.</p>
-            ) : (
-              auditEvents.map((event) => (
-                <article key={event.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-slate-900">
-                      {event.actorName} · {event.action}
-                    </p>
-                    <span className="text-[11px] text-slate-500">{event.timestamp}</span>
-                  </div>
-                  <p className="text-[11px] text-slate-600">
-                    {event.targetType}:{event.targetId}
-                  </p>
-                  <p className="text-[11px] text-slate-500">{event.detail}</p>
-                </article>
-              ))
-            )}
-          </div>
-        </Panel>
+      <Panel
+        title="Lectura ejecutiva"
+        subtitle="Estado actual del proyecto frente al objetivo de un HIS plenamente profesional"
+      >
+        <p className="text-sm text-slate-700">
+          El sistema ya tiene una base seria para historia clinica, triaje, consentimiento,
+          referencia y checklist MSP por expediente. Aun asi, no es correcto declararlo
+          100% profesional mientras persistan datos mock en modulos clinicos y la
+          persistencia principal siga fuera de una base transaccional institucional.
+        </p>
+      </Panel>
 
-        <Panel title="Controles legales y normativos" subtitle="Estado operativo de requisitos de seguridad y privacidad">
-          <div className="space-y-2">
-            {legalControls.map((control) => (
-              <article key={control.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-slate-900">{control.label}</p>
-                  <span
-                    className={[
-                      "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                      control.status === "Activo"
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-amber-200 bg-amber-50 text-amber-700",
-                    ].join(" ")}
-                  >
-                    {control.status}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-600">{control.detail}</p>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <Panel
+          title="Evidencia operativa"
+          subtitle="Metricas del expediente real y trazabilidad clinica registrada"
+        >
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {dashboard.metrics.map((metric) => (
+              <article
+                key={metric.label}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  {metric.label}
+                </p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">{metric.value}</p>
+                <p className="mt-1 text-[11px] text-slate-600">{metric.hint}</p>
               </article>
             ))}
           </div>
         </Panel>
-      </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <Panel title="Permisos granulares por rol" subtitle="Accesos clinicos diferenciados para proteger datos sensibles">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-xs">
-              <thead className="text-[11px] uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-2 py-2">Rol</th>
-                  <th className="px-2 py-2">Nota psiquiatrica</th>
-                  <th className="px-2 py-2">Orden medicacion</th>
-                  <th className="px-2 py-2">Firma alta</th>
-                  <th className="px-2 py-2">Reportes gestion</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {permissionMatrix.map((row) => (
-                  <tr key={row.role}>
-                    <td className="px-2 py-2 font-semibold text-slate-800">{row.role}</td>
-                    <td className="px-2 py-2 text-slate-600">{row.psychiatricNotes}</td>
-                    <td className="px-2 py-2 text-slate-600">{row.medicationOrders}</td>
-                    <td className="px-2 py-2 text-slate-600">{row.dischargeSign}</td>
-                    <td className="px-2 py-2 text-slate-600">{row.adminReports}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
-
-        <Panel title="Incidentes y respuesta" subtitle="Eventos de seguridad y accion de mitigacion">
+        <Panel
+          title="Brechas criticas"
+          subtitle="Puntos que bloquean la declaracion de sistema de salud 100% profesional"
+        >
           <div className="space-y-2">
-            {securityIncidents.map((incident) => (
-              <article key={incident.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            {dashboard.criticalGaps.map((gap) => (
+              <article
+                key={gap.title}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-slate-900">{incident.event}</p>
+                  <p className="text-xs font-semibold text-slate-900">{gap.title}</p>
                   <span
                     className={[
                       "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                      incident.severity === "Alta"
+                      gap.severity === "alta"
                         ? "border-red-200 bg-red-50 text-red-700"
                         : "border-amber-200 bg-amber-50 text-amber-700",
                     ].join(" ")}
                   >
-                    {incident.severity}
+                    {gap.severity}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500">{incident.datetime}</p>
-                <p className="text-[11px] text-slate-600">{incident.action}</p>
+                <p className="mt-1 text-[11px] text-slate-600">{gap.detail}</p>
               </article>
             ))}
           </div>
         </Panel>
       </div>
+
+      <Panel
+        title="Catalogo MSP implementado en el sistema"
+        subtitle="Estado por dominio funcional, evidencia y siguiente paso tecnico"
+      >
+        <div className="space-y-3">
+          {dashboard.domains.map((domain) => (
+            <article
+              key={domain.code}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="max-w-3xl">
+                  <p className="text-xs font-semibold text-slate-900">
+                    {domain.code} · {domain.title}
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    {domain.area} · {domain.reference}
+                  </p>
+                </div>
+                <StatusBadge status={domain.status} />
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
+                <DetailCard label="Evidencia" value={domain.evidence} />
+                <DetailCard label="Riesgo si falta" value={domain.riskIfMissing} />
+                <DetailCard label="Siguiente paso" value={domain.nextStep} />
+              </div>
+            </article>
+          ))}
+        </div>
+      </Panel>
     </ModulePage>
+  );
+}
+
+function DetailCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+      <p className="mt-1 text-xs text-slate-700">{value}</p>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: "implementado" | "parcial" | "pendiente" }) {
+  const tone =
+    status === "implementado"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : status === "parcial"
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : "border-red-200 bg-red-50 text-red-700";
+
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tone}`}>
+      {status}
+    </span>
   );
 }

@@ -127,7 +127,11 @@ export default function RegisteredPatientDetailPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <StatCard label="HC" value={record.medicalRecordNumber} hint="Numero unico de historia clinica" />
         <StatCard label="Documento" value={record.identification.documentNumber} hint={record.identification.documentType} />
-        <StatCard label="Edad" value={record.identification.age ?? "No registrada"} hint={`Sexo: ${record.identification.sexBiological || "No registrado"}`} />
+        <StatCard
+          label="Cumplimiento MSP"
+          value={`${record.mspCompliance.score}%`}
+          hint={`${record.mspCompliance.criticalPendingItems.length} pendientes criticos`}
+        />
         <StatCard
           label="Diagnostico principal"
           value={principalDiagnosis?.cie11Code || "Sin codigo"}
@@ -139,6 +143,8 @@ export default function RegisteredPatientDetailPage() {
         <Panel title="Identificacion">
           <Field label="Nombre completo" value={patientName} />
           <Field label="Nacimiento" value={record.identification.birthDate || "No registrado"} />
+          <Field label="Edad" value={String(record.identification.age ?? "No registrada")} />
+          <Field label="Grupo sanguineo" value={record.identification.bloodGroup || "No registrado"} />
           <Field label="Nacionalidad" value={record.identification.nationality || "No registrada"} />
           <Field label="Ocupacion" value={record.identification.occupation || "No registrada"} />
           <Field label="Estado civil" value={record.identification.civilStatus || "No registrado"} />
@@ -164,12 +170,15 @@ export default function RegisteredPatientDetailPage() {
         </Panel>
 
         <Panel title="Consulta y examen fisico">
+          <Field label="Establecimiento / servicio" value={`${record.consultation.establishment || "-"} / ${record.consultation.service || "-"}`} />
+          <Field label="Codigo profesional" value={record.consultation.professionalSenescyt || "No registrado"} />
           <Field label="Motivo de consulta" value={record.consultation.literalReason || "No registrado"} />
           <Field label="Sintoma principal" value={record.consultation.mainSymptom || "No registrado"} />
           <Field label="Enfermedad actual" value={record.consultation.currentIllnessNarrative || "No registrada"} />
           <Field label="PA / FC / FR" value={`${record.consultation.physicalExam.bloodPressure || "-"} / ${record.consultation.physicalExam.heartRate || "-"} / ${record.consultation.physicalExam.respiratoryRate || "-"}`} />
           <Field label="Temp / SpO2" value={`${record.consultation.physicalExam.temperature || "-"} / ${record.consultation.physicalExam.spo2 || "-"}`} />
           <Field label="Glasgow / Dolor" value={`${record.consultation.physicalExam.glasgow ?? "-"} / ${record.consultation.physicalExam.painScale ?? "-"}`} />
+          <Field label="IMC" value={record.consultation.physicalExam.bmi || "No calculado"} />
         </Panel>
       </div>
 
@@ -222,6 +231,73 @@ export default function RegisteredPatientDetailPage() {
           <Field label="Backup 4h" value={record.compliance.backupEvery4h ? "Si" : "No"} />
         </Panel>
       </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <Panel title="Continuidad asistencial MSP">
+          <Field label="Area de admision" value={record.admission.admissionArea || "No registrada"} />
+          <Field label="Origen asistencial" value={`${record.admission.sourceEstablishment || "-"} / ${record.admission.sourceService || "-"}`} />
+          <Field label="Modo de llegada" value={record.urgency.arrivalMode || "No registrado"} />
+          <Field label="Condicion inicial" value={record.urgency.initialCondition || "No registrada"} />
+          <Field label="Triaje" value={`${record.urgency.triageModel || "-"} · ${record.urgency.triageColor || "-"} · ${record.urgency.triageLevel || "-"}`} />
+          <Field label="Espera maxima" value={record.urgency.maxWaitMinutes ? `${record.urgency.maxWaitMinutes} min` : "No registrada"} />
+          <Field label="Interconsulta" value={record.interconsultation.requested ? `${record.interconsultation.specialty || "Pendiente"} · ${record.interconsultation.priority || "Sin prioridad"}` : "No requerida"} />
+          <Field label="Referencia" value={record.referrals.destination || "No registrada"} />
+          <Field label="Motivo de referencia" value={record.referrals.referenceReason || "No registrado"} />
+          <Field label="Resumen de contrarreferencia" value={record.referrals.counterReferenceSummary || "No registrado"} />
+          <Field label="Evento notifiable" value={record.publicHealth.notifiableDisease ? "Si" : "No"} />
+          <Field label="Codigo SIVE / evento" value={record.publicHealth.siveAlertCode || record.publicHealth.suspectedCondition || "No registrado"} />
+        </Panel>
+
+        <Panel title="Consentimiento y seguridad">
+          <Field label="Consentimiento requerido" value={record.consent.required ? "Si" : "No"} />
+          <Field label="Consentimiento obtenido" value={record.consent.obtained ? "Si" : "No"} />
+          <Field label="Tipo / alcance" value={`${record.consent.type || "-"} / ${record.consent.scope || "-"}`} />
+          <Field label="Responsable" value={record.consent.obtainedBy || "No registrado"} />
+          <Field label="Fecha y hora" value={record.consent.obtainedAt || "No registrada"} />
+          <Field label="Testigo" value={record.consent.witnessName || "No registrado"} />
+          <Field label="Representante" value={record.consent.representativeName || "No registrado"} />
+          <Field label="Capacidad de decision" value={record.consent.decisionCapacity || "No registrada"} />
+          <Field label="Motivo de rechazo/no obtencion" value={record.consent.refusalReason || "No registrado"} />
+          <Field label="Consentimiento digital" value={record.compliance.informedConsentDigital ? "Si" : "No"} />
+          <Field label="Cifrado AES-256" value={record.compliance.aes256DataEncryption ? "Si" : "No"} />
+          <Field label="Sincronizacion offline" value={record.compliance.offlineSyncEnabled ? "Si" : "No"} />
+        </Panel>
+      </div>
+
+      <Panel title="Checklist MSP" subtitle="Estado de formularios y controles clinico-administrativos">
+        <div className="space-y-2">
+          {record.mspCompliance.forms.map((item) => (
+            <article key={item.code} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold text-slate-900">
+                    {item.code} · {item.title}
+                  </p>
+                  <p className="text-[11px] text-slate-500">{item.reference}</p>
+                </div>
+                <StatusBadge status={item.status} />
+              </div>
+              {item.pendingItems.length > 0 ? (
+                <p className="mt-2 text-[11px] text-slate-700">
+                  Pendientes: {item.pendingItems.join(", ")}
+                </p>
+              ) : (
+                <p className="mt-2 text-[11px] text-emerald-700">
+                  Sin pendientes para este control.
+                </p>
+              )}
+            </article>
+          ))}
+        </div>
+        {record.mspCompliance.criticalPendingItems.length > 0 ? (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+            <p className="text-xs font-semibold text-amber-800">Pendientes criticos</p>
+            <p className="mt-1 text-[11px] text-amber-700">
+              {record.mspCompliance.criticalPendingItems.join(" · ")}
+            </p>
+          </div>
+        ) : null}
+      </Panel>
     </ModulePage>
   );
 }
@@ -243,5 +319,31 @@ function ListField({ label, values }: { label: string; values: string[] }) {
         {values.length > 0 ? values.join(", ") : "No registrado"}
       </p>
     </article>
+  );
+}
+
+function StatusBadge({
+  status,
+}: {
+  status: "completo" | "incompleto" | "no_aplica";
+}) {
+  const label =
+    status === "completo"
+      ? "Completo"
+      : status === "incompleto"
+        ? "Incompleto"
+        : "No aplica";
+
+  const tone =
+    status === "completo"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : status === "incompleto"
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : "border-slate-200 bg-slate-100 text-slate-600";
+
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tone}`}>
+      {label}
+    </span>
   );
 }

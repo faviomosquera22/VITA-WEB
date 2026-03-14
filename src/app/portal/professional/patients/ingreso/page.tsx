@@ -24,6 +24,10 @@ type FormState = {
   occupation: string;
   workplace: string;
   religion: string;
+  establishment: string;
+  service: string;
+  professionalSenescyt: string;
+  consultationDurationMinutes: string;
   address: string;
   parish: string;
   canton: string;
@@ -114,11 +118,66 @@ type FormState = {
   prescriptionFrequency: string;
   prescriptionDuration: string;
   prescriptionInstructions: string;
+  arrivalMode: string;
+  accompaniedBy: string;
+  initialCondition: string;
+  triageModel: "Manchester" | "ESI" | "otro";
+  triageDiscriminator: string;
+  triageLevel: string;
+  triageColor: string;
+  maxWaitMinutes: string;
+  retriageAutomatic: boolean;
+  admissionArea: string;
+  admissionSourceEstablishment: string;
+  admissionSourceService: string;
+  admissionBedOrDesk: string;
+  labRequests: string;
+  labCriticalResults: string;
+  labPriority: string;
+  labClinicalJustification: string;
+  imagingRequests: string;
+  imagingReports: string;
+  imagingPriority: string;
+  imagingClinicalJustification: string;
+  consentRequired: boolean;
+  consentObtained: boolean;
+  consentType: string;
+  consentScope: string;
+  consentRisks: string;
+  consentBenefits: string;
+  consentAlternatives: string;
+  consentObtainedBy: string;
+  consentObtainedAt: string;
+  consentWitnessName: string;
+  consentRepresentativeName: string;
+  consentRepresentativeRelationship: string;
+  consentDecisionCapacity: string;
+  consentRefusalReason: string;
+  interconsultRequested: boolean;
+  interconsultSpecialty: string;
+  interconsultPriority: string;
+  interconsultReason: string;
+  interconsultSummary: string;
+  interconsultRequestedAt: string;
+  interconsultResponseSummary: string;
+  referralType: string;
+  referenceCode: string;
+  referenceReason: string;
+  referenceClinicalSummary: string;
+  referenceFindings: string;
+  referenceTreatmentsPerformed: string;
+  referenceRecommendedTreatment: string;
+  counterReferenceSummary: string;
+  notifiableDisease: boolean;
+  publicHealthCondition: string;
+  siveAlertCode: string;
+  outbreakCluster: string;
+  surveillanceNotes: string;
 };
 
 const bloodGroups = ["", "O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
 
-type IntakeStepId = 1 | 2 | 3 | 4;
+type IntakeStepId = 1 | 2 | 3 | 4 | 5;
 
 const intakeSteps: Array<{
   id: IntakeStepId;
@@ -145,7 +204,14 @@ const intakeSteps: Array<{
     title: "Plan",
     description: "Plan terapeutico y registro final",
   },
+  {
+    id: 5,
+    title: "MSP",
+    description: "Consentimiento, continuidad y vigilancia",
+  },
 ];
+
+const LAST_INTAKE_STEP: IntakeStepId = 5;
 
 const intakeStepRequiredFields: Record<
   IntakeStepId,
@@ -159,6 +225,7 @@ const intakeStepRequiredFields: Record<
   2: [],
   3: [{ key: "literalReason", label: "Motivo de consulta" }],
   4: [],
+  5: [],
 };
 
 const emptyForm: FormState = {
@@ -177,6 +244,10 @@ const emptyForm: FormState = {
   occupation: "",
   workplace: "",
   religion: "",
+  establishment: "Hospital General Norte",
+  service: "Consulta externa",
+  professionalSenescyt: "",
+  consultationDurationMinutes: "",
   address: "",
   parish: "",
   canton: "",
@@ -267,6 +338,61 @@ const emptyForm: FormState = {
   prescriptionFrequency: "",
   prescriptionDuration: "",
   prescriptionInstructions: "",
+  arrivalMode: "",
+  accompaniedBy: "",
+  initialCondition: "",
+  triageModel: "Manchester",
+  triageDiscriminator: "",
+  triageLevel: "",
+  triageColor: "",
+  maxWaitMinutes: "",
+  retriageAutomatic: false,
+  admissionArea: "",
+  admissionSourceEstablishment: "Hospital General Norte",
+  admissionSourceService: "",
+  admissionBedOrDesk: "",
+  labRequests: "",
+  labCriticalResults: "",
+  labPriority: "",
+  labClinicalJustification: "",
+  imagingRequests: "",
+  imagingReports: "",
+  imagingPriority: "",
+  imagingClinicalJustification: "",
+  consentRequired: false,
+  consentObtained: false,
+  consentType: "",
+  consentScope: "",
+  consentRisks: "",
+  consentBenefits: "",
+  consentAlternatives: "",
+  consentObtainedBy: "",
+  consentObtainedAt: "",
+  consentWitnessName: "",
+  consentRepresentativeName: "",
+  consentRepresentativeRelationship: "",
+  consentDecisionCapacity: "",
+  consentRefusalReason: "",
+  interconsultRequested: false,
+  interconsultSpecialty: "",
+  interconsultPriority: "",
+  interconsultReason: "",
+  interconsultSummary: "",
+  interconsultRequestedAt: "",
+  interconsultResponseSummary: "",
+  referralType: "",
+  referenceCode: "",
+  referenceReason: "",
+  referenceClinicalSummary: "",
+  referenceFindings: "",
+  referenceTreatmentsPerformed: "",
+  referenceRecommendedTreatment: "",
+  counterReferenceSummary: "",
+  notifiableDisease: false,
+  publicHealthCondition: "",
+  siveAlertCode: "",
+  outbreakCluster: "",
+  surveillanceNotes: "",
 };
 
 export default function PatientIntakePage() {
@@ -346,6 +472,7 @@ export default function PatientIntakePage() {
       2: [] as string[],
       3: [] as string[],
       4: [] as string[],
+      5: [] as string[],
     };
 
     intakeSteps.forEach((step) => {
@@ -358,10 +485,48 @@ export default function PatientIntakePage() {
       byStep[step.id] = missing;
     });
 
+    if (form.consentRequired) {
+      if (form.consentObtained) {
+        if (!form.consentType.trim()) byStep[5].push("Tipo de consentimiento");
+        if (!form.consentScope.trim()) byStep[5].push("Alcance/procedimiento");
+        if (!form.consentObtainedBy.trim()) byStep[5].push("Responsable del consentimiento");
+        if (!form.consentObtainedAt.trim()) byStep[5].push("Fecha/hora del consentimiento");
+      } else if (!form.consentRefusalReason.trim()) {
+        byStep[5].push("Motivo de no obtencion del consentimiento");
+      }
+    }
+
+    const hasReferral =
+      form.referralType.trim() ||
+      form.referenceCode.trim() ||
+      form.referenceReason.trim() ||
+      form.referralDestination.trim() ||
+      form.referenceClinicalSummary.trim();
+    if (hasReferral) {
+      if (!form.referenceReason.trim()) byStep[5].push("Motivo de referencia");
+      if (!form.referralDestination.trim()) byStep[5].push("Destino de referencia");
+      if (!form.referenceClinicalSummary.trim()) byStep[5].push("Resumen clinico de referencia");
+      if (!form.referenceFindings.trim()) byStep[5].push("Hallazgos relevantes");
+      if (!form.referenceTreatmentsPerformed.trim()) byStep[5].push("Tratamiento realizado");
+    }
+
+    if (form.interconsultRequested) {
+      if (!form.interconsultSpecialty.trim()) byStep[5].push("Especialidad de interconsulta");
+      if (!form.interconsultReason.trim()) byStep[5].push("Motivo de interconsulta");
+      if (!form.interconsultSummary.trim()) byStep[5].push("Resumen clinico de interconsulta");
+    }
+
+    if (form.notifiableDisease) {
+      if (!form.publicHealthCondition.trim() && !form.siveAlertCode.trim()) {
+        byStep[5].push("Evento o codigo SIVE");
+      }
+      if (!form.surveillanceNotes.trim()) byStep[5].push("Notas de vigilancia");
+    }
+
     return byStep;
   }, [form]);
   const activeStepMeta = intakeSteps.find((step) => step.id === activeStep) ?? intakeSteps[0];
-  const canGoNext = activeStep < 4 && missingByStep[activeStep].length === 0;
+  const canGoNext = activeStep < LAST_INTAKE_STEP && missingByStep[activeStep].length === 0;
 
   const onChange =
     (key: keyof FormState) =>
@@ -397,7 +562,7 @@ export default function PatientIntakePage() {
   };
 
   const goNextStep = () => {
-    if (activeStep >= 4) {
+    if (activeStep >= LAST_INTAKE_STEP) {
       return;
     }
 
@@ -595,7 +760,7 @@ export default function PatientIntakePage() {
                 Wizard de ingreso
               </p>
               <p className="text-sm font-semibold text-slate-900">
-                Paso {activeStepMeta.id} de 4 · {activeStepMeta.title}
+                Paso {activeStepMeta.id} de {LAST_INTAKE_STEP} · {activeStepMeta.title}
               </p>
               <p className="text-[11px] text-slate-500">{activeStepMeta.description}</p>
             </div>
@@ -785,6 +950,22 @@ export default function PatientIntakePage() {
                   { value: "teleconsulta", label: "Teleconsulta" },
                 ]}
               />
+              <InputField
+                label="Establecimiento"
+                value={form.establishment}
+                onChange={onChange("establishment")}
+              />
+              <InputField label="Servicio" value={form.service} onChange={onChange("service")} />
+              <InputField
+                label="Codigo profesional / SENESCYT"
+                value={form.professionalSenescyt}
+                onChange={onChange("professionalSenescyt")}
+              />
+              <InputField
+                label="Duracion consulta (min)"
+                value={form.consultationDurationMinutes}
+                onChange={onChange("consultationDurationMinutes")}
+              />
               <InputField label="Motivo consulta *" value={form.literalReason} onChange={onChange("literalReason")} />
               <InputField label="Tiempo evolucion" value={form.evolutionTime} onChange={onChange("evolutionTime")} />
               <InputField label="Sintoma principal" value={form.mainSymptom} onChange={onChange("mainSymptom")} />
@@ -965,11 +1146,283 @@ export default function PatientIntakePage() {
           </Panel>
         )}
 
+        {activeStep === 5 && (
+          <>
+            <Panel
+              title="7) Admision, prioridad y continuidad asistencial"
+              subtitle="Datos operativos para urgencias, derivaciones y trazabilidad MSP"
+            >
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <InputField label="Modo de llegada" value={form.arrivalMode} onChange={onChange("arrivalMode")} />
+                <InputField label="Acompaniante" value={form.accompaniedBy} onChange={onChange("accompaniedBy")} />
+                <InputField label="Condicion inicial" value={form.initialCondition} onChange={onChange("initialCondition")} />
+                <InputField label="Area de admision" value={form.admissionArea} onChange={onChange("admissionArea")} />
+                <SelectField
+                  label="Modelo de triaje"
+                  value={form.triageModel}
+                  onChange={onChange("triageModel")}
+                  options={[
+                    { value: "Manchester", label: "Manchester" },
+                    { value: "ESI", label: "ESI" },
+                    { value: "otro", label: "Otro" },
+                  ]}
+                />
+                <InputField
+                  label="Discriminador de triaje"
+                  value={form.triageDiscriminator}
+                  onChange={onChange("triageDiscriminator")}
+                />
+                <InputField label="Nivel de triaje" value={form.triageLevel} onChange={onChange("triageLevel")} />
+                <InputField label="Color de triaje" value={form.triageColor} onChange={onChange("triageColor")} />
+                <InputField
+                  label="Espera maxima (min)"
+                  value={form.maxWaitMinutes}
+                  onChange={onChange("maxWaitMinutes")}
+                />
+                <CheckField
+                  label="Re-triaje automatico"
+                  checked={form.retriageAutomatic}
+                  onChange={onChange("retriageAutomatic")}
+                />
+                <InputField
+                  label="Establecimiento de origen"
+                  value={form.admissionSourceEstablishment}
+                  onChange={onChange("admissionSourceEstablishment")}
+                />
+                <InputField
+                  label="Servicio de origen"
+                  value={form.admissionSourceService}
+                  onChange={onChange("admissionSourceService")}
+                />
+                <InputField
+                  label="Cama / consultorio"
+                  value={form.admissionBedOrDesk}
+                  onChange={onChange("admissionBedOrDesk")}
+                />
+              </div>
+            </Panel>
+
+            <Panel
+              title="8) Consentimiento informado"
+              subtitle="Registro para consentimiento digital, rechazo o representacion legal"
+            >
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <CheckField
+                  label="Consentimiento requerido"
+                  checked={form.consentRequired}
+                  onChange={onChange("consentRequired")}
+                />
+                <CheckField
+                  label="Consentimiento obtenido"
+                  checked={form.consentObtained}
+                  onChange={onChange("consentObtained")}
+                />
+                <InputField
+                  label="Capacidad de decision"
+                  value={form.consentDecisionCapacity}
+                  onChange={onChange("consentDecisionCapacity")}
+                />
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                <InputField label="Tipo" value={form.consentType} onChange={onChange("consentType")} />
+                <InputField label="Alcance / procedimiento" value={form.consentScope} onChange={onChange("consentScope")} />
+                <InputField label="Responsable que informa" value={form.consentObtainedBy} onChange={onChange("consentObtainedBy")} />
+                <InputField label="Fecha y hora" type="datetime-local" value={form.consentObtainedAt} onChange={onChange("consentObtainedAt")} />
+                <InputField label="Testigo" value={form.consentWitnessName} onChange={onChange("consentWitnessName")} />
+                <InputField
+                  label="Representante legal"
+                  value={form.consentRepresentativeName}
+                  onChange={onChange("consentRepresentativeName")}
+                />
+                <InputField
+                  label="Relacion del representante"
+                  value={form.consentRepresentativeRelationship}
+                  onChange={onChange("consentRepresentativeRelationship")}
+                />
+                <TextAreaField label="Riesgos explicados" value={form.consentRisks} onChange={onChange("consentRisks")} />
+                <TextAreaField
+                  label="Beneficios explicados"
+                  value={form.consentBenefits}
+                  onChange={onChange("consentBenefits")}
+                />
+                <TextAreaField
+                  label="Alternativas explicadas"
+                  value={form.consentAlternatives}
+                  onChange={onChange("consentAlternatives")}
+                />
+                <TextAreaField
+                  label="Motivo de rechazo / no obtencion"
+                  value={form.consentRefusalReason}
+                  onChange={onChange("consentRefusalReason")}
+                />
+              </div>
+            </Panel>
+
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <Panel
+                title="9) Referencia y contrarreferencia"
+                subtitle="Continuidad entre niveles con resumen clinico y tratamiento realizado"
+              >
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <InputField label="Tipo de referencia" value={form.referralType} onChange={onChange("referralType")} />
+                  <InputField label="Codigo de referencia" value={form.referenceCode} onChange={onChange("referenceCode")} />
+                  <InputField label="Motivo de referencia" value={form.referenceReason} onChange={onChange("referenceReason")} />
+                  <InputField label="Destino" value={form.referralDestination} onChange={onChange("referralDestination")} />
+                  <TextAreaField
+                    label="Resumen clinico"
+                    value={form.referenceClinicalSummary}
+                    onChange={onChange("referenceClinicalSummary")}
+                  />
+                  <TextAreaField
+                    label="Hallazgos relevantes"
+                    value={form.referenceFindings}
+                    onChange={onChange("referenceFindings")}
+                  />
+                  <TextAreaField
+                    label="Tratamiento realizado"
+                    value={form.referenceTreatmentsPerformed}
+                    onChange={onChange("referenceTreatmentsPerformed")}
+                  />
+                  <TextAreaField
+                    label="Tratamiento recomendado"
+                    value={form.referenceRecommendedTreatment}
+                    onChange={onChange("referenceRecommendedTreatment")}
+                  />
+                  <TextAreaField
+                    label="Contrarreferencia / respuesta"
+                    value={form.counterReferenceSummary}
+                    onChange={onChange("counterReferenceSummary")}
+                  />
+                </div>
+              </Panel>
+
+              <Panel
+                title="10) Interconsulta especializada"
+                subtitle="Solicitud interna con prioridad, motivo y respuesta"
+              >
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <CheckField
+                    label="Interconsulta solicitada"
+                    checked={form.interconsultRequested}
+                    onChange={onChange("interconsultRequested")}
+                  />
+                  <InputField
+                    label="Especialidad"
+                    value={form.interconsultSpecialty}
+                    onChange={onChange("interconsultSpecialty")}
+                  />
+                  <InputField
+                    label="Prioridad"
+                    value={form.interconsultPriority}
+                    onChange={onChange("interconsultPriority")}
+                  />
+                  <InputField
+                    label="Fecha/hora solicitud"
+                    type="datetime-local"
+                    value={form.interconsultRequestedAt}
+                    onChange={onChange("interconsultRequestedAt")}
+                  />
+                  <TextAreaField label="Motivo" value={form.interconsultReason} onChange={onChange("interconsultReason")} />
+                  <TextAreaField
+                    label="Resumen clinico"
+                    value={form.interconsultSummary}
+                    onChange={onChange("interconsultSummary")}
+                  />
+                  <TextAreaField
+                    label="Respuesta / conducta"
+                    value={form.interconsultResponseSummary}
+                    onChange={onChange("interconsultResponseSummary")}
+                  />
+                </div>
+              </Panel>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <Panel
+                title="11) Apoyos diagnosticos"
+                subtitle="Solicitudes de laboratorio e imagen con justificacion clinica"
+              >
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <TextAreaField
+                    label="Solicitudes de laboratorio"
+                    value={form.labRequests}
+                    onChange={onChange("labRequests")}
+                  />
+                  <TextAreaField
+                    label="Resultados criticos"
+                    value={form.labCriticalResults}
+                    onChange={onChange("labCriticalResults")}
+                  />
+                  <InputField
+                    label="Prioridad laboratorio"
+                    value={form.labPriority}
+                    onChange={onChange("labPriority")}
+                  />
+                  <TextAreaField
+                    label="Justificacion laboratorio"
+                    value={form.labClinicalJustification}
+                    onChange={onChange("labClinicalJustification")}
+                  />
+                  <TextAreaField
+                    label="Solicitudes de imagen"
+                    value={form.imagingRequests}
+                    onChange={onChange("imagingRequests")}
+                  />
+                  <TextAreaField
+                    label="Reportes de imagen"
+                    value={form.imagingReports}
+                    onChange={onChange("imagingReports")}
+                  />
+                  <InputField
+                    label="Prioridad imagen"
+                    value={form.imagingPriority}
+                    onChange={onChange("imagingPriority")}
+                  />
+                  <TextAreaField
+                    label="Justificacion imagen"
+                    value={form.imagingClinicalJustification}
+                    onChange={onChange("imagingClinicalJustification")}
+                  />
+                </div>
+              </Panel>
+
+              <Panel
+                title="12) Vigilancia epidemiologica"
+                subtitle="Eventos notificables, codigo SIVE y observaciones de salud publica"
+              >
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <CheckField
+                    label="Evento de notificacion obligatoria"
+                    checked={form.notifiableDisease}
+                    onChange={onChange("notifiableDisease")}
+                  />
+                  <InputField
+                    label="Condicion / evento sospechoso"
+                    value={form.publicHealthCondition}
+                    onChange={onChange("publicHealthCondition")}
+                  />
+                  <InputField label="Codigo SIVE" value={form.siveAlertCode} onChange={onChange("siveAlertCode")} />
+                  <InputField
+                    label="Cluster / brote"
+                    value={form.outbreakCluster}
+                    onChange={onChange("outbreakCluster")}
+                  />
+                  <TextAreaField
+                    label="Notas de vigilancia"
+                    value={form.surveillanceNotes}
+                    onChange={onChange("surveillanceNotes")}
+                  />
+                </div>
+              </Panel>
+            </div>
+          </>
+        )}
+
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs text-slate-600">
-              {activeStep < 4
-                ? `Paso ${activeStep} de 4 · faltan ${missingByStep[activeStep].length} campos obligatorios de este paso`
+              {activeStep < LAST_INTAKE_STEP
+                ? `Paso ${activeStep} de ${LAST_INTAKE_STEP} · faltan ${missingByStep[activeStep].length} campos obligatorios de este paso`
                 : "Paso final · revisa y confirma el registro"}
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -981,7 +1434,7 @@ export default function PatientIntakePage() {
               >
                 Anterior
               </button>
-              {activeStep < 4 ? (
+              {activeStep < LAST_INTAKE_STEP ? (
                 <button
                   type="button"
                   onClick={goNextStep}
@@ -1003,7 +1456,7 @@ export default function PatientIntakePage() {
           </div>
         </div>
 
-        {activeStep === 4 && (
+        {activeStep === LAST_INTAKE_STEP && (
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -1045,6 +1498,7 @@ export default function PatientIntakePage() {
                   <th className="px-3 py-2 font-semibold">Documento</th>
                   <th className="px-3 py-2 font-semibold">Motivo</th>
                   <th className="px-3 py-2 font-semibold">Diagnostico</th>
+                  <th className="px-3 py-2 font-semibold">MSP</th>
                   <th className="px-3 py-2 font-semibold">Ficha</th>
                 </tr>
               </thead>
@@ -1056,6 +1510,9 @@ export default function PatientIntakePage() {
                     <td className="px-3 py-2 text-slate-700">{item.documentNumber}</td>
                     <td className="px-3 py-2 text-slate-700">{item.consultationReason}</td>
                     <td className="px-3 py-2 text-slate-700">{item.principalDiagnosis}</td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {item.mspScore}% · {item.criticalPendingCount} pendientes
+                    </td>
                     <td className="px-3 py-2">
                       <Link
                         href={`/portal/professional/patients/ingreso/${item.id}`}
@@ -1093,6 +1550,7 @@ function buildPayload(form: FormState) {
       occupation: form.occupation,
       workplace: form.workplace,
       religion: form.religion,
+      bloodGroup: form.bloodGroup,
     },
     contact: {
       address: form.address,
@@ -1148,7 +1606,13 @@ function buildPayload(form: FormState) {
       },
     },
     consultation: {
+      consultedAt: new Date().toISOString(),
+      establishment: form.establishment,
+      service: form.service,
+      professionalName: "",
+      professionalSenescyt: form.professionalSenescyt,
       consultationType: form.consultationType,
+      consultationDurationMinutes: form.consultationDurationMinutes,
       literalReason: form.literalReason,
       evolutionTime: form.evolutionTime,
       mainSymptom: form.mainSymptom,
@@ -1173,6 +1637,8 @@ function buildPayload(form: FormState) {
         spo2: form.spo2,
         weightKg: form.weightKg,
         heightCm: form.heightCm,
+        bmi: "",
+        abdominalPerimeterCm: "",
         capillaryGlucose: form.capillaryGlucose,
         painScale: form.painScale,
         glasgow: form.glasgow,
@@ -1214,14 +1680,131 @@ function buildPayload(form: FormState) {
         ? [
             {
               dciName: form.prescriptionDci,
+              commercialName: "",
+              concentration: "",
+              pharmaceuticalForm: "",
               dose: form.prescriptionDose,
               route: form.prescriptionRoute,
               frequency: form.prescriptionFrequency,
               duration: form.prescriptionDuration,
+              unitsToDispense: "",
               patientInstructions: form.prescriptionInstructions,
             },
           ]
         : [],
+    laboratory: {
+      requests: splitMultiline(form.labRequests),
+      criticalResults: splitMultiline(form.labCriticalResults),
+      criticalResultAcknowledged: splitMultiline(form.labCriticalResults).length === 0,
+      priority: form.labPriority,
+      clinicalJustification: form.labClinicalJustification,
+    },
+    imaging: {
+      requests: splitMultiline(form.imagingRequests),
+      reports: splitMultiline(form.imagingReports),
+      pacsLinks: [],
+      priority: form.imagingPriority,
+      clinicalJustification: form.imagingClinicalJustification,
+    },
+    hospitalization: {
+      admissionType: "",
+      assignedService: "",
+      assignedBed: "",
+      admissionDiagnosisCie11: "",
+      admissionCondition: "",
+      dailySoapEvolutions: [],
+      nursingShiftNotes: [],
+      fluidBalanceNotes: [],
+      medicalOrders: [],
+      kardexAdministrationNotes: [],
+      dischargeSummary: "",
+    },
+    urgency: {
+      arrivalMode: form.arrivalMode,
+      accompaniedBy: form.accompaniedBy,
+      initialCondition: form.initialCondition,
+      triageModel: form.triageModel,
+      triageDiscriminator: form.triageDiscriminator,
+      triageLevel: form.triageLevel,
+      triageColor: form.triageColor,
+      maxWaitMinutes: form.maxWaitMinutes,
+      retriageAutomatic: form.retriageAutomatic,
+    },
+    admission: {
+      admissionArea: form.admissionArea,
+      sourceEstablishment: form.admissionSourceEstablishment,
+      sourceService: form.admissionSourceService,
+      bedOrDesk: form.admissionBedOrDesk,
+    },
+    consent: {
+      required: form.consentRequired,
+      obtained: form.consentObtained,
+      type: form.consentType,
+      scope: form.consentScope,
+      explainedRisks: form.consentRisks,
+      explainedBenefits: form.consentBenefits,
+      explainedAlternatives: form.consentAlternatives,
+      obtainedBy: form.consentObtainedBy,
+      obtainedAt: form.consentObtainedAt,
+      witnessName: form.consentWitnessName,
+      representativeName: form.consentRepresentativeName,
+      representativeRelationship: form.consentRepresentativeRelationship,
+      decisionCapacity: form.consentDecisionCapacity,
+      refusalReason: form.consentRefusalReason,
+    },
+    interconsultation: {
+      requested: form.interconsultRequested,
+      specialty: form.interconsultSpecialty,
+      priority: form.interconsultPriority,
+      reason: form.interconsultReason,
+      clinicalSummary: form.interconsultSummary,
+      requestedAt: form.interconsultRequestedAt,
+      responseSummary: form.interconsultResponseSummary,
+    },
+    nursingReport: {
+      shiftSummary: "",
+      fallEvents: "",
+      pressureUlcerRecord: "",
+      physicalRestraintRecord: "",
+      adverseEvents: "",
+    },
+    appointments: {
+      scheduleNotes: "",
+      reminderPreference: "",
+      noShowHistory: "",
+    },
+    referrals: {
+      referralType: form.referralType,
+      referenceCode: form.referenceCode,
+      referenceReason: form.referenceReason,
+      destination: form.referralDestination,
+      clinicalSummary: form.referenceClinicalSummary,
+      relevantFindings: form.referenceFindings,
+      treatmentsPerformed: form.referenceTreatmentsPerformed,
+      recommendedTreatment: form.referenceRecommendedTreatment,
+      counterReferenceSummary: form.counterReferenceSummary,
+    },
+    publicHealth: {
+      notifiableDisease: form.notifiableDisease,
+      suspectedCondition: form.publicHealthCondition,
+      siveAlertCode: form.siveAlertCode,
+      outbreakCluster: form.outbreakCluster,
+      surveillanceNotes: form.surveillanceNotes,
+      reportedAt: form.notifiableDisease ? new Date().toISOString() : null,
+    },
+    programTracking: {
+      diabetes: false,
+      hypertension: false,
+      tuberculosis: false,
+      maternalChild: false,
+      olderAdult: false,
+      mentalHealth: false,
+      notes: "",
+    },
+    pharmacyContext: {
+      stockControlNotes: "",
+      psychotropicsDoubleSignature: false,
+    },
     indicatorsContext: {
       administrative: form.bloodGroup ? `Grupo sanguineo: ${form.bloodGroup}` : "",
     },
@@ -1229,10 +1812,12 @@ function buildPayload(form: FormState) {
       twoFactorEnabled: true,
       autoLogout15m: true,
       immutableSignedNotes: true,
+      aes256DataEncryption: true,
       informedConsentDigital: true,
       sensitiveDataConsent: true,
       backupEvery4h: true,
       disasterRecoveryValidated: true,
+      offlineSyncEnabled: false,
     },
   };
 }
@@ -1263,6 +1848,8 @@ function toSummary(record: RegisteredPatientRecord): RegisteredPatientSummary {
     age: record.identification.age,
     consultationReason: record.consultation.literalReason || "Sin motivo registrado",
     principalDiagnosis: primaryDiagnosis?.description || "Sin diagnostico registrado",
+    mspScore: record.mspCompliance.score,
+    criticalPendingCount: record.mspCompliance.criticalPendingItems.length,
   };
 }
 

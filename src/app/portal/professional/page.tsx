@@ -15,6 +15,7 @@ import {
   type PatientRecord,
 } from "./_data/clinical-mock-data";
 import { listAuditEvents } from "@/lib/clinical-store";
+import { getMspComplianceDashboard } from "@/lib/msp-compliance";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export default function ProfessionalHomePage() {
   const activity = getRecentClinicalActivity();
   const pendingTasks = getDailyPendingTasks();
   const auditEvents = listAuditEvents(6);
+  const compliance = getMspComplianceDashboard();
 
   const todayLabel = new Intl.DateTimeFormat("es-EC", {
     dateStyle: "full",
@@ -62,6 +64,11 @@ export default function ProfessionalHomePage() {
         <StatCard label="Reportes de enfermeria pendientes" value={metrics.pendingNursingReports} hint="Pacientes sin cierre de turno" />
         <StatCard label="Balances hidricos incompletos" value={metrics.incompleteFluidBalances} hint="Hospitalizacion sin cierre 24h" />
         <StatCard label="Examenes pendientes" value={metrics.pendingExamReview} hint="Resultados sin revision" />
+        <StatCard
+          label="Cumplimiento MSP"
+          value={`${compliance.summary.averageRecordScore}%`}
+          hint={`${compliance.summary.implementedDomains}/${compliance.summary.totalDomains} dominios implementados`}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -119,6 +126,37 @@ export default function ProfessionalHomePage() {
           </div>
         </Panel>
       </div>
+
+      <Panel title="Cumplimiento MSP" subtitle="Estado transversal del sistema frente a formularios, protocolos y seguridad">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+          <SummaryCell
+            label="Dominios implementados"
+            value={`${compliance.summary.implementedDomains}/${compliance.summary.totalDomains}`}
+          />
+          <SummaryCell
+            label="Dominios pendientes"
+            value={`${compliance.summary.pendingDomains}`}
+          />
+          <SummaryCell
+            label="Expedientes con pendientes"
+            value={`${compliance.metrics.find((item) => item.label === "Expedientes con pendientes")?.value ?? 0}`}
+          />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href="/portal/professional/cumplimiento"
+            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Abrir tablero de cumplimiento
+          </Link>
+          <Link
+            href="/portal/professional/patients/ingreso"
+            className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100"
+          >
+            Corregir expedientes
+          </Link>
+        </div>
+      </Panel>
 
       <Panel title="Auditoria reciente" subtitle="Eventos de acceso y acciones clinicas registradas">
         <div className="space-y-2">
