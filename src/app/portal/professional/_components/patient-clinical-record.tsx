@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { Panel, RiskBadge, TriageBadge } from "./clinical-ui";
+import { getAvailableMspForms } from "@/lib/msp-form-reports";
+import type { RegisteredPatientRecord, RegisteredPatientSummary } from "@/types/patient-intake";
 import {
   type CarePlanRecord,
   educationResources,
@@ -36,34 +38,36 @@ type PatientTabId =
   | "vaccination"
   | "emotional"
   | "care_plan"
+  | "msp_forms"
   | "documents"
   | "timeline"
   | "education"
   | "reports";
 
 const patientTabs: Array<{ id: PatientTabId; label: string; group: string }> = [
-  { id: "summary", label: "Resumen", group: "Vision clinica rapida" },
-  { id: "diagnoses", label: "Diagnosticos", group: "Vision clinica rapida" },
-  { id: "triage", label: "Triaje", group: "Vision clinica rapida" },
-  { id: "timeline", label: "Historial", group: "Vision clinica rapida" },
-  { id: "vitals", label: "Signos vitales", group: "Monitoreo" },
-  { id: "fluid_balance", label: "Balance hidrico", group: "Monitoreo" },
-  { id: "exams", label: "Examenes", group: "Monitoreo" },
-  { id: "procedures", label: "Procedimientos", group: "Monitoreo" },
-  { id: "medication", label: "Medicacion", group: "Tratamiento y cuidados" },
-  { id: "nursing_notes", label: "Enfermeria", group: "Tratamiento y cuidados" },
-  { id: "medical_notes", label: "Medicina", group: "Tratamiento y cuidados" },
-  { id: "kardex", label: "Kardex", group: "Tratamiento y cuidados" },
-  { id: "nursing_report", label: "Reporte enfermeria", group: "Tratamiento y cuidados" },
-  { id: "care_plan", label: "Plan de cuidados", group: "Tratamiento y cuidados" },
-  { id: "nutrition", label: "Nutricion", group: "Enfoque integral" },
-  { id: "vaccination", label: "Vacunacion", group: "Enfoque integral" },
-  { id: "emotional", label: "Salud emocional", group: "Enfoque integral" },
-  { id: "education", label: "Educacion", group: "Enfoque integral" },
-  { id: "personal", label: "Datos personales", group: "Apoyo documental" },
-  { id: "background", label: "Antecedentes", group: "Apoyo documental" },
-  { id: "documents", label: "Documentos", group: "Apoyo documental" },
-  { id: "reports", label: "Reportes", group: "Apoyo documental" },
+  { id: "summary", label: "Resumen", group: "Ficha del paciente" },
+  { id: "diagnoses", label: "Diagnosticos", group: "Ficha del paciente" },
+  { id: "timeline", label: "Historial clinico", group: "Ficha del paciente" },
+  { id: "vitals", label: "Signos vitales", group: "Acciones del paciente" },
+  { id: "fluid_balance", label: "Balance hidrico", group: "Acciones del paciente" },
+  { id: "medication", label: "Medicacion", group: "Acciones del paciente" },
+  { id: "kardex", label: "Kardex", group: "Acciones del paciente" },
+  { id: "nursing_report", label: "Reporte enfermeria", group: "Acciones del paciente" },
+  { id: "medical_notes", label: "Reporte medico", group: "Acciones del paciente" },
+  { id: "vaccination", label: "Vacunacion", group: "Acciones del paciente" },
+  { id: "msp_forms", label: "Formularios MSP", group: "Acciones del paciente" },
+  { id: "reports", label: "Reportes del paciente", group: "Acciones del paciente" },
+  { id: "triage", label: "Triaje", group: "Seguimiento clinico" },
+  { id: "exams", label: "Examenes", group: "Seguimiento clinico" },
+  { id: "procedures", label: "Procedimientos", group: "Seguimiento clinico" },
+  { id: "nursing_notes", label: "Notas enfermeria", group: "Seguimiento clinico" },
+  { id: "care_plan", label: "Plan de cuidados", group: "Seguimiento clinico" },
+  { id: "nutrition", label: "Nutricion", group: "Seguimiento clinico" },
+  { id: "emotional", label: "Salud emocional", group: "Seguimiento clinico" },
+  { id: "education", label: "Educacion", group: "Seguimiento clinico" },
+  { id: "personal", label: "Datos personales", group: "Contexto y soporte" },
+  { id: "background", label: "Antecedentes", group: "Contexto y soporte" },
+  { id: "documents", label: "Documentos clinicos", group: "Contexto y soporte" },
 ];
 
 const isTab = (value: string | null): value is PatientTabId =>
@@ -316,8 +320,97 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   const [timelineFilter, setTimelineFilter] = useState<"all" | TimelineCategory>("all");
   const [timelineSearch, setTimelineSearch] = useState("");
   const [quickActionFeedback, setQuickActionFeedback] = useState("");
+  const [linkedRegisteredSummary, setLinkedRegisteredSummary] = useState<RegisteredPatientSummary | null>(
+    null
+  );
+  const [linkedRegisteredRecord, setLinkedRegisteredRecord] = useState<RegisteredPatientRecord | null>(
+    null
+  );
+  const [linkedRecordLoading, setLinkedRecordLoading] = useState(false);
+  const [linkedRecordError, setLinkedRecordError] = useState<string | null>(null);
 
   const activeTab = selectedTab ?? (isTab(requestedTab) ? requestedTab : "summary");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadLinkedRegisteredRecord = async () => {
+      setLinkedRecordLoading(true);
+      setLinkedRecordError(null);
+
+      try {
+        const response = await fetch("/api/paciente/registro", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const payload = (await response.json()) as {
+          data?: RegisteredPatientSummary[];
+          error?: string;
+        };
+
+        if (!response.ok || !payload.data) {
+          throw new Error(payload.error ?? "No se pudo consultar el expediente MSP.");
+        }
+
+        const normalizedIdentification = normalizeMatchingValue(patient.identification);
+        const normalizedMedicalRecord = normalizeMatchingValue(patient.medicalRecordNumber);
+        const match =
+          payload.data.find(
+            (entry) =>
+              normalizeMatchingValue(entry.documentNumber) === normalizedIdentification ||
+              normalizeMatchingValue(entry.medicalRecordNumber) === normalizedMedicalRecord
+          ) ?? null;
+
+        if (cancelled) {
+          return;
+        }
+
+        setLinkedRegisteredSummary(match);
+
+        if (!match) {
+          setLinkedRegisteredRecord(null);
+          return;
+        }
+
+        const recordResponse = await fetch(`/api/paciente/registro/${match.id}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+        const recordPayload = (await recordResponse.json()) as {
+          data?: RegisteredPatientRecord;
+          error?: string;
+        };
+
+        if (!recordResponse.ok || !recordPayload.data) {
+          throw new Error(recordPayload.error ?? "No se pudo abrir el expediente vinculado.");
+        }
+
+        if (!cancelled) {
+          setLinkedRegisteredRecord(recordPayload.data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLinkedRegisteredSummary(null);
+          setLinkedRegisteredRecord(null);
+          setLinkedRecordError(
+            error instanceof Error
+              ? error.message
+              : "No fue posible cargar el expediente MSP vinculado."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLinkedRecordLoading(false);
+        }
+      }
+    };
+
+    loadLinkedRegisteredRecord();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [patient.identification, patient.medicalRecordNumber]);
 
   const effectiveVitals = useMemo(
     () =>
@@ -503,6 +596,14 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   const activeTabLabel = patientTabs.find((tab) => tab.id === activeTab)?.label ?? activeTab;
   const tabAuditRecords = auditRecords.filter((record) => record.tab === activeTab);
   const recentTimeline = timelineSorted.slice(0, 6);
+  const availableMspForms = useMemo(
+    () => (linkedRegisteredRecord ? getAvailableMspForms(linkedRegisteredRecord) : []),
+    [linkedRegisteredRecord]
+  );
+  const emergencyForm = useMemo(
+    () => availableMspForms.find((form) => form.id === "008") ?? null,
+    [availableMspForms]
+  );
   const diagnosisByType = useMemo(
     () => ({
       Principal: patient.diagnoses.filter((item) => item.type === "Principal"),
@@ -874,6 +975,30 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       );
     }
 
+    if (activeTab === "msp_forms") {
+      entries = linkedRegisteredRecord
+        ? availableMspForms.map((form) =>
+            makeEntry(
+              `msp-${form.id}`,
+              linkedRegisteredRecord.mspCompliance.generatedAt || linkedRegisteredRecord.createdAt,
+              `Formulario ${form.id}`,
+              `${form.title} · ${form.availabilityNote}`,
+              linkedRegisteredRecord.consultation.professionalName || patient.assignedProfessional,
+              [
+                {
+                  title: "Estado documental",
+                  items: [
+                    { label: "Codigo", value: form.code },
+                    { label: "Disponibilidad", value: form.availability },
+                    { label: "Observacion", value: form.description },
+                  ],
+                },
+              ]
+            )
+          )
+        : [];
+    }
+
     if (activeTab === "documents" || activeTab === "reports") {
       entries = patient.documents.map((document) =>
         makeEntry(
@@ -920,6 +1045,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       .slice(0, 200);
   }, [
     activeTab,
+    availableMspForms,
     effectiveCarePlans,
     effectiveFluidBalances,
     effectiveMedicationRecords,
@@ -927,6 +1053,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     effectiveNursingNotes,
     effectiveNursingShiftReports,
     effectiveVitals,
+    linkedRegisteredRecord,
     nutritionPlans,
     patient,
     tabAuditRecords,
@@ -995,6 +1122,22 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
 
   const handleHeaderGenerateReport = () => {
     handleGenerateClinicalSummary();
+  };
+
+  const handleHeaderOpenMspForms = () => {
+    openTabFromQuickAction("msp_forms");
+    addAuditRecord(
+      "msp_forms",
+      "Acceso rapido: formularios MSP",
+      linkedRegisteredSummary
+        ? "Se abrio el catalogo MSP vinculado al paciente."
+        : "Se abrio el modulo MSP sin expediente estructurado vinculado."
+    );
+    setQuickActionFeedback(
+      linkedRegisteredSummary
+        ? "Se abrio el catalogo de formularios MSP del paciente."
+        : "No existe aun un expediente MSP vinculado para este paciente."
+    );
   };
 
   const handleHeaderViewAlerts = () => {
@@ -1563,6 +1706,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
             <div className="flex flex-wrap gap-2 text-[11px]">
               <ActionChip label="Editar datos" onClick={handleHeaderEditData} />
               <ActionChip label="Generar reporte" onClick={handleHeaderGenerateReport} />
+              <ActionChip label="Formularios MSP" onClick={handleHeaderOpenMspForms} />
               <ActionChip label="Exportar PDF" onClick={handleExportPdf} />
               <ActionChip label="Ver alertas" onClick={handleHeaderViewAlerts} />
               <ActionChip label="Agregar nota" onClick={handleHeaderAddNote} />
@@ -1647,24 +1791,29 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
               onClick={() => setSelectedTab("summary")}
             />
             <StickyTabButton
-              label="Diagnosticos"
-              active={activeTab === "diagnoses"}
-              onClick={() => setSelectedTab("diagnoses")}
-            />
-            <StickyTabButton
-              label="Timeline"
-              active={activeTab === "timeline"}
-              onClick={() => setSelectedTab("timeline")}
-            />
-            <StickyTabButton
               label="Signos"
               active={activeTab === "vitals"}
               onClick={() => setSelectedTab("vitals")}
             />
             <StickyTabButton
-              label="Registrar nota"
+              label="Balance"
+              active={activeTab === "fluid_balance"}
+              onClick={() => setSelectedTab("fluid_balance")}
+            />
+            <StickyTabButton
+              label="Kardex"
+              active={activeTab === "kardex"}
+              onClick={() => setSelectedTab("kardex")}
+            />
+            <StickyTabButton
+              label="Reporte medico"
               active={activeTab === "medical_notes"}
               onClick={() => setSelectedTab("medical_notes")}
+            />
+            <StickyTabButton
+              label="MSP"
+              active={activeTab === "msp_forms"}
+              onClick={() => setSelectedTab("msp_forms")}
             />
           </div>
         </div>
@@ -1674,10 +1823,10 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
         <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-3 xl:sticky xl:top-24">
           <div className="mb-3 border-b border-slate-200 pb-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
-              Submodulos de ficha
+              Acciones del paciente
             </p>
             <p className="text-[11px] text-slate-500">
-              Navegacion clinica del paciente por area.
+              Desde este lateral trabajas toda la ficha clinica del paciente.
             </p>
             <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600">
               Activo: <span className="font-semibold text-slate-800">{activeTabLabel}</span>
@@ -3978,6 +4127,132 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
         </Panel>
       )}
 
+      {activeTab === "msp_forms" && (
+        <Panel
+          title="Formularios MSP del paciente"
+          subtitle="Catalogo oficial vinculado al expediente estructurado del paciente"
+        >
+          {linkedRecordLoading ? (
+            <div className="space-y-2">
+              <div className="h-16 animate-pulse rounded-2xl border border-slate-200 bg-slate-50" />
+              <div className="h-16 animate-pulse rounded-2xl border border-slate-200 bg-slate-50" />
+            </div>
+          ) : linkedRecordError ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
+              {linkedRecordError}
+            </div>
+          ) : !linkedRegisteredRecord ? (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-semibold text-amber-900">
+                  Este paciente aun no tiene un expediente MSP estructurado vinculado.
+                </p>
+                <p className="mt-2 text-xs leading-6 text-amber-800">
+                  Para generar formularios como el 008, 005, 007, 010A, 012A, 024 o 053, primero debe existir
+                  un ingreso clinico estructurado asociado al documento o historia clinica del paciente.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/portal/professional/patients/ingreso"
+                  className="rounded-full border border-slate-900 bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800"
+                >
+                  Crear ingreso estructurado
+                </Link>
+                <Link
+                  href="/portal/professional/reports"
+                  className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Ir a reportes MSP
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {linkedRegisteredRecord.identification.firstNames}{" "}
+                      {linkedRegisteredRecord.identification.lastNames}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      HC {linkedRegisteredRecord.medicalRecordNumber} ·{" "}
+                      {linkedRegisteredRecord.identification.documentNumber}
+                    </p>
+                    <p className="mt-2 text-xs text-slate-600">
+                      {linkedRegisteredRecord.consultation.literalReason || "Sin motivo de consulta registrado"}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                      MSP {linkedRegisteredRecord.mspCompliance.score}%
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                      {linkedRegisteredRecord.mspCompliance.criticalPendingItems.length} pendientes
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link
+                    href={`/portal/professional/patients/ingreso/${linkedRegisteredRecord.id}`}
+                    className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    Abrir expediente estructurado
+                  </Link>
+                  <Link
+                    href={`/portal/professional/reports?patientId=${linkedRegisteredRecord.id}`}
+                    className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    Ver catalogo MSP
+                  </Link>
+                  {emergencyForm ? (
+                    <Link
+                      href={`/portal/professional/reports/forms/008?patientId=${linkedRegisteredRecord.id}`}
+                      className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-[11px] font-semibold text-sky-700 hover:bg-sky-100"
+                    >
+                      Abrir formulario 008
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                {availableMspForms.map((form) => (
+                  <article key={form.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {form.id} · {form.title}
+                      </p>
+                      <AvailabilityPill availability={form.availability} />
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-500">{form.code}</p>
+                    <p className="mt-2 text-xs leading-6 text-slate-600">{form.description}</p>
+                    <p className="mt-2 text-[11px] text-slate-500">{form.availabilityNote}</p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Link
+                        href={`/portal/professional/reports/forms/${form.id}?patientId=${linkedRegisteredRecord.id}`}
+                        className="rounded-full border border-slate-900 bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800"
+                      >
+                        Abrir formulario
+                      </Link>
+                      <Link
+                        href={`/portal/professional/reports?patientId=${linkedRegisteredRecord.id}`}
+                        className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        Ver en reportes
+                      </Link>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
+        </Panel>
+      )}
+
       {activeTab === "education" && (
         <Panel
           title="Educacion en salud"
@@ -5079,4 +5354,27 @@ function toInitials(name: string) {
 
 function sumObjectValues(values: Record<string, number>) {
   return Object.values(values).reduce((total, current) => total + current, 0);
+}
+
+function AvailabilityPill({
+  availability,
+}: {
+  availability: "listo" | "parcial" | "sin_datos";
+}) {
+  const tone =
+    availability === "listo"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : availability === "parcial"
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : "border-slate-200 bg-slate-100 text-slate-600";
+
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tone}`}>
+      {availability}
+    </span>
+  );
+}
+
+function normalizeMatchingValue(value: string) {
+  return value.trim().toLowerCase();
 }
