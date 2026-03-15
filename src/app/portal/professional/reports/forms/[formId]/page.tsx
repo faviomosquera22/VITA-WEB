@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import AutoPrint from "./auto-print";
 import PrintButton from "./print-button";
 import { generateMspFormReport, getAvailableMspForms } from "@/lib/msp-form-reports";
 import { getRegisteredPatientById } from "@/lib/patient-intake-store";
@@ -11,10 +12,10 @@ export default async function MspFormReportPage({
   searchParams,
 }: {
   params: Promise<{ formId: string }>;
-  searchParams: Promise<{ patientId?: string }>;
+  searchParams: Promise<{ patientId?: string; print?: string }>;
 }) {
   const { formId } = await params;
-  const { patientId } = await searchParams;
+  const { patientId, print } = await searchParams;
   const record = patientId ? getRegisteredPatientById(patientId) : null;
 
   if (!patientId || !record) {
@@ -64,6 +65,7 @@ export default async function MspFormReportPage({
 
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-6 text-slate-900 print:bg-white print:px-0 print:py-0">
+      {print === "1" ? <AutoPrint /> : null}
       <div className="mx-auto max-w-5xl space-y-4 print:max-w-none print:space-y-0">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm print:hidden">
           <div>

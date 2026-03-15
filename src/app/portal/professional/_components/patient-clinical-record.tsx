@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Panel, RiskBadge, TriageBadge } from "./clinical-ui";
 import { getAvailableMspForms } from "@/lib/msp-form-reports";
@@ -180,6 +180,7 @@ type CarePlanEntryRecord = CarePlanRecord & {
 };
 
 export default function PatientClinicalRecord({ patient }: { patient: PatientRecord }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
 
@@ -1089,13 +1090,36 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     setHistoryOpen(false);
   };
 
+  const handleSearchAnotherPatient = () => {
+    router.push("/portal/professional/patients");
+  };
+
   const handleExportPdf = () => {
-    openTabFromQuickAction("reports");
-    addAuditRecord("reports", "Exportacion PDF", "Se abrio la impresion para exportar la ficha en PDF.");
-    setQuickActionFeedback("Se abrio el dialogo de impresion para exportar PDF.");
-    if (typeof window !== "undefined") {
-      window.print();
+    if (linkedRegisteredRecord && emergencyForm && typeof window !== "undefined") {
+      const exportUrl = `/portal/professional/reports/forms/${emergencyForm.id}?patientId=${linkedRegisteredRecord.id}&print=1`;
+      addAuditRecord(
+        "msp_forms",
+        "Exportacion PDF MSP 008",
+        `Se abrio el formulario ${emergencyForm.code} en modo imprimible para exportacion PDF.`
+      );
+      setQuickActionFeedback(`Se abrio el formulario ${emergencyForm.code} listo para imprimir o exportar.`);
+      window.open(exportUrl, "_blank", "noopener,noreferrer");
+      return;
     }
+
+    openTabFromQuickAction("msp_forms");
+    addAuditRecord(
+      "msp_forms",
+      "Exportacion PDF MSP 008 no disponible",
+      linkedRegisteredRecord
+        ? "El expediente vinculado no tiene disponible el formulario 008 para exportacion."
+        : "No existe aun un expediente MSP vinculado para exportar el formulario 008."
+    );
+    setQuickActionFeedback(
+      linkedRegisteredRecord
+        ? "No se encontro el formulario 008 disponible para este expediente."
+        : "Vincula primero un expediente MSP para exportar el formulario 008."
+    );
   };
 
   const handleGenerateClinicalSummary = () => {
@@ -1666,7 +1690,31 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   return (
     <div className="space-y-4">
       <header className="rounded-2xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              <ActionChip label="Buscar otro paciente" onClick={handleSearchAnotherPatient} />
+              <ActionChip label="Editar datos" onClick={handleHeaderEditData} />
+              <ActionChip label="Formularios MSP" onClick={handleHeaderOpenMspForms} />
+              <ActionChip label="Exportar PDF MSP 008" onClick={handleExportPdf} />
+              <ActionChip label="Generar reporte" onClick={handleHeaderGenerateReport} />
+              <ActionChip label="Ver alertas" onClick={handleHeaderViewAlerts} />
+              <ActionChip label="Agregar nota" onClick={handleHeaderAddNote} />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <RiskBadge risk={patient.riskLevel} />
+              <TriageBadge triage={patient.triageColor} />
+              <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700">
+                Estado: {patient.currentStatus}
+              </span>
+            </div>
+          </div>
+
+          {quickActionFeedback ? (
+            <p className="text-[11px] text-slate-500">{quickActionFeedback}</p>
+          ) : null}
+
           <div className="flex items-start gap-3">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-sky-600 text-lg font-semibold text-white">
               {toInitials(patient.fullName)}
@@ -1693,27 +1741,6 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                 control: {patient.lastControlAt}
               </p>
             </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <RiskBadge risk={patient.riskLevel} />
-              <TriageBadge triage={patient.triageColor} />
-              <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700">
-                Estado: {patient.currentStatus}
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-2 text-[11px]">
-              <ActionChip label="Editar datos" onClick={handleHeaderEditData} />
-              <ActionChip label="Generar reporte" onClick={handleHeaderGenerateReport} />
-              <ActionChip label="Formularios MSP" onClick={handleHeaderOpenMspForms} />
-              <ActionChip label="Exportar PDF" onClick={handleExportPdf} />
-              <ActionChip label="Ver alertas" onClick={handleHeaderViewAlerts} />
-              <ActionChip label="Agregar nota" onClick={handleHeaderAddNote} />
-            </div>
-            {quickActionFeedback ? (
-              <p className="text-[11px] text-slate-500">{quickActionFeedback}</p>
-            ) : null}
           </div>
         </div>
 
@@ -4287,7 +4314,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
         <Panel title="Reportes clinicos del paciente" subtitle="Generacion y trazabilidad documental">
           <div className="mb-3 flex flex-wrap gap-2 text-[11px]">
             <ActionChip label="Generar resumen clinico" onClick={handleGenerateClinicalSummary} />
-            <ActionChip label="Exportar PDF" onClick={handleExportPdf} />
+            <ActionChip label="Exportar PDF MSP 008" onClick={handleExportPdf} />
             <ActionChip label="Generar reporte de enfermeria" onClick={handleGenerateNursingReport} />
           </div>
           <div className="space-y-2">
