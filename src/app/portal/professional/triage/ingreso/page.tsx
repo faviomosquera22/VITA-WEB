@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { ModulePage, Panel, StatCard } from "../../_components/clinical-ui";
+import { ModulePage, Panel } from "../../_components/clinical-ui";
 import {
   isTriageIntakeSectionId,
   triageIntakeSections,
@@ -408,6 +408,29 @@ export default function TriageIntakePage() {
     [autoProtocols, engineResult.protocolsActivated]
   );
 
+  const sectionProgress = useMemo(
+    () =>
+      triageIntakeSections.map((section, index) => {
+        const missing = getSectionMissingFields(section.id, triageInput);
+        return {
+          ...section,
+          index,
+          missing,
+          isActive: section.id === activeSection.id,
+          isComplete: index < activeIndex && missing.length === 0,
+        };
+      }),
+    [activeIndex, activeSection.id, triageInput]
+  );
+
+  const criticalVitalLabels = useMemo(
+    () =>
+      Object.entries(criticalVitalFlags)
+        .filter(([, value]) => Boolean(value))
+        .map(([key]) => getVitalLabel(key as keyof TriageInput["vitals"])),
+    [criticalVitalFlags]
+  );
+
   return (
     <ModulePage
       title="Triaje asistido inteligente"
@@ -437,661 +460,1083 @@ export default function TriageIntakePage() {
         </div>
       }
     >
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <StatCard
-          label="Color sugerido"
-          value={engineResult.suggestedColor.toUpperCase()}
-          hint={`${engineResult.priorityLabel}  -  max ${engineResult.maxWaitMinutes} min`}
-        />
-        <StatCard
-          label="Protocolos activos"
-          value={protocolsInUse.length}
-          hint={
-            protocolsInUse.length
-              ? protocolsInUse.map((item) => protocolLabel(item)).join("  -  ")
-              : "Sin subprotocolos activados"
-          }
-        />
-        <StatCard
-          label="Alertas"
-          value={engineResult.alerts.length}
-          hint={engineResult.alerts.slice(0, 2).join("  -  ") || "Sin alertas"}
-        />
-        <StatCard
-          label="Datos faltantes"
-          value={engineResult.missingData.length}
-          hint={engineResult.missingData.slice(0, 2).join("  -  ") || "Completo"}
-        />
-      </div>
-
-      <Panel title="Wizard clinico" subtitle="Se muestran solo campos segun contexto y se valida en tiempo real">
-        <div className="mb-3 flex flex-wrap gap-2">
-          {triageIntakeSections.map((section) => {
-            const isActive = section.id === activeSection.id;
-            const missing = getSectionMissingFields(section.id, triageInput);
-
-            return (
-              <button
-                key={section.id}
-                type="button"
-                onClick={() => goToSection(section.id)}
-                className={[
-                  "rounded-full border px-4 py-2 text-sm font-semibold transition",
-                  isActive
-                    ? "border-sky-300 bg-sky-50 text-sky-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-                ].join(" ")}
-              >
-                {section.code} {section.shortLabel}
-                {missing.length > 0 ? ` (${missing.length})` : ""}
-              </button>
-            );
-          })}
-        </div>
-
-        {activeSection.id === "ingreso_identificacion" ? (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <InputField
-              label="Documento"
-              value={triageInput.identification.documentNumber}
-              onChange={(value) =>
-                setTriageInput((prev) => ({
-                  ...prev,
-                  identification: { ...prev.identification, documentNumber: value },
-                }))
-              }
-              required
-            />
-            <InputField
-              label="Nombre del px"
-              value={triageInput.identification.patientName}
-              onChange={(value) =>
-                setTriageInput((prev) => ({
-                  ...prev,
-                  identification: { ...prev.identification, patientName: value },
-                }))
-              }
-              required
-            />
-            <NumberField
-              label="Edad"
-              value={triageInput.identification.ageYears}
-              onChange={(value) =>
-                setTriageInput((prev) => ({
-                  ...prev,
-                  identification: { ...prev.identification, ageYears: value },
-                }))
-              }
-              required
-            />
-            <SelectField
-              label="Sexo biologico"
-              value={triageInput.identification.sexBiological}
-              onChange={(value) =>
-                setTriageInput((prev) => ({
-                  ...prev,
-                  identification: {
-                    ...prev.identification,
-                    sexBiological: value as TriageInput["identification"]["sexBiological"],
-                  },
-                }))
-              }
-              options={[
-                { value: "", label: "Seleccionar" },
-                { value: "femenino", label: "Femenino" },
-                { value: "masculino", label: "Masculino" },
-                { value: "otro", label: "Otro" },
-              ]}
-            />
-            {triageInput.identification.sexBiological === "femenino" ? (
-              <CheckChip
-                label="Posible embarazo"
-                checked={triageInput.identification.possiblePregnancy}
-                onToggle={() =>
-                  setTriageInput((prev) => ({
-                    ...prev,
-                    identification: {
-                      ...prev.identification,
-                      possiblePregnancy: !prev.identification.possiblePregnancy,
-                    },
-                  }))
-                }
-              />
-            ) : null}
-          </div>
-        ) : null}
-
-        {activeSection.id === "motivo_discriminador" ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <SelectField
-                label="Motivo de consulta"
-                value={triageInput.complaint.reason}
-                onChange={(value) =>
-                  setTriageInput((prev) => ({
-                    ...prev,
-                    complaint: { ...prev.complaint, reason: value },
-                  }))
-                }
-                required
-                options={[
-                  { value: "", label: "Seleccionar motivo" },
-                  ...reasonOptions.map((item) => ({ value: item, label: item })),
-                ]}
-              />
-              <InputField
-                label="Discriminador principal"
-                value={triageInput.complaint.discriminator}
-                onChange={(value) =>
-                  setTriageInput((prev) => ({
-                    ...prev,
-                    complaint: { ...prev.complaint, discriminator: value },
-                  }))
-                }
-                required
-              />
-            </div>
-
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Discriminadores sugeridos
+      <section className="rounded-[34px] border border-stone-200 bg-[#f5f3ee] p-4 sm:p-5">
+        <div className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-[240px_minmax(0,1fr)_320px]">
+          <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+            <div className="rounded-[28px] border border-stone-200 bg-white p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-stone-400">
+                Progreso
               </p>
-              <div className="flex flex-wrap gap-2">
-                {discriminatorOptions.map((option) => {
-                  const active = triageInput.complaint.discriminatorTags.includes(option);
-                  return (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() =>
-                        setTriageInput((prev) => ({
-                          ...prev,
-                          complaint: {
-                            ...prev.complaint,
-                            discriminatorTags: active
-                              ? prev.complaint.discriminatorTags.filter((item) => item !== option)
-                              : [...prev.complaint.discriminatorTags, option],
-                          },
-                        }))
-                      }
-                      className={[
-                        "rounded-full border px-4 py-2 text-sm font-semibold transition",
-                        active
-                          ? "border-sky-300 bg-sky-50 text-sky-700"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-                      ].join(" ")}
-                    >
-                      {option}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {activeSection.id === "signos_vitales" ? (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-5">
-            <NumberField
-              label="PA sistolica"
-              value={triageInput.vitals.systolicBp}
-              onChange={(value) =>
-                setTriageInput((prev) => ({
-                  ...prev,
-                  vitals: { ...prev.vitals, systolicBp: value },
-                }))
-              }
-              required
-              critical={Boolean(criticalVitalFlags.systolicBp)}
-            />
-            <NumberField
-              label="PA diastolica"
-              value={triageInput.vitals.diastolicBp}
-              onChange={(value) =>
-                setTriageInput((prev) => ({
-                  ...prev,
-                  vitals: { ...prev.vitals, diastolicBp: value },
-                }))
-              }
-            />
-            <NumberField
-              label="FC"
-              value={triageInput.vitals.heartRate}
-              onChange={(value) =>
-                setTriageInput((prev) => ({
-                  ...prev,
-                  vitals: { ...prev.vitals, heartRate: value },
-                }))
-              }
-              required
-              critical={Boolean(criticalVitalFlags.heartRate)}
-            />
-            <NumberField
-              label="FR"
-              value={triageInput.vitals.respiratoryRate}
-              onChange={(value) =>
-                setTriageInput((prev) => ({
-                  ...prev,
-                  vitals: { ...prev.vitals, respiratoryRate: value },
-                }))
-              }
-              required
-              critical={Boolean(criticalVitalFlags.respiratoryRate)}
-            />
-            <NumberField
-              label="SpO2"
-              value={triageInput.vitals.spo2}
-              onChange={(value) =>
-                setTriageInput((prev) => ({
-                  ...prev,
-                  vitals: { ...prev.vitals, spo2: value },
-                }))
-              }
-              required
-              critical={Boolean(criticalVitalFlags.spo2)}
-            />
-            <NumberField
-              label="Temp C"
-              value={triageInput.vitals.temperatureC}
-              onChange={(value) =>
-                setTriageInput((prev) => ({
-                  ...prev,
-                  vitals: { ...prev.vitals, temperatureC: value },
-                }))
-              }
-              critical={Boolean(criticalVitalFlags.temperatureC)}
-            />
-            <NumberField
-              label="Glasgow"
-              value={triageInput.vitals.glasgow}
-              onChange={(value) =>
-                setTriageInput((prev) => ({
-                  ...prev,
-                  vitals: { ...prev.vitals, glasgow: value },
-                }))
-              }
-            />
-            <NumberField
-              label="Dolor (0-10)"
-              value={triageInput.vitals.painScale}
-              onChange={(value) =>
-                setTriageInput((prev) => ({
-                  ...prev,
-                  vitals: { ...prev.vitals, painScale: value },
-                }))
-              }
-            />
-            <NumberField
-              label="Glucosa capilar"
-              value={triageInput.vitals.capillaryGlucose}
-              onChange={(value) =>
-                setTriageInput((prev) => ({
-                  ...prev,
-                  vitals: { ...prev.vitals, capillaryGlucose: value },
-                }))
-              }
-            />
-          </div>
-        ) : null}
-
-        {activeSection.id === "hallazgos_criticos" ? (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {criticalChipConfig.map((chip) => (
-              <CheckChip
-                key={chip.key}
-                label={chip.label}
-                checked={triageInput.criticalFindings[chip.key]}
-                tone={chip.tone}
-                onToggle={() =>
-                  setTriageInput((prev) => ({
-                    ...prev,
-                    criticalFindings: {
-                      ...prev.criticalFindings,
-                      [chip.key]: !prev.criticalFindings[chip.key],
-                    },
-                  }))
-                }
-              />
-            ))}
-          </div>
-        ) : null}
-
-        {activeSection.id === "antecedentes_enfermedad" ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <SelectField
-                label="Enfermedad actual"
-                value={triageInput.clinicalHistory.currentIllnessSummary}
-                onChange={(value) =>
-                  setTriageInput((prev) => ({
-                    ...prev,
-                    clinicalHistory: {
-                      ...prev.clinicalHistory,
-                      currentIllnessSummary: value,
-                    },
-                  }))
-                }
-                required
-                options={[
-                  { value: "", label: "Seleccionar" },
-                  { value: "Inicio brusco", label: "Inicio brusco" },
-                  { value: "Inicio progresivo", label: "Inicio progresivo" },
-                  { value: "Evolucion en horas", label: "Evolucion en horas" },
-                  { value: "Evolucion en dias", label: "Evolucion en dias" },
-                ]}
-              />
-              <SelectField
-                label="Antecedente relevante"
-                value={triageInput.clinicalHistory.relevantHistorySummary}
-                onChange={(value) =>
-                  setTriageInput((prev) => ({
-                    ...prev,
-                    clinicalHistory: {
-                      ...prev.clinicalHistory,
-                      relevantHistorySummary: value,
-                    },
-                  }))
-                }
-                options={[
-                  { value: "", label: "Seleccionar" },
-                  { value: "Sin antecedentes", label: "Sin antecedentes" },
-                  { value: "Cardiovascular", label: "Cardiovascular" },
-                  { value: "Respiratorio", label: "Respiratorio" },
-                  { value: "Neurologico", label: "Neurologico" },
-                  { value: "Psiquiatrico", label: "Psiquiatrico" },
-                ]}
-              />
-            </div>
-
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Comorbilidades
+              <h2 className="mt-2 text-lg font-semibold text-stone-900">Formulario de triaje</h2>
+              <p className="mt-1 text-sm text-stone-500">
+                Navega por pasos y valida lo pendiente antes de confirmar.
               </p>
-              <div className="flex flex-wrap gap-2">
-                {comorbidityOptions.map((item) => {
-                  const checked = triageInput.clinicalHistory.comorbidities.includes(item);
-                  return (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() =>
-                        setTriageInput((prev) => ({
-                          ...prev,
-                          clinicalHistory: {
-                            ...prev.clinicalHistory,
-                            comorbidities: checked
-                              ? prev.clinicalHistory.comorbidities.filter((value) => value !== item)
-                              : [...prev.clinicalHistory.comorbidities, item],
-                          },
-                        }))
-                      }
-                      className={[
-                        "rounded-full border px-4 py-2 text-sm font-semibold transition",
-                        checked
-                          ? "border-amber-300 bg-amber-50 text-amber-800"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-                      ].join(" ")}
-                    >
-                      {item}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        ) : null}
 
-        {activeSection.id === "subprotocolos" ? (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <p className="text-xs font-semibold text-slate-700">Subprotocolos activados automaticamente</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {autoProtocols.length === 0 ? (
-                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500">
-                    Sin activacion automatica por ahora
-                  </span>
-                ) : (
-                  autoProtocols.map((protocol) => (
+              <div className="mt-4 space-y-2">
+                {sectionProgress.map((section) => (
+                  <button
+                    key={section.id}
+                    type="button"
+                    onClick={() => goToSection(section.id)}
+                    className={[
+                      "flex w-full items-start gap-3 rounded-2xl border px-3 py-3 text-left transition",
+                      section.isActive
+                        ? "border-emerald-300 bg-emerald-50"
+                        : section.isComplete
+                        ? "border-emerald-100 bg-white hover:bg-stone-50"
+                        : "border-stone-200 bg-white hover:bg-stone-50",
+                    ].join(" ")}
+                  >
                     <span
-                      key={protocol}
-                      className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+                      className={[
+                        "mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold",
+                        section.isActive
+                          ? "bg-emerald-600 text-white"
+                          : section.isComplete
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-stone-100 text-stone-500",
+                      ].join(" ")}
                     >
-                      {protocolLabel(protocol)}
+                      {section.isComplete ? "✓" : section.code}
                     </span>
-                  ))
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-stone-900">
+                        {section.label}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-stone-500">
+                        {section.missing.length > 0
+                          ? `Pendiente: ${section.missing.join(", ")}`
+                          : section.isComplete
+                          ? "Completo"
+                          : section.helper}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          <div className="space-y-4">
+            <div className="rounded-[28px] border border-stone-200 bg-white p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-stone-500">
+                    Paso {activeIndex + 1} de {triageIntakeSections.length}
+                  </p>
+                  <h2 className="mt-1 text-3xl font-semibold tracking-tight text-stone-950">
+                    {activeSection.code} · {activeSection.label}
+                  </h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">
+                    {activeSection.helper}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-medium text-stone-600">
+                    Sugerido: {engineResult.suggestedColor.toUpperCase()}
+                  </span>
+                  <span className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-medium text-stone-600">
+                    {engineResult.priorityLabel} · {engineResult.maxWaitMinutes} min
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {sectionProgress.map((section) => (
+                  <button
+                    key={section.id}
+                    type="button"
+                    onClick={() => goToSection(section.id)}
+                    className={[
+                      "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition",
+                      section.isActive
+                        ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                        : section.isComplete
+                        ? "border-emerald-100 bg-white text-emerald-700"
+                        : "border-stone-200 bg-white text-stone-500",
+                    ].join(" ")}
+                  >
+                    <span
+                      className={[
+                        "inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold",
+                        section.isActive
+                          ? "bg-emerald-600 text-white"
+                          : section.isComplete
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-stone-100 text-stone-500",
+                      ].join(" ")}
+                    >
+                      {section.isComplete ? "✓" : section.code}
+                    </span>
+                    {section.shortLabel}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="2xl:hidden">
+              <LiveTriageSummary
+                engineResult={engineResult}
+                finalColor={finalColor}
+                finalPriority={finalPriority}
+                finalWait={finalWait}
+                protocolsInUse={protocolsInUse}
+                manualMode={manualMode}
+                currentSectionMissing={currentSectionMissing}
+                criticalVitalLabels={criticalVitalLabels}
+              />
+            </div>
+
+            <div className="rounded-[28px] border border-stone-200 bg-white p-5">
+              {submitMessage ? (
+                <div
+                  className={[
+                    "mb-4 rounded-2xl border px-4 py-3 text-sm",
+                    submitState === "error"
+                      ? "border-red-200 bg-red-50 text-red-700"
+                      : "border-emerald-200 bg-emerald-50 text-emerald-700",
+                  ].join(" ")}
+                >
+                  {submitMessage}
+                </div>
+              ) : null}
+
+              {activeSection.id === "ingreso_identificacion" ? (
+                <FormSectionCard
+                  number={1}
+                  title="Identificacion del paciente"
+                  subtitle="Datos generales obligatorios para iniciar el flujo MSP."
+                  badge="Paso inicial"
+                >
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <InputField
+                      label="Documento"
+                      value={triageInput.identification.documentNumber}
+                      onChange={(value) =>
+                        setTriageInput((prev) => ({
+                          ...prev,
+                          identification: { ...prev.identification, documentNumber: value },
+                        }))
+                      }
+                      required
+                    />
+                    <InputField
+                      label="Nombre del px"
+                      value={triageInput.identification.patientName}
+                      onChange={(value) =>
+                        setTriageInput((prev) => ({
+                          ...prev,
+                          identification: { ...prev.identification, patientName: value },
+                        }))
+                      }
+                      required
+                    />
+                    <NumberField
+                      label="Edad"
+                      value={triageInput.identification.ageYears}
+                      onChange={(value) =>
+                        setTriageInput((prev) => ({
+                          ...prev,
+                          identification: { ...prev.identification, ageYears: value },
+                        }))
+                      }
+                      required
+                    />
+                    <SelectField
+                      label="Sexo biologico"
+                      value={triageInput.identification.sexBiological}
+                      onChange={(value) =>
+                        setTriageInput((prev) => ({
+                          ...prev,
+                          identification: {
+                            ...prev.identification,
+                            sexBiological: value as TriageInput["identification"]["sexBiological"],
+                          },
+                        }))
+                      }
+                      options={[
+                        { value: "", label: "Seleccionar" },
+                        { value: "femenino", label: "Femenino" },
+                        { value: "masculino", label: "Masculino" },
+                        { value: "otro", label: "Otro" },
+                      ]}
+                    />
+                  </div>
+
+                  {triageInput.identification.sexBiological === "femenino" ? (
+                    <div className="mt-4">
+                      <CheckChip
+                        label="Posible embarazo"
+                        checked={triageInput.identification.possiblePregnancy}
+                        onToggle={() =>
+                          setTriageInput((prev) => ({
+                            ...prev,
+                            identification: {
+                              ...prev.identification,
+                              possiblePregnancy: !prev.identification.possiblePregnancy,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+                  ) : null}
+                </FormSectionCard>
+              ) : null}
+
+              {activeSection.id === "motivo_discriminador" ? (
+                <FormSectionCard
+                  number={1}
+                  title="Motivo y discriminador principal"
+                  subtitle="Registra el motivo y marca el discriminador de entrada del sistema Manchester."
+                  badge="Clave para clasificacion"
+                >
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <SelectField
+                        label="Motivo de consulta"
+                        value={triageInput.complaint.reason}
+                        onChange={(value) =>
+                          setTriageInput((prev) => ({
+                            ...prev,
+                            complaint: { ...prev.complaint, reason: value },
+                          }))
+                        }
+                        required
+                        options={[
+                          { value: "", label: "Seleccionar motivo" },
+                          ...reasonOptions.map((item) => ({ value: item, label: item })),
+                        ]}
+                      />
+                      <InputField
+                        label="Discriminador principal"
+                        value={triageInput.complaint.discriminator}
+                        onChange={(value) =>
+                          setTriageInput((prev) => ({
+                            ...prev,
+                            complaint: { ...prev.complaint, discriminator: value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+                        Discriminadores sugeridos
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {discriminatorOptions.map((option) => {
+                          const active = triageInput.complaint.discriminatorTags.includes(option);
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() =>
+                                setTriageInput((prev) => ({
+                                  ...prev,
+                                  complaint: {
+                                    ...prev.complaint,
+                                    discriminatorTags: active
+                                      ? prev.complaint.discriminatorTags.filter((item) => item !== option)
+                                      : [...prev.complaint.discriminatorTags, option],
+                                  },
+                                }))
+                              }
+                              className={[
+                                "rounded-full border px-4 py-2 text-sm font-semibold transition",
+                                active
+                                  ? "border-amber-300 bg-amber-50 text-amber-800"
+                                  : "border-stone-200 bg-white text-stone-600 hover:bg-stone-50",
+                              ].join(" ")}
+                            >
+                              {option}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </FormSectionCard>
+              ) : null}
+
+              {activeSection.id === "signos_vitales" ? (
+                <div className="space-y-4">
+                  <FormSectionCard
+                    number={1}
+                    title="Signos vitales al ingreso"
+                    subtitle="Captura de constantes vitales y valores usados por el motor de priorizacion."
+                    badge="Obligatorio"
+                  >
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-5">
+                      <NumberField
+                        label="PA sistolica"
+                        value={triageInput.vitals.systolicBp}
+                        onChange={(value) =>
+                          setTriageInput((prev) => ({
+                            ...prev,
+                            vitals: { ...prev.vitals, systolicBp: value },
+                          }))
+                        }
+                        required
+                        critical={Boolean(criticalVitalFlags.systolicBp)}
+                      />
+                      <NumberField
+                        label="PA diastolica"
+                        value={triageInput.vitals.diastolicBp}
+                        onChange={(value) =>
+                          setTriageInput((prev) => ({
+                            ...prev,
+                            vitals: { ...prev.vitals, diastolicBp: value },
+                          }))
+                        }
+                      />
+                      <NumberField
+                        label="FC"
+                        value={triageInput.vitals.heartRate}
+                        onChange={(value) =>
+                          setTriageInput((prev) => ({
+                            ...prev,
+                            vitals: { ...prev.vitals, heartRate: value },
+                          }))
+                        }
+                        required
+                        critical={Boolean(criticalVitalFlags.heartRate)}
+                      />
+                      <NumberField
+                        label="FR"
+                        value={triageInput.vitals.respiratoryRate}
+                        onChange={(value) =>
+                          setTriageInput((prev) => ({
+                            ...prev,
+                            vitals: { ...prev.vitals, respiratoryRate: value },
+                          }))
+                        }
+                        required
+                        critical={Boolean(criticalVitalFlags.respiratoryRate)}
+                      />
+                      <NumberField
+                        label="SpO2"
+                        value={triageInput.vitals.spo2}
+                        onChange={(value) =>
+                          setTriageInput((prev) => ({
+                            ...prev,
+                            vitals: { ...prev.vitals, spo2: value },
+                          }))
+                        }
+                        required
+                        critical={Boolean(criticalVitalFlags.spo2)}
+                      />
+                      <NumberField
+                        label="Temp C"
+                        value={triageInput.vitals.temperatureC}
+                        onChange={(value) =>
+                          setTriageInput((prev) => ({
+                            ...prev,
+                            vitals: { ...prev.vitals, temperatureC: value },
+                          }))
+                        }
+                        critical={Boolean(criticalVitalFlags.temperatureC)}
+                      />
+                      <NumberField
+                        label="Glasgow"
+                        value={triageInput.vitals.glasgow}
+                        onChange={(value) =>
+                          setTriageInput((prev) => ({
+                            ...prev,
+                            vitals: { ...prev.vitals, glasgow: value },
+                          }))
+                        }
+                      />
+                      <NumberField
+                        label="Dolor (0-10)"
+                        value={triageInput.vitals.painScale}
+                        onChange={(value) =>
+                          setTriageInput((prev) => ({
+                            ...prev,
+                            vitals: { ...prev.vitals, painScale: value },
+                          }))
+                        }
+                      />
+                      <NumberField
+                        label="Glucosa capilar"
+                        value={triageInput.vitals.capillaryGlucose}
+                        onChange={(value) =>
+                          setTriageInput((prev) => ({
+                            ...prev,
+                            vitals: { ...prev.vitals, capillaryGlucose: value },
+                          }))
+                        }
+                      />
+                    </div>
+                  </FormSectionCard>
+
+                  {criticalVitalLabels.length > 0 ? (
+                    <FormSectionCard
+                      number={2}
+                      title="Alertas automaticas por signos vitales"
+                      subtitle="El sistema marca parametros fuera de rango para la edad y el contexto."
+                      badge="Revision clinica"
+                    >
+                      <div className="flex flex-wrap gap-2">
+                        {criticalVitalLabels.map((item) => (
+                          <span
+                            key={item}
+                            className="rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700"
+                          >
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </FormSectionCard>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {activeSection.id === "hallazgos_criticos" ? (
+                <div className="space-y-4">
+                  <FormSectionCard
+                    number={1}
+                    title="Hallazgos criticos y banderas de alto riesgo"
+                    subtitle="Marca hallazgos presentes para ajustar la prioridad sugerida."
+                    badge="Manchester / MSP"
+                  >
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {criticalChipConfig.map((chip) => (
+                        <CheckChip
+                          key={chip.key}
+                          label={chip.label}
+                          checked={triageInput.criticalFindings[chip.key]}
+                          tone={chip.tone}
+                          onToggle={() =>
+                            setTriageInput((prev) => ({
+                              ...prev,
+                              criticalFindings: {
+                                ...prev.criticalFindings,
+                                [chip.key]: !prev.criticalFindings[chip.key],
+                              },
+                            }))
+                          }
+                        />
+                      ))}
+                    </div>
+                  </FormSectionCard>
+
+                  <FormSectionCard
+                    number={2}
+                    title="Conducta sugerida por el motor"
+                    subtitle="Se recalcula automaticamente conforme ingresas datos."
+                    badge="Automatico"
+                  >
+                    <ResultList
+                      title="Acciones inmediatas"
+                      values={engineResult.immediateActions}
+                      emptyLabel="Sin acciones sugeridas"
+                    />
+                  </FormSectionCard>
+                </div>
+              ) : null}
+
+              {activeSection.id === "antecedentes_enfermedad" ? (
+                <div className="space-y-4">
+                  <FormSectionCard
+                    number={1}
+                    title="Enfermedad actual y antecedentes"
+                    subtitle="Contexto clinico de apoyo para completar el nucleo general."
+                    badge="Contexto clinico"
+                  >
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <SelectField
+                        label="Enfermedad actual"
+                        value={triageInput.clinicalHistory.currentIllnessSummary}
+                        onChange={(value) =>
+                          setTriageInput((prev) => ({
+                            ...prev,
+                            clinicalHistory: {
+                              ...prev.clinicalHistory,
+                              currentIllnessSummary: value,
+                            },
+                          }))
+                        }
+                        required
+                        options={[
+                          { value: "", label: "Seleccionar" },
+                          { value: "Inicio brusco", label: "Inicio brusco" },
+                          { value: "Inicio progresivo", label: "Inicio progresivo" },
+                          { value: "Evolucion en horas", label: "Evolucion en horas" },
+                          { value: "Evolucion en dias", label: "Evolucion en dias" },
+                        ]}
+                      />
+                      <SelectField
+                        label="Antecedente relevante"
+                        value={triageInput.clinicalHistory.relevantHistorySummary}
+                        onChange={(value) =>
+                          setTriageInput((prev) => ({
+                            ...prev,
+                            clinicalHistory: {
+                              ...prev.clinicalHistory,
+                              relevantHistorySummary: value,
+                            },
+                          }))
+                        }
+                        options={[
+                          { value: "", label: "Seleccionar" },
+                          { value: "Sin antecedentes", label: "Sin antecedentes" },
+                          { value: "Cardiovascular", label: "Cardiovascular" },
+                          { value: "Respiratorio", label: "Respiratorio" },
+                          { value: "Neurologico", label: "Neurologico" },
+                          { value: "Psiquiatrico", label: "Psiquiatrico" },
+                        ]}
+                      />
+                    </div>
+                  </FormSectionCard>
+
+                  <FormSectionCard
+                    number={2}
+                    title="Comorbilidades relevantes"
+                    subtitle="Usa estas etiquetas para completar antecedentes con impacto en la prioridad."
+                    badge="Factores de riesgo"
+                  >
+                    <div className="flex flex-wrap gap-2">
+                      {comorbidityOptions.map((item) => {
+                        const checked = triageInput.clinicalHistory.comorbidities.includes(item);
+                        return (
+                          <button
+                            key={item}
+                            type="button"
+                            onClick={() =>
+                              setTriageInput((prev) => ({
+                                ...prev,
+                                clinicalHistory: {
+                                  ...prev.clinicalHistory,
+                                  comorbidities: checked
+                                    ? prev.clinicalHistory.comorbidities.filter((value) => value !== item)
+                                    : [...prev.clinicalHistory.comorbidities, item],
+                                },
+                              }))
+                            }
+                            className={[
+                              "rounded-full border px-4 py-2 text-sm font-semibold transition",
+                              checked
+                                ? "border-amber-300 bg-amber-50 text-amber-800"
+                                : "border-stone-200 bg-white text-stone-600 hover:bg-stone-50",
+                            ].join(" ")}
+                          >
+                            {item}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </FormSectionCard>
+                </div>
+              ) : null}
+
+              {activeSection.id === "subprotocolos" ? (
+                <div className="space-y-4">
+                  <FormSectionCard
+                    number={1}
+                    title="Subprotocolos activados automaticamente"
+                    subtitle="Se activan por motivo, discriminadores y hallazgos registrados."
+                    badge="MSP"
+                  >
+                    <div className="flex flex-wrap gap-2">
+                      {autoProtocols.length === 0 ? (
+                        <span className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-500">
+                          Sin activacion automatica por ahora
+                        </span>
+                      ) : (
+                        autoProtocols.map((protocol) => (
+                          <span
+                            key={protocol}
+                            className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+                          >
+                            {protocolLabel(protocol)}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </FormSectionCard>
+
+                  <FormSectionCard
+                    number={2}
+                    title="Seleccion manual de subprotocolos"
+                    subtitle="Puedes activar protocolos adicionales cuando el contexto clinico lo amerite."
+                    badge="Control profesional"
+                  >
+                    <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+                      {protocolMeta.map((protocol) => {
+                        const enabled = isProtocolEnabled(triageInput, protocol.id);
+                        return (
+                          <button
+                            key={protocol.id}
+                            type="button"
+                            onClick={() =>
+                              setTriageInput((prev) =>
+                                setProtocolEnabled(prev, protocol.id, !isProtocolEnabled(prev, protocol.id))
+                              )
+                            }
+                            className={[
+                              "rounded-xl border p-3 text-left transition",
+                              enabled
+                                ? "border-emerald-300 bg-emerald-50"
+                                : "border-stone-200 bg-white hover:bg-stone-50",
+                            ].join(" ")}
+                          >
+                            <p className="text-sm font-semibold text-stone-900">{protocol.label}</p>
+                            <p className="text-xs text-stone-600">{protocol.summary}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </FormSectionCard>
+
+                  {protocolsInUse.includes("violencia_sexual") ? (
+                    <FormSectionCard
+                      number={3}
+                      title="Codigo Purpura activo"
+                      subtitle="Atencion inmediata, intervencion en crisis y registro clinico-legal."
+                      badge="Prioridad MSP"
+                    >
+                      <div className="rounded-xl border border-fuchsia-300 bg-fuchsia-50 p-3">
+                        <p className="text-sm font-semibold text-fuchsia-800">
+                          Caso con protocolo de violencia sexual activado
+                        </p>
+                        <p className="mt-1 text-xs text-fuchsia-700">
+                          Completa la documentacion clinico-legal y el plan de proteccion.
+                        </p>
+                      </div>
+                    </FormSectionCard>
+                  ) : null}
+
+                  {protocolsInUse.map((protocol) => (
+                    <ProtocolFormBlock
+                      key={protocol}
+                      protocol={protocol}
+                      triageInput={triageInput}
+                      setTriageInput={setTriageInput}
+                    />
+                  ))}
+                </div>
+              ) : null}
+
+              {activeSection.id === "resultado" ? (
+                <div className="space-y-4">
+                  <FormSectionCard
+                    number={1}
+                    title="Resultado final integrado"
+                    subtitle="Resumen automatico consolidado con prioridad, alertas y acciones inmediatas."
+                    badge="Salida del motor"
+                  >
+                    <div className="space-y-4">
+                      <ResultCard
+                        title="Resultado final integrado"
+                        color={finalColor}
+                        priority={finalPriority}
+                        waitMinutes={finalWait}
+                      />
+
+                      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                        <ResultList
+                          title="Motivos clinicos"
+                          values={engineResult.reasons}
+                          emptyLabel="Sin motivos"
+                        />
+                        <ResultList
+                          title="Protocolos activados"
+                          values={engineResult.protocolsActivated.map((item) => protocolLabel(item))}
+                          emptyLabel="Sin protocolos"
+                        />
+                        <ResultList
+                          title="Alertas"
+                          values={engineResult.alerts}
+                          emptyLabel="Sin alertas"
+                        />
+                        <ResultList
+                          title="Acciones inmediatas"
+                          values={engineResult.immediateActions}
+                          emptyLabel="Sin acciones"
+                        />
+                      </div>
+
+                      <ResultList
+                        title="Datos faltantes"
+                        values={engineResult.missingData}
+                        emptyLabel="No hay datos faltantes"
+                        warning
+                      />
+                    </div>
+                  </FormSectionCard>
+
+                  <FormSectionCard
+                    number={2}
+                    title="Confirmacion y ajuste profesional"
+                    subtitle="La clasificacion automatica se mantiene, pero puedes justificar un cambio manual."
+                    badge="Validacion final"
+                  >
+                    <div className="space-y-4">
+                      <CheckChip
+                        label="Reclasificar manualmente"
+                        checked={manualMode}
+                        onToggle={() => setManualMode((prev) => !prev)}
+                      />
+
+                      {manualMode ? (
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                          <SelectField
+                            label="Color manual"
+                            value={manualOverride.color}
+                            onChange={(value) =>
+                              setManualOverride((prev) => ({
+                                ...prev,
+                                color: value as TriageColor,
+                              }))
+                            }
+                            options={[
+                              { value: "rojo", label: "Rojo" },
+                              { value: "naranja", label: "Naranja" },
+                              { value: "amarillo", label: "Amarillo" },
+                              { value: "verde", label: "Verde" },
+                              { value: "azul", label: "Azul" },
+                            ]}
+                          />
+                          <SelectField
+                            label="Prioridad manual"
+                            value={String(manualOverride.priority)}
+                            onChange={(value) =>
+                              setManualOverride((prev) => ({
+                                ...prev,
+                                priority: Number(value) as TriagePriority,
+                              }))
+                            }
+                            options={[
+                              { value: "1", label: "Prioridad I" },
+                              { value: "2", label: "Prioridad II" },
+                              { value: "3", label: "Prioridad III" },
+                              { value: "4", label: "Prioridad IV" },
+                              { value: "5", label: "Prioridad V" },
+                            ]}
+                          />
+                          <NumberField
+                            label="Tiempo maximo (min)"
+                            value={manualOverride.maxWaitMinutes}
+                            onChange={(value) =>
+                              setManualOverride((prev) => ({
+                                ...prev,
+                                maxWaitMinutes: value ?? prev.maxWaitMinutes,
+                              }))
+                            }
+                          />
+                          <InputField
+                            label="Razon clinica manual"
+                            value={manualOverride.reason}
+                            onChange={(value) =>
+                              setManualOverride((prev) => ({
+                                ...prev,
+                                reason: value,
+                              }))
+                            }
+                            required
+                          />
+                        </div>
+                      ) : null}
+
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => submitDecision("confirmar")}
+                          disabled={submitState === "saving"}
+                          className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Confirmar clasificacion
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => submitDecision("reclasificar")}
+                          disabled={submitState === "saving" || !manualMode}
+                          className="rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Guardar reclasificacion manual
+                        </button>
+                      </div>
+                    </div>
+                  </FormSectionCard>
+
+                  <Panel
+                    title="Historial reciente"
+                    subtitle="Confirmaciones y reclasificaciones con usuario, fecha y hora"
+                  >
+                    {historyLoading ? (
+                      <p className="text-xs text-slate-500">Cargando historial...</p>
+                    ) : history.length === 0 ? (
+                      <p className="text-xs text-slate-500">Sin registros en historial.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {history.map((entry) => (
+                          <article
+                            key={entry.id}
+                            className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+                          >
+                            <p className="text-xs font-semibold text-slate-900">
+                              {entry.action === "reclasificar" ? "Reclasificacion" : "Confirmacion"}  -  {entry.actorName}
+                            </p>
+                            <p className="text-[11px] text-slate-600">
+                              {new Date(entry.createdAt).toLocaleString()}  -  {entry.finalColor.toUpperCase()}  -  P{entry.finalPriority}  -  {entry.finalMaxWaitMinutes} min
+                            </p>
+                            {entry.overrideReason ? (
+                              <p className="text-[11px] text-amber-700">
+                                Razon manual: {entry.overrideReason}
+                              </p>
+                            ) : null}
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </Panel>
+                </div>
+              ) : null}
+
+              <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-stone-200 pt-4">
+                {prevSection ? (
+                  <button
+                    type="button"
+                    onClick={() => goToSection(prevSection.id)}
+                    className="rounded-full border border-stone-200 bg-stone-50 px-4 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-100"
+                  >
+                    Anterior: {prevSection.code}
+                  </button>
+                ) : null}
+                {nextSection ? (
+                  <button
+                    type="button"
+                    onClick={() => goToSection(nextSection.id)}
+                    disabled={currentSectionMissing.length > 0}
+                    className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Siguiente: {nextSection.code}
+                  </button>
+                ) : null}
+                {currentSectionMissing.length > 0 ? (
+                  <p className="text-xs font-medium text-amber-700">
+                    Pendiente: {currentSectionMissing.join(", ")}
+                  </p>
+                ) : (
+                  <p className="text-xs font-medium text-emerald-700">Paso completo.</p>
                 )}
               </div>
             </div>
-
-            <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-              {protocolMeta.map((protocol) => {
-                const enabled = isProtocolEnabled(triageInput, protocol.id);
-                return (
-                  <button
-                    key={protocol.id}
-                    type="button"
-                    onClick={() =>
-                      setTriageInput((prev) =>
-                        setProtocolEnabled(prev, protocol.id, !isProtocolEnabled(prev, protocol.id))
-                      )
-                    }
-                    className={[
-                      "rounded-xl border p-3 text-left transition",
-                      enabled
-                        ? "border-emerald-300 bg-emerald-50"
-                        : "border-slate-200 bg-white hover:bg-slate-50",
-                    ].join(" ")}
-                  >
-                    <p className="text-sm font-semibold text-slate-900">{protocol.label}</p>
-                    <p className="text-xs text-slate-600">{protocol.summary}</p>
-                  </button>
-                );
-              })}
-            </div>
-
-            {protocolsInUse.includes("violencia_sexual") ? (
-              <div className="rounded-xl border border-fuchsia-300 bg-fuchsia-50 p-3">
-                <p className="text-sm font-semibold text-fuchsia-800">Codigo Purpura activo</p>
-                <p className="text-xs text-fuchsia-700">
-                  Atencion inmediata, intervencion en crisis y registro clinico legal.
-                </p>
-              </div>
-            ) : null}
-
-            {protocolsInUse.map((protocol) => (
-              <ProtocolFormBlock
-                key={protocol}
-                protocol={protocol}
-                triageInput={triageInput}
-                setTriageInput={setTriageInput}
-              />
-            ))}
           </div>
+
+          <aside className="hidden 2xl:block 2xl:sticky 2xl:top-4 2xl:self-start">
+            <LiveTriageSummary
+              engineResult={engineResult}
+              finalColor={finalColor}
+              finalPriority={finalPriority}
+              finalWait={finalWait}
+              protocolsInUse={protocolsInUse}
+              manualMode={manualMode}
+              currentSectionMissing={currentSectionMissing}
+              criticalVitalLabels={criticalVitalLabels}
+            />
+          </aside>
+        </div>
+      </section>
+    </ModulePage>
+  );
+}
+
+function FormSectionCard({
+  number,
+  title,
+  subtitle,
+  badge,
+  children,
+}: {
+  number: number;
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-[26px] border border-stone-200 bg-[#fcfbf8]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-700">
+            {number}
+          </span>
+          <div>
+            <h3 className="text-lg font-semibold text-stone-900">{title}</h3>
+            {subtitle ? <p className="text-sm text-stone-500">{subtitle}</p> : null}
+          </div>
+        </div>
+        {badge ? (
+          <span className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-medium text-stone-600">
+            {badge}
+          </span>
         ) : null}
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
 
-        {activeSection.id === "resultado" ? (
-          <div className="space-y-4">
-            <ResultCard
-              title="Resultado final integrado"
-              color={finalColor}
-              priority={finalPriority}
-              waitMinutes={finalWait}
-            />
+function LiveTriageSummary({
+  engineResult,
+  finalColor,
+  finalPriority,
+  finalWait,
+  protocolsInUse,
+  manualMode,
+  currentSectionMissing,
+  criticalVitalLabels,
+}: {
+  engineResult: ReturnType<typeof runTriageEngine>;
+  finalColor: TriageColor;
+  finalPriority: TriagePriority;
+  finalWait: number;
+  protocolsInUse: TriageSubprotocolId[];
+  manualMode: boolean;
+  currentSectionMissing: string[];
+  criticalVitalLabels: string[];
+}) {
+  const automaticTone = getTriageTone(engineResult.suggestedColor);
+  const finalTone = getTriageTone(finalColor);
 
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-              <ResultList title="Motivos clinicos" values={engineResult.reasons} emptyLabel="Sin motivos" />
-              <ResultList
-                title="Protocolos activados"
-                values={engineResult.protocolsActivated.map((item) => protocolLabel(item))}
-                emptyLabel="Sin protocolos"
-              />
-              <ResultList title="Alertas" values={engineResult.alerts} emptyLabel="Sin alertas" />
-              <ResultList
-                title="Acciones inmediatas"
-                values={engineResult.immediateActions}
-                emptyLabel="Sin acciones"
-              />
-            </div>
-
-            <ResultList
-              title="Datos faltantes"
-              values={engineResult.missingData}
-              emptyLabel="No hay datos faltantes"
-              warning
-            />
-
-            <div className="rounded-xl border border-slate-200 bg-white p-3">
-              <CheckChip
-                label="Reclasificar manualmente"
-                checked={manualMode}
-                onToggle={() => setManualMode((prev) => !prev)}
-              />
-
-              {manualMode ? (
-                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
-                  <SelectField
-                    label="Color manual"
-                    value={manualOverride.color}
-                    onChange={(value) =>
-                      setManualOverride((prev) => ({
-                        ...prev,
-                        color: value as TriageColor,
-                      }))
-                    }
-                    options={[
-                      { value: "rojo", label: "Rojo" },
-                      { value: "naranja", label: "Naranja" },
-                      { value: "amarillo", label: "Amarillo" },
-                      { value: "verde", label: "Verde" },
-                      { value: "azul", label: "Azul" },
-                    ]}
-                  />
-                  <SelectField
-                    label="Prioridad manual"
-                    value={String(manualOverride.priority)}
-                    onChange={(value) =>
-                      setManualOverride((prev) => ({
-                        ...prev,
-                        priority: Number(value) as TriagePriority,
-                      }))
-                    }
-                    options={[
-                      { value: "1", label: "Prioridad I" },
-                      { value: "2", label: "Prioridad II" },
-                      { value: "3", label: "Prioridad III" },
-                      { value: "4", label: "Prioridad IV" },
-                      { value: "5", label: "Prioridad V" },
-                    ]}
-                  />
-                  <NumberField
-                    label="Tiempo maximo (min)"
-                    value={manualOverride.maxWaitMinutes}
-                    onChange={(value) =>
-                      setManualOverride((prev) => ({
-                        ...prev,
-                        maxWaitMinutes: value ?? prev.maxWaitMinutes,
-                      }))
-                    }
-                  />
-                  <InputField
-                    label="Razon clinica manual"
-                    value={manualOverride.reason}
-                    onChange={(value) =>
-                      setManualOverride((prev) => ({
-                        ...prev,
-                        reason: value,
-                      }))
-                    }
-                    required
-                  />
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => submitDecision("confirmar")}
-                disabled={submitState === "saving"}
-                className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Confirmar clasificacion
-              </button>
-              <button
-                type="button"
-                onClick={() => submitDecision("reclasificar")}
-                disabled={submitState === "saving" || !manualMode}
-                className="rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Guardar reclasificacion manual
-              </button>
-            </div>
-
-            {submitMessage ? (
-              <p
-                className={[
-                  "text-xs font-medium",
-                  submitState === "error" ? "text-red-700" : "text-emerald-700",
-                ].join(" ")}
-              >
-                {submitMessage}
+  return (
+    <div className="space-y-4">
+      <div className="rounded-[28px] border border-stone-200 bg-white p-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-stone-400">
+          Clasificacion automatica
+        </p>
+        <div className={["mt-3 rounded-[24px] border p-4", automaticTone.surface].join(" ")}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-75">
+                Sugerida por el motor
               </p>
-            ) : null}
-
-            <Panel title="Historial reciente" subtitle="Confirmaciones y reclasificaciones con usuario, fecha y hora">
-              {historyLoading ? (
-                <p className="text-xs text-slate-500">Cargando historial...</p>
-              ) : history.length === 0 ? (
-                <p className="text-xs text-slate-500">Sin registros en historial.</p>
-              ) : (
-                <div className="space-y-2">
-                  {history.map((entry) => (
-                    <article key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      <p className="text-xs font-semibold text-slate-900">
-                        {entry.action === "reclasificar" ? "Reclasificacion" : "Confirmacion"}  -  {entry.actorName}
-                      </p>
-                      <p className="text-[11px] text-slate-600">
-                        {new Date(entry.createdAt).toLocaleString()}  -  {entry.finalColor.toUpperCase()}  -  P{entry.finalPriority}  -  {entry.finalMaxWaitMinutes} min
-                      </p>
-                      {entry.overrideReason ? (
-                        <p className="text-[11px] text-amber-700">Razon manual: {entry.overrideReason}</p>
-                      ) : null}
-                    </article>
-                  ))}
-                </div>
-              )}
-            </Panel>
+              <p className="mt-2 text-3xl font-semibold tracking-tight">
+                {engineResult.suggestedColor.toUpperCase()}
+              </p>
+              <p className="mt-1 text-sm">
+                {engineResult.priorityLabel} · max {engineResult.maxWaitMinutes} min
+              </p>
+            </div>
+            <span className="rounded-full border border-current/20 bg-white/60 px-3 py-1 text-xs font-semibold">
+              P{engineResult.priority}
+            </span>
           </div>
-        ) : null}
-
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-200 pt-3">
-          {prevSection ? (
-            <button
-              type="button"
-              onClick={() => goToSection(prevSection.id)}
-              className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-            >
-              Anterior: {prevSection.code}
-            </button>
-          ) : null}
-          {nextSection ? (
-            <button
-              type="button"
-              onClick={() => goToSection(nextSection.id)}
-              disabled={currentSectionMissing.length > 0}
-              className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Siguiente: {nextSection.code}
-            </button>
-          ) : null}
-          {currentSectionMissing.length > 0 ? (
-            <p className="self-center text-xs text-amber-700">
-              Completa: {currentSectionMissing.join(", ")}
-            </p>
+          {engineResult.reasons.length > 0 ? (
+            <p className="mt-3 text-sm leading-6">{engineResult.reasons[0]}</p>
           ) : null}
         </div>
-      </Panel>
-    </ModulePage>
+
+        <div className={["mt-3 rounded-[24px] border p-4", finalTone.softSurface].join(" ")}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-75">
+                Resultado actual
+              </p>
+              <p className="mt-2 text-xl font-semibold">
+                {finalColor.toUpperCase()} · Prioridad {finalPriority}
+              </p>
+              <p className="mt-1 text-sm">Tiempo objetivo {finalWait} min</p>
+            </div>
+            {manualMode ? (
+              <span className="rounded-full border border-current/20 bg-white/60 px-3 py-1 text-xs font-semibold">
+                Manual
+              </span>
+            ) : (
+              <span className="rounded-full border border-current/20 bg-white/60 px-3 py-1 text-xs font-semibold">
+                Automatico
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-[28px] border border-stone-200 bg-white p-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-stone-400">
+          Panel clinico
+        </p>
+
+        <SummaryList
+          className="mt-4"
+          title="Alertas"
+          values={engineResult.alerts}
+          emptyLabel="Sin alertas activas"
+          tone="danger"
+        />
+
+        <SummaryList
+          className="mt-4"
+          title="Protocolos"
+          values={protocolsInUse.map((item) => protocolLabel(item))}
+          emptyLabel="Sin subprotocolos activos"
+          tone="success"
+        />
+
+        <SummaryList
+          className="mt-4"
+          title="Signos vitales alterados"
+          values={criticalVitalLabels}
+          emptyLabel="Sin valores criticos detectados"
+          tone="warning"
+        />
+
+        <SummaryList
+          className="mt-4"
+          title="Pendientes del paso"
+          values={currentSectionMissing}
+          emptyLabel="Paso actual completo"
+          tone="neutral"
+        />
+      </div>
+    </div>
+  );
+}
+
+function SummaryList({
+  title,
+  values,
+  emptyLabel,
+  tone,
+  className = "",
+}: {
+  title: string;
+  values: string[];
+  emptyLabel: string;
+  tone: "danger" | "warning" | "success" | "neutral";
+  className?: string;
+}) {
+  const toneClassName =
+    tone === "danger"
+      ? "border-red-200 bg-red-50 text-red-700"
+      : tone === "warning"
+      ? "border-amber-200 bg-amber-50 text-amber-700"
+      : tone === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : "border-stone-200 bg-stone-50 text-stone-700";
+
+  return (
+    <div className={className}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400">
+        {title}
+      </p>
+      {values.length === 0 ? (
+        <p className="mt-2 text-sm text-stone-500">{emptyLabel}</p>
+      ) : (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {values.slice(0, 6).map((value) => (
+            <span
+              key={`${title}-${value}`}
+              className={["rounded-full border px-3 py-1.5 text-xs font-semibold", toneClassName].join(" ")}
+            >
+              {value}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1696,6 +2141,49 @@ function protocolLabel(value: TriageSubprotocolId) {
   };
 
   return labels[value];
+}
+
+function getVitalLabel(value: keyof TriageInput["vitals"]) {
+  const labels: Partial<Record<keyof TriageInput["vitals"], string>> = {
+    systolicBp: "PA sistolica",
+    diastolicBp: "PA diastolica",
+    heartRate: "FC",
+    respiratoryRate: "FR",
+    spo2: "SpO2",
+    temperatureC: "Temperatura",
+    glasgow: "Glasgow",
+    painScale: "Dolor EVA",
+    capillaryGlucose: "Glucosa capilar",
+  };
+
+  return labels[value] ?? value;
+}
+
+function getTriageTone(color: TriageColor) {
+  const palette: Record<TriageColor, { surface: string; softSurface: string }> = {
+    rojo: {
+      surface: "border-red-200 bg-red-50 text-red-700",
+      softSurface: "border-red-100 bg-red-50/70 text-red-700",
+    },
+    naranja: {
+      surface: "border-orange-200 bg-orange-50 text-orange-700",
+      softSurface: "border-orange-100 bg-orange-50/70 text-orange-700",
+    },
+    amarillo: {
+      surface: "border-amber-200 bg-amber-50 text-amber-700",
+      softSurface: "border-amber-100 bg-amber-50/70 text-amber-700",
+    },
+    verde: {
+      surface: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      softSurface: "border-emerald-100 bg-emerald-50/70 text-emerald-700",
+    },
+    azul: {
+      surface: "border-sky-200 bg-sky-50 text-sky-700",
+      softSurface: "border-sky-100 bg-sky-50/70 text-sky-700",
+    },
+  };
+
+  return palette[color];
 }
 
 function toNullableNumber(value: string): number | null {

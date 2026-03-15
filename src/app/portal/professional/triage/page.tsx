@@ -126,6 +126,9 @@ export default function TriagePage() {
   const [triageFilter, setTriageFilter] = useState<"all" | TriageColor>("all");
   const [riskFilter, setRiskFilter] = useState<"all" | RiskLevel>("all");
   const [selectedPatientId, setSelectedPatientId] = useState("");
+  const [workspaceTab, setWorkspaceTab] = useState<"evaluacion" | "contexto" | "evolucion">(
+    "evaluacion"
+  );
   const deferredSearch = useDeferredValue(search);
 
   const triageQueue = useMemo(() => {
@@ -405,77 +408,124 @@ export default function TriagePage() {
               <>
                 <SelectedPatientHero patient={selectedPatient} />
 
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
-                  <DarkPanel
-                    title="Paciente seleccionado"
-                    subtitle="Contexto clinico inmediato para clasificar y actuar"
-                    rightSlot={
-                      <span
+                <div className="flex flex-wrap gap-2">
+                  <WorkspaceTabButton
+                    active={workspaceTab === "evaluacion"}
+                    label="Evaluacion"
+                    onClick={() => setWorkspaceTab("evaluacion")}
+                  />
+                  <WorkspaceTabButton
+                    active={workspaceTab === "contexto"}
+                    label="Contexto clinico"
+                    onClick={() => setWorkspaceTab("contexto")}
+                  />
+                  <WorkspaceTabButton
+                    active={workspaceTab === "evolucion"}
+                    label="Evolucion"
+                    onClick={() => setWorkspaceTab("evolucion")}
+                  />
+                </div>
+
+                {workspaceTab === "evaluacion" ? (
+                  <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.08fr)_380px]">
+                    <DarkPanel
+                      title="Evaluacion de ingreso"
+                      subtitle="Contexto clinico inmediato para clasificar y decidir conducta"
+                      rightSlot={
+                        <span
+                          className={[
+                            "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
+                            triageMeta[selectedPatient.triageColor].pillClassName,
+                          ].join(" ")}
+                        >
+                          {triageMeta[selectedPatient.triageColor].index} ·{" "}
+                          {triageMeta[selectedPatient.triageColor].label}
+                        </span>
+                      }
+                    >
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <InfoField
+                          label="Motivo de consulta principal"
+                          value={selectedPatient.triageAssessment.consultationReason}
+                        />
+                        <InfoField
+                          label="Servicio destino"
+                          value={getDestinationService(selectedPatient)}
+                        />
+                        <InfoField
+                          label="Inicio de sintomas"
+                          value={selectedPatient.triageAssessment.evolutionTime}
+                        />
+                        <InfoField
+                          label="Profesional de triaje"
+                          value={selectedPatient.assignedProfessional}
+                        />
+                      </div>
+
+                      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+                        <VitalSignsCard latestVital={latestVital} />
+
+                        <div className="space-y-4">
+                          <ScaleCard title="Dolor - escala EVA">
+                            <PainScale value={latestVital?.painScale ?? 0} />
+                          </ScaleCard>
+
+                          <ScaleCard title="Nivel de conciencia - AVPU">
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                              {avpuLabels.map((option) => (
+                                <div
+                                  key={option.id}
+                                  className={[
+                                    "rounded-2xl border px-3 py-3 text-center",
+                                    selectedAvpu === option.id
+                                      ? "border-emerald-300/35 bg-emerald-500/15 text-emerald-50"
+                                      : "border-white/10 bg-black/20 text-slate-400",
+                                  ].join(" ")}
+                                >
+                                  <p className="text-lg font-semibold">{option.id}</p>
+                                  <p className="text-xs">{option.label}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </ScaleCard>
+                        </div>
+                      </div>
+                    </DarkPanel>
+
+                    <DarkPanel
+                      title="Resolucion de triaje"
+                      subtitle="Nivel actual, discriminadores activos y accion inmediata"
+                    >
+                      <div
                         className={[
-                          "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
-                          triageMeta[selectedPatient.triageColor].pillClassName,
+                          "rounded-[24px] border p-4",
+                          triageMeta[selectedPatient.triageColor].cardClassName,
                         ].join(" ")}
                       >
-                        {triageMeta[selectedPatient.triageColor].index} ·{" "}
-                        {triageMeta[selectedPatient.triageColor].label}
-                      </span>
-                    }
-                  >
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <InfoField
-                        label="Motivo de consulta principal"
-                        value={selectedPatient.triageAssessment.consultationReason}
-                      />
-                      <InfoField
-                        label="Servicio destino"
-                        value={getDestinationService(selectedPatient)}
-                      />
-                      <InfoField
-                        label="Inicio de sintomas"
-                        value={selectedPatient.triageAssessment.evolutionTime}
-                      />
-                      <InfoField
-                        label="Profesional de triaje"
-                        value={selectedPatient.assignedProfessional}
-                      />
-                    </div>
-
-                    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                      <VitalSignsCard latestVital={latestVital} />
-
-                      <div className="space-y-4">
-                        <ScaleCard title="Dolor - escala EVA">
-                          <PainScale value={latestVital?.painScale ?? 0} />
-                        </ScaleCard>
-
-                        <ScaleCard title="Nivel de conciencia - AVPU">
-                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                            {avpuLabels.map((option) => (
-                              <div
-                                key={option.id}
-                                className={[
-                                  "rounded-2xl border px-3 py-3 text-center",
-                                  selectedAvpu === option.id
-                                    ? "border-emerald-300/35 bg-emerald-500/15 text-emerald-50"
-                                    : "border-white/10 bg-black/20 text-slate-400",
-                                ].join(" ")}
-                              >
-                                <p className="text-lg font-semibold">{option.id}</p>
-                                <p className="text-xs">{option.label}</p>
-                              </div>
-                            ))}
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/70">
+                              Clasificacion actual
+                            </p>
+                            <p className="mt-3 text-3xl font-semibold tracking-tight">
+                              {triageMeta[selectedPatient.triageColor].index} ·{" "}
+                              {triageMeta[selectedPatient.triageColor].label}
+                            </p>
+                            <p className="mt-2 text-sm text-white/80">
+                              {triageMeta[selectedPatient.triageColor].target}
+                            </p>
                           </div>
-                        </ScaleCard>
+                          <span className="rounded-full border border-white/15 bg-black/15 px-3 py-1 text-xs font-medium text-white">
+                            {triageMeta[selectedPatient.triageColor].waitLabel}
+                          </span>
+                        </div>
+                        <p className="mt-4 text-sm leading-6 text-white/85">
+                          {selectedPatient.triageAssessment.riskClassification} ·{" "}
+                          {selectedPatient.primaryDiagnosis}
+                        </p>
                       </div>
-                    </div>
-                  </DarkPanel>
 
-                  <div className="space-y-4">
-                    <DarkPanel
-                      title="Clasificacion MSP"
-                      subtitle="Nivel de prioridad y tiempos objetivo"
-                    >
-                      <div className="grid grid-cols-2 gap-2 xl:grid-cols-1 2xl:grid-cols-2">
+                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
                         {Object.entries(triageMeta).map(([key, meta]) => {
                           const color = key as TriageColor;
                           const active = selectedPatient.triageColor === color;
@@ -484,63 +534,57 @@ export default function TriagePage() {
                             <div
                               key={color}
                               className={[
-                                "rounded-2xl border p-3 transition",
+                                "rounded-2xl border px-3 py-3",
                                 active
                                   ? meta.cardClassName
                                   : "border-white/10 bg-black/20 text-slate-300",
                               ].join(" ")}
                             >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/65">
-                                    Nivel {meta.index}
-                                  </p>
-                                  <p className="mt-2 text-base font-semibold">{meta.label}</p>
-                                </div>
-                                <span className="text-xs font-medium">{meta.waitLabel}</span>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-semibold">
+                                  {meta.index} · {meta.label}
+                                </span>
+                                <span className="text-xs">{meta.waitLabel}</span>
                               </div>
-                              <p className="mt-3 text-sm text-white/80">{meta.target}</p>
                             </div>
                           );
                         })}
                       </div>
-                    </DarkPanel>
 
-                    <DarkPanel
-                      title="Discriminadores clinicos activos"
-                      subtitle="Signos de alarma, sintomas y banderas de monitorizacion"
-                    >
-                      <div className="flex flex-wrap gap-2">
-                        {selectedDiscriminators.length === 0 ? (
-                          <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-xs text-slate-400">
-                            Sin discriminadores activos
-                          </span>
-                        ) : (
-                          selectedDiscriminators.map((item) => (
-                            <span
-                              key={item.label}
-                              className={[
-                                "rounded-full border px-3 py-1.5 text-xs font-medium",
-                                item.tone === "high"
-                                  ? "border-rose-300/20 bg-rose-500/10 text-rose-100"
-                                  : item.tone === "medium"
-                                  ? "border-amber-300/20 bg-amber-500/10 text-amber-100"
-                                  : "border-emerald-300/20 bg-emerald-500/10 text-emerald-100",
-                              ].join(" ")}
-                            >
-                              {item.label}
+                      <div className="mt-5">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                          Discriminadores clinicos activos
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {selectedDiscriminators.length === 0 ? (
+                            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-xs text-slate-400">
+                              Sin discriminadores activos
                             </span>
-                          ))
-                        )}
+                          ) : (
+                            selectedDiscriminators.map((item) => (
+                              <span
+                                key={item.label}
+                                className={[
+                                  "rounded-full border px-3 py-1.5 text-xs font-medium",
+                                  item.tone === "high"
+                                    ? "border-rose-300/20 bg-rose-500/10 text-rose-100"
+                                    : item.tone === "medium"
+                                    ? "border-amber-300/20 bg-amber-500/10 text-amber-100"
+                                    : "border-emerald-300/20 bg-emerald-500/10 text-emerald-100",
+                                ].join(" ")}
+                              >
+                                {item.label}
+                              </span>
+                            ))
+                          )}
+                        </div>
                       </div>
-                    </DarkPanel>
 
-                    <DarkPanel
-                      title="Conducta sugerida / nota de triaje"
-                      subtitle="Resumen para accion inmediata en admision o sala"
-                    >
-                      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                        <p className="text-sm leading-7 text-slate-200">
+                      <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                          Conducta sugerida
+                        </p>
+                        <p className="mt-3 text-sm leading-7 text-slate-200">
                           {selectedPatient.triageAssessment.suggestedConduct}.{" "}
                           {selectedPatient.triageAssessment.professionalObservations}
                         </p>
@@ -549,7 +593,7 @@ export default function TriagePage() {
                         </p>
                       </div>
 
-                      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                      <div className="mt-4 grid gap-2">
                         <button
                           type="button"
                           className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-white transition hover:border-white/20 hover:bg-white/[0.07]"
@@ -571,164 +615,233 @@ export default function TriagePage() {
                       </div>
                     </DarkPanel>
                   </div>
-                </div>
+                ) : null}
 
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-                  <DarkPanel
-                    title="Diagnosticos activos"
-                    subtitle="Problemas clinicos vigentes del paciente seleccionado"
-                  >
-                    <div className="space-y-3">
-                      {activeDiagnoses.map((diagnosis) => (
-                        <div
-                          key={diagnosis.id}
-                          className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 lg:flex-row lg:items-start lg:justify-between"
-                        >
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] font-medium text-slate-400">
-                                {diagnosis.type}
+                {workspaceTab === "contexto" ? (
+                  <div className="space-y-4">
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+                      <DarkPanel
+                        title="Diagnosticos activos"
+                        subtitle="Problemas clinicos vigentes del paciente seleccionado"
+                      >
+                        <div className="space-y-3">
+                          {activeDiagnoses.map((diagnosis) => (
+                            <div
+                              key={diagnosis.id}
+                              className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 lg:flex-row lg:items-start lg:justify-between"
+                            >
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] font-medium text-slate-400">
+                                    {diagnosis.type}
+                                  </span>
+                                  <p className="text-sm font-semibold text-white">
+                                    {diagnosis.diagnosis}
+                                  </p>
+                                </div>
+                                <p className="mt-2 text-xs leading-6 text-slate-400">
+                                  {diagnosis.observations}
+                                </p>
+                              </div>
+
+                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300">
+                                {diagnosis.status}
                               </span>
-                              <p className="text-sm font-semibold text-white">
-                                {diagnosis.diagnosis}
-                              </p>
                             </div>
-                            <p className="mt-2 text-xs leading-6 text-slate-400">
-                              {diagnosis.observations}
+                          ))}
+                        </div>
+                      </DarkPanel>
+
+                      <DarkPanel
+                        title="Alergias y antecedentes"
+                        subtitle="Datos rapidos antes de medicar o derivar"
+                      >
+                        <div className="space-y-4">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                              Alergias / intolerancias
+                            </p>
+                            {getRecordedAllergies(selectedPatient).length > 0 ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {getRecordedAllergies(selectedPatient).map((item) => (
+                                  <span
+                                    key={item}
+                                    className="rounded-full border border-rose-300/20 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100"
+                                  >
+                                    {item}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="mt-2 text-sm text-slate-400">Sin alergias registradas</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                              Antecedentes familiares
+                            </p>
+                            <p className="mt-2 text-sm leading-7 text-slate-300">
+                              {selectedPatient.antecedentes.family.join(" · ")}
                             </p>
                           </div>
 
-                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300">
-                            {diagnosis.status}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </DarkPanel>
-
-                  <DarkPanel
-                    title="Alergias y antecedentes"
-                    subtitle="Datos rapidos antes de medicar o derivar"
-                  >
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                          Alergias / intolerancias
-                        </p>
-                        {getRecordedAllergies(selectedPatient).length > 0 ? (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {getRecordedAllergies(selectedPatient).map((item) => (
-                              <span
-                                key={item}
-                                className="rounded-full border border-rose-300/20 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100"
-                              >
-                                {item}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="mt-2 text-sm text-slate-400">Sin alergias registradas</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                          Antecedentes familiares
-                        </p>
-                        <p className="mt-2 text-sm leading-7 text-slate-300">
-                          {selectedPatient.antecedentes.family.join(" · ")}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                          Enfermedades cronicas
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {selectedPatient.antecedentes.chronicDiseases.map((item) => (
-                            <span
-                              key={item}
-                              className="rounded-full border border-amber-300/20 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100"
-                            >
-                              {item}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </DarkPanel>
-                </div>
-
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
-                  <DarkPanel
-                    title="Resultados de laboratorio / examenes"
-                    subtitle="Pendientes y resultados recientes vinculados al episodio"
-                  >
-                    <div className="overflow-hidden rounded-2xl border border-white/10">
-                      <table className="min-w-full divide-y divide-white/8 text-left">
-                        <thead className="bg-white/[0.03]">
-                          <tr className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
-                            <th className="px-4 py-3 font-semibold">Examen</th>
-                            <th className="px-4 py-3 font-semibold">Estado</th>
-                            <th className="px-4 py-3 font-semibold">Resumen</th>
-                            <th className="px-4 py-3 font-semibold">Fecha</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/8 bg-black/20">
-                          {recentExams.map((exam) => (
-                            <tr key={exam.id} className="text-sm text-slate-200">
-                              <td className="px-4 py-3">
-                                <div>
-                                  <p className="font-medium text-white">{exam.name}</p>
-                                  <p className="text-xs text-slate-500">{exam.category}</p>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                              Enfermedades cronicas
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {selectedPatient.antecedentes.chronicDiseases.map((item) => (
                                 <span
-                                  className={[
-                                    "rounded-full border px-3 py-1 text-xs font-medium",
-                                    exam.status === "Pendiente"
-                                      ? "border-amber-300/20 bg-amber-500/10 text-amber-100"
-                                      : "border-emerald-300/20 bg-emerald-500/10 text-emerald-100",
-                                  ].join(" ")}
+                                  key={item}
+                                  className="rounded-full border border-amber-300/20 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100"
                                 >
-                                  {exam.status}
+                                  {item}
                                 </span>
-                              </td>
-                              <td className="px-4 py-3 text-slate-300">{exam.summary}</td>
-                              <td className="px-4 py-3 text-slate-400">
-                                {exam.resultAt ?? exam.requestedAt}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </DarkPanel>
-
-                  <DarkPanel
-                    title="Notas clinicas"
-                    subtitle="Ultimas observaciones de enfermeria y medicina"
-                  >
-                    <div className="space-y-3">
-                      {recentNotes.map((note) => (
-                        <div
-                          key={note.id}
-                          className="rounded-2xl border border-white/10 bg-black/20 p-4"
-                        >
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                            <span className="font-semibold text-white">{note.professional}</span>
-                            <span>{note.datetime}</span>
-                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5">
-                              {note.specialty}
-                            </span>
+                              ))}
+                            </div>
                           </div>
-                          <p className="mt-3 text-sm leading-7 text-slate-300">{note.note}</p>
                         </div>
-                      ))}
+                      </DarkPanel>
                     </div>
-                  </DarkPanel>
-                </div>
+
+                    <DarkPanel
+                      title="Resultados de laboratorio / examenes"
+                      subtitle="Pendientes y resultados recientes vinculados al episodio"
+                    >
+                      <div className="overflow-hidden rounded-2xl border border-white/10">
+                        <table className="min-w-full divide-y divide-white/8 text-left">
+                          <thead className="bg-white/[0.03]">
+                            <tr className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+                              <th className="px-4 py-3 font-semibold">Examen</th>
+                              <th className="px-4 py-3 font-semibold">Estado</th>
+                              <th className="px-4 py-3 font-semibold">Resumen</th>
+                              <th className="px-4 py-3 font-semibold">Fecha</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/8 bg-black/20">
+                            {recentExams.map((exam) => (
+                              <tr key={exam.id} className="text-sm text-slate-200">
+                                <td className="px-4 py-3">
+                                  <div>
+                                    <p className="font-medium text-white">{exam.name}</p>
+                                    <p className="text-xs text-slate-500">{exam.category}</p>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span
+                                    className={[
+                                      "rounded-full border px-3 py-1 text-xs font-medium",
+                                      exam.status === "Pendiente"
+                                        ? "border-amber-300/20 bg-amber-500/10 text-amber-100"
+                                        : "border-emerald-300/20 bg-emerald-500/10 text-emerald-100",
+                                    ].join(" ")}
+                                  >
+                                    {exam.status}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-slate-300">{exam.summary}</td>
+                                <td className="px-4 py-3 text-slate-400">
+                                  {exam.resultAt ?? exam.requestedAt}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </DarkPanel>
+                  </div>
+                ) : null}
+
+                {workspaceTab === "evolucion" ? (
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+                    <DarkPanel
+                      title="Notas clinicas"
+                      subtitle="Ultimas observaciones de enfermeria y medicina"
+                    >
+                      <div className="space-y-3">
+                        {recentNotes.map((note) => (
+                          <div
+                            key={note.id}
+                            className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                          >
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                              <span className="font-semibold text-white">{note.professional}</span>
+                              <span>{note.datetime}</span>
+                              <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5">
+                                {note.specialty}
+                              </span>
+                            </div>
+                            <p className="mt-3 text-sm leading-7 text-slate-300">{note.note}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </DarkPanel>
+
+                    <div className="space-y-4">
+                      <DarkPanel
+                        title="Estado operativo"
+                        subtitle="Seguimiento del caso dentro del turno"
+                      >
+                        {selectedAlert ? (
+                          <div className="rounded-2xl border border-rose-300/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-50">
+                            <p className="font-semibold">{selectedAlert.title}</p>
+                            <p className="mt-2 leading-6 text-rose-100/90">
+                              {selectedAlert.detail}
+                            </p>
+                          </div>
+                        ) : null}
+
+                        <div className="mt-4 grid gap-3">
+                          <InfoField
+                            label="Espera actual"
+                            value={`${selectedQueueItem?.waitMinutes ?? 0} min`}
+                          />
+                          <InfoField
+                            label="Objetivo MSP"
+                            value={`${selectedQueueItem?.limitMinutes ?? 0} min`}
+                          />
+                          <InfoField
+                            label="Estado en cola"
+                            value={
+                              selectedQueueItem?.overdue ? "Fuera de objetivo" : "En tiempo"
+                            }
+                          />
+                          <InfoField
+                            label="Hora de clasificacion"
+                            value={selectedPatient.triageAssessment.evaluatedAt}
+                          />
+                        </div>
+                      </DarkPanel>
+
+                      <DarkPanel
+                        title="Acciones rapidas"
+                        subtitle="Continuidad del flujo clinico desde triaje"
+                      >
+                        <div className="grid gap-2">
+                          <button
+                            type="button"
+                            className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-white transition hover:border-white/20 hover:bg-white/[0.07]"
+                          >
+                            Registrar reevaluacion
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-white transition hover:border-white/20 hover:bg-white/[0.07]"
+                          >
+                            Notificar sala destino
+                          </button>
+                          <Link
+                            href={`/portal/professional/patients/${selectedPatient.id}?tab=triage`}
+                            className="rounded-2xl border border-emerald-300/20 bg-emerald-500/12 px-4 py-3 text-center text-sm font-medium text-emerald-50 transition hover:border-emerald-300/30 hover:bg-emerald-500/20"
+                          >
+                            Abrir ficha clinica
+                          </Link>
+                        </div>
+                      </DarkPanel>
+                    </div>
+                  </div>
+                ) : null}
               </>
             ) : (
               <DarkPanel title="Sin paciente seleccionado" subtitle="Usa la cola de triaje para abrir un caso">
@@ -778,6 +891,31 @@ function DarkPanel({
       </div>
       {children}
     </article>
+  );
+}
+
+function WorkspaceTabButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "rounded-full border px-4 py-2 text-sm font-medium transition",
+        active
+          ? "border-emerald-300/30 bg-emerald-500/14 text-emerald-50"
+          : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.06]",
+      ].join(" ")}
+    >
+      {label}
+    </button>
   );
 }
 
