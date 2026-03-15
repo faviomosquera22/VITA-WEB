@@ -5,6 +5,12 @@ import { useDeferredValue, useMemo, useState } from "react";
 
 import { ModulePage } from "../_components/clinical-ui";
 import {
+  examRequestCatalog,
+  examRequestProfiles,
+  type ExamCatalogOption,
+  type ExamRequestPriority,
+} from "../_data/exam-request-catalog";
+import {
   getPatientServiceArea,
   mockPatients,
   type PatientRecord,
@@ -41,9 +47,16 @@ type RequestedLab = {
   id: string;
   patientId: string;
   name: string;
+  category: string;
+  group: string;
   requestedAt: string;
-  priority: "rutina" | "urgente" | "critico";
+  priority: ExamRequestPriority;
   note: string;
+};
+
+type LabDraftItem = {
+  catalogId: string;
+  priority: ExamRequestPriority;
 };
 
 type FollowUpPatient = {
@@ -89,13 +102,15 @@ export default function FollowUpPage() {
     note: "",
   });
   const [labForm, setLabForm] = useState<{
-    name: string;
-    priority: RequestedLab["priority"];
+    catalogId: string;
+    priority: ExamRequestPriority;
     note: string;
+    selectedItems: LabDraftItem[];
   }>({
-    name: "",
+    catalogId: "",
     priority: "urgente",
     note: "",
+    selectedItems: [],
   });
   const deferredSearch = useDeferredValue(search);
 
@@ -167,6 +182,29 @@ export default function FollowUpPage() {
     }),
     [followUpPatients]
   );
+  const labCatalogGroups = useMemo(() => {
+    const groups = new Map<string, ExamCatalogOption[]>();
+
+    for (const item of examRequestCatalog) {
+      const current = groups.get(item.group) ?? [];
+      current.push(item);
+      groups.set(item.group, current);
+    }
+
+    return Array.from(groups.entries());
+  }, []);
+  const selectedLabOption =
+    examRequestCatalog.find((item) => item.id === labForm.catalogId) ?? null;
+  const selectedLabEntries = useMemo(
+    () =>
+      labForm.selectedItems
+        .map((item) => {
+          const option = examRequestCatalog.find((entry) => entry.id === item.catalogId);
+          return option ? { item, option } : null;
+        })
+        .filter((entry): entry is { item: LabDraftItem; option: ExamCatalogOption } => entry !== null),
+    [labForm.selectedItems]
+  );
 
   const openQuickActionPanel = (mode: QuickActionMode, patient: PatientRecord) => {
     setQuickActionPanel({ mode, patientId: patient.id });
@@ -183,11 +221,75 @@ export default function FollowUpPage() {
     }
 
     setLabForm({
-      name:
-        patient.triageColor === "rojo" ? "Troponina I urgente" : "Hemograma de control",
+      catalogId: getSuggestedLabOptionId(patient),
       priority: patient.triageColor === "rojo" ? "critico" : "urgente",
       note: "",
+      selectedItems: [],
     });
+  };
+
+  const handleAddLabSelection = () => {
+    if (!selectedLabOption) {
+      return;
+    }
+
+    setLabForm((prev) => {
+      if (prev.selectedItems.some((item) => item.catalogId === selectedLabOption.id)) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        catalogId: "",
+        priority: selectedLabOption.defaultPriority,
+        selectedItems: [
+          ...prev.selectedItems,
+          {
+            catalogId: selectedLabOption.id,
+            priority: prev.priority,
+          },
+        ],
+      };
+    });
+  };
+
+  const handleAddLabProfile = (optionIds: string[]) => {
+    setLabForm((prev) => {
+      const nextSelected = [...prev.selectedItems];
+
+      optionIds.forEach((optionId) => {
+        const option = examRequestCatalog.find((item) => item.id === optionId);
+        if (!option || nextSelected.some((item) => item.catalogId === optionId)) {
+          return;
+        }
+
+        nextSelected.push({
+          catalogId: optionId,
+          priority: option.defaultPriority,
+        });
+      });
+
+      return {
+        ...prev,
+        selectedItems: nextSelected,
+      };
+    });
+  };
+
+  const handleRemoveLabSelection = (catalogId: string) => {
+    setLabForm((prev) => ({
+      ...prev,
+      selectedItems: prev.selectedItems.filter((item) => item.catalogId !== catalogId),
+    }));
+  };
+
+  const handleLabItemPriorityChange = (catalogId: string, priority: ExamRequestPriority) => {
+    setLabForm((prev) => ({
+      ...prev,
+      selectedItems: prev.selectedItems.map((item) =>
+        item.catalogId === catalogId ? { ...item, priority } : item
+      ),
+    }));
   };
 
   const handleScheduleControl = () => {
@@ -229,31 +331,35 @@ export default function FollowUpPage() {
       return;
     }
 
-    if (!labForm.name.trim()) {
-      return;
-    }
-
     const patient = mockPatients.find((item) => item.id === quickActionPanel.patientId);
     if (!patient) {
       return;
     }
 
-    const record: RequestedLab = {
-      id: `lab-${quickActionPanel.patientId}-${Date.now()}`,
+    if (selectedLabEntries.length === 0) {
+      return;
+    }
+
+    const records: RequestedLab[] = selectedLabEntries.map(({ item, option }, index) => ({
+      id: `lab-${quickActionPanel.patientId}-${Date.now()}-${index}`,
       patientId: quickActionPanel.patientId,
-      name: labForm.name.trim(),
+      name: option.name,
+      category: option.category,
+      group: option.group,
       requestedAt: followUpReferenceNow,
-      priority: labForm.priority,
+      priority: item.priority,
       note: labForm.note.trim(),
-    };
+    }));
 
     setRequestedLabsByPatient((prev) => ({
       ...prev,
-      [quickActionPanel.patientId]: [record, ...(prev[quickActionPanel.patientId] ?? [])],
+      [quickActionPanel.patientId]: [...records, ...(prev[quickActionPanel.patientId] ?? [])],
     }));
     setQuickActionPanel(null);
     setActionFeedback(
-      `${record.name} solicitado para ${patient.fullName} con prioridad ${record.priority}.`
+      `${records.length} examen${records.length === 1 ? "" : "es"} solicitado${
+        records.length === 1 ? "" : "s"
+      } para ${patient.fullName}: ${summarizeLabNames(records)}.`
     );
   };
 
@@ -627,22 +733,36 @@ export default function FollowUpPage() {
                           </div>
                         </div>
                       ) : (
-                        <div className="mt-4 grid gap-3 md:grid-cols-3">
-                          <label className="text-sm text-stone-600">
+                        <div className="mt-4 grid gap-3 md:grid-cols-4">
+                          <label className="text-sm text-stone-600 md:col-span-2">
                             <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400">
-                              Examen / perfil
+                              Examen
                             </span>
-                            <input
-                              value={labForm.name}
-                              onChange={(event) =>
+                            <select
+                              value={labForm.catalogId}
+                              onChange={(event) => {
+                                const option =
+                                  examRequestCatalog.find((item) => item.id === event.target.value) ?? null;
+
                                 setLabForm((prev) => ({
                                   ...prev,
-                                  name: event.target.value,
-                                }))
-                              }
+                                  catalogId: event.target.value,
+                                  priority: option?.defaultPriority ?? prev.priority,
+                                }));
+                              }}
                               className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-300"
-                              placeholder="Troponina I urgente"
-                            />
+                            >
+                              <option value="">Seleccionar examen</option>
+                              {labCatalogGroups.map(([group, items]) => (
+                                <optgroup key={group} label={group}>
+                                  {items.map((item) => (
+                                    <option key={item.id} value={item.id}>
+                                      {item.name}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
                           </label>
                           <label className="text-sm text-stone-600">
                             <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400">
@@ -653,7 +773,7 @@ export default function FollowUpPage() {
                               onChange={(event) =>
                                 setLabForm((prev) => ({
                                   ...prev,
-                                  priority: event.target.value as RequestedLab["priority"],
+                                  priority: event.target.value as ExamRequestPriority,
                                 }))
                               }
                               className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-300"
@@ -663,7 +783,101 @@ export default function FollowUpPage() {
                               <option value="critico">Critico</option>
                             </select>
                           </label>
-                          <label className="text-sm text-stone-600 md:col-span-3">
+                          <div className="flex items-end">
+                            <button
+                              type="button"
+                              onClick={handleAddLabSelection}
+                              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+                            >
+                              <span className="text-lg leading-none">+</span>
+                              Agregar examen
+                            </button>
+                          </div>
+                          <div className="md:col-span-4 rounded-2xl border border-stone-200 bg-white px-4 py-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400">
+                              Perfiles frecuentes
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {examRequestProfiles.map((profile) => (
+                                <button
+                                  key={profile.id}
+                                  type="button"
+                                  onClick={() => handleAddLabProfile(profile.optionIds)}
+                                  className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-100"
+                                >
+                                  + {profile.label}
+                                </button>
+                              ))}
+                            </div>
+                            {selectedLabOption ? (
+                              <p className="mt-3 text-sm text-stone-500">
+                                Seleccionado: <span className="font-medium text-stone-900">{selectedLabOption.name}</span>
+                                {" · "}
+                                {selectedLabOption.group}
+                              </p>
+                            ) : (
+                              <p className="mt-3 text-sm text-stone-500">
+                                Elige un examen del listado para registrarlo.
+                              </p>
+                            )}
+                          </div>
+                          <div className="md:col-span-4 rounded-2xl border border-stone-200 bg-white px-4 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400">
+                                Examenes agregados
+                              </p>
+                              <span className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs text-stone-600">
+                                {selectedLabEntries.length}
+                              </span>
+                            </div>
+
+                            {selectedLabEntries.length === 0 ? (
+                              <p className="mt-3 text-sm text-stone-500">
+                                Agrega uno o varios examenes con `+` antes de registrar la solicitud.
+                              </p>
+                            ) : (
+                              <div className="mt-3 space-y-2">
+                                {selectedLabEntries.map(({ item, option }) => (
+                                  <div
+                                    key={option.id}
+                                    className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-[#fcfbf8] px-4 py-3 lg:flex-row lg:items-center lg:justify-between"
+                                  >
+                                    <div>
+                                      <p className="text-sm font-medium text-stone-900">{option.name}</p>
+                                      <p className="text-xs text-stone-500">
+                                        {option.group} · {option.category}
+                                      </p>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <select
+                                        value={item.priority}
+                                        onChange={(event) =>
+                                          handleLabItemPriorityChange(
+                                            option.id,
+                                            event.target.value as ExamRequestPriority
+                                          )
+                                        }
+                                        className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs text-stone-700 outline-none focus:border-emerald-300"
+                                      >
+                                        <option value="rutina">Rutina</option>
+                                        <option value="urgente">Urgente</option>
+                                        <option value="critico">Critico</option>
+                                      </select>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveLabSelection(option.id)}
+                                        className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-100"
+                                      >
+                                        Quitar
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <label className="text-sm text-stone-600 md:col-span-4">
                             <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400">
                               Indicacion
                             </span>
@@ -679,7 +893,7 @@ export default function FollowUpPage() {
                               placeholder="Motivo clinico de la solicitud..."
                             />
                           </label>
-                          <div className="md:col-span-3 flex flex-wrap gap-2">
+                          <div className="md:col-span-4 flex flex-wrap gap-2">
                             <button
                               type="button"
                               onClick={handleRequestLab}
@@ -1109,7 +1323,7 @@ function buildTimelineItems(
     id: exam.id,
     datetime: exam.requestedAt,
     category: "Solicitud laboratorio",
-    detail: `${exam.name} · Prioridad ${exam.priority}${exam.note ? ` · ${exam.note}` : ""}`,
+    detail: `${exam.name} · ${exam.group} · ${exam.category} · Prioridad ${exam.priority}${exam.note ? ` · ${exam.note}` : ""}`,
     tone: exam.priority === "critico" ? ("critical" as const) : ("warning" as const),
   }));
 
@@ -1174,7 +1388,7 @@ function buildPendingTasks(
     tasks.push({
       id: exam.id,
       title: `Solicitud de laboratorio: ${exam.name}`,
-      detail: `Registrado ${formatCompactDateTime(exam.requestedAt)} · prioridad ${exam.priority}${
+      detail: `${exam.group} · registrado ${formatCompactDateTime(exam.requestedAt)} · prioridad ${exam.priority}${
         exam.note ? ` · ${exam.note}` : ""
       }`,
       urgency: exam.priority === "critico" ? "critical" : "warning",
@@ -1372,6 +1586,16 @@ function getInitials(value: string) {
     .toUpperCase();
 }
 
+function summarizeLabNames(records: RequestedLab[]) {
+  const names = records.map((record) => record.name);
+
+  if (names.length <= 3) {
+    return names.join(", ");
+  }
+
+  return `${names.slice(0, 3).join(", ")} y ${names.length - 3} mas`;
+}
+
 function getSuggestedControlDateTime(patient: PatientRecord) {
   if (patient.triageColor === "rojo") {
     return "2026-03-15T12:00";
@@ -1383,6 +1607,24 @@ function getSuggestedControlDateTime(patient: PatientRecord) {
     return "2026-03-15T18:00";
   }
   return patient.careMode === "Hospitalizacion" ? "2026-03-15T16:00" : "2026-03-16T09:00";
+}
+
+function getSuggestedLabOptionId(patient: PatientRecord) {
+  const diagnosis = patient.primaryDiagnosis.toLowerCase();
+
+  if (patient.triageColor === "rojo" || diagnosis.includes("coronario") || diagnosis.includes("toracico")) {
+    return "troponina_i";
+  }
+
+  if (diagnosis.includes("hiperglucemia") || diagnosis.includes("diabetes")) {
+    return "glucosa";
+  }
+
+  if (diagnosis.includes("infeccion") || diagnosis.includes("fiebre")) {
+    return "hemograma";
+  }
+
+  return "hemograma";
 }
 
 function getNextScheduledControl(controls: ScheduledControl[]) {
