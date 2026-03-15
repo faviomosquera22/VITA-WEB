@@ -461,8 +461,8 @@ export default function TriageIntakePage() {
       }
     >
       <section className="rounded-[34px] border border-stone-200 bg-[#f5f3ee] p-4 sm:p-5">
-        <div className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-[240px_minmax(0,1fr)_320px]">
-          <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+        <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_280px]">
+          <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
             <div className="rounded-[28px] border border-stone-200 bg-white p-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-stone-400">
                 Progreso
@@ -518,16 +518,16 @@ export default function TriageIntakePage() {
           </aside>
 
           <div className="space-y-4">
-            <div className="rounded-[28px] border border-stone-200 bg-white p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="rounded-[28px] border border-stone-200 bg-white p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-sm font-medium text-stone-500">
                     Paso {activeIndex + 1} de {triageIntakeSections.length}
                   </p>
-                  <h2 className="mt-1 text-3xl font-semibold tracking-tight text-stone-950">
+                  <h2 className="mt-1 text-2xl font-semibold tracking-tight text-stone-950 xl:text-3xl">
                     {activeSection.code} · {activeSection.label}
                   </h2>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">
+                  <p className="mt-1.5 max-w-3xl text-sm leading-6 text-stone-600">
                     {activeSection.helper}
                   </p>
                 </div>
@@ -542,7 +542,7 @@ export default function TriageIntakePage() {
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 {sectionProgress.map((section) => (
                   <button
                     key={section.id}
@@ -575,7 +575,7 @@ export default function TriageIntakePage() {
               </div>
             </div>
 
-            <div className="2xl:hidden">
+            <div className="xl:hidden">
               <LiveTriageSummary
                 engineResult={engineResult}
                 finalColor={finalColor}
@@ -588,7 +588,7 @@ export default function TriageIntakePage() {
               />
             </div>
 
-            <div className="rounded-[28px] border border-stone-200 bg-white p-5">
+            <div className="rounded-[28px] border border-stone-200 bg-white p-4 xl:p-5">
               {submitMessage ? (
                 <div
                   className={[
@@ -1326,7 +1326,7 @@ export default function TriageIntakePage() {
             </div>
           </div>
 
-          <aside className="hidden 2xl:block 2xl:sticky 2xl:top-4 2xl:self-start">
+          <aside className="hidden xl:block xl:sticky xl:top-4 xl:self-start">
             <LiveTriageSummary
               engineResult={engineResult}
               finalColor={finalColor}
@@ -1405,91 +1405,92 @@ function LiveTriageSummary({
   return (
     <div className="space-y-4">
       <div className="rounded-[28px] border border-stone-200 bg-white p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-stone-400">
-          Clasificacion automatica
-        </p>
-        <div className={["mt-3 rounded-[24px] border p-4", automaticTone.surface].join(" ")}>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-75">
-                Sugerida por el motor
-              </p>
-              <p className="mt-2 text-3xl font-semibold tracking-tight">
-                {engineResult.suggestedColor.toUpperCase()}
-              </p>
-              <p className="mt-1 text-sm">
-                {engineResult.priorityLabel} · max {engineResult.maxWaitMinutes} min
-              </p>
-            </div>
-            <span className="rounded-full border border-current/20 bg-white/60 px-3 py-1 text-xs font-semibold">
-              P{engineResult.priority}
-            </span>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-stone-400">
+              Resumen automatico
+            </p>
+            <p className="mt-1 text-sm text-stone-500">
+              El color sigue calculandose automaticamente mientras completas el paso.
+            </p>
           </div>
-          {engineResult.reasons.length > 0 ? (
-            <p className="mt-3 text-sm leading-6">{engineResult.reasons[0]}</p>
-          ) : null}
+          <span className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-semibold text-stone-600">
+            {manualMode ? "Manual" : "Automatico"}
+          </span>
         </div>
 
-        <div className={["mt-3 rounded-[24px] border p-4", finalTone.softSurface].join(" ")}>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-75">
-                Resultado actual
-              </p>
-              <p className="mt-2 text-xl font-semibold">
-                {finalColor.toUpperCase()} · Prioridad {finalPriority}
-              </p>
-              <p className="mt-1 text-sm">Tiempo objetivo {finalWait} min</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+          <div className={["rounded-[22px] border p-3", automaticTone.surface].join(" ")}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-75">
+                  Sugerida por el motor
+                </p>
+                <p className="mt-1 text-2xl font-semibold tracking-tight">
+                  {engineResult.suggestedColor.toUpperCase()}
+                </p>
+              </div>
+              <span className="rounded-full border border-current/20 bg-white/60 px-2.5 py-1 text-xs font-semibold">
+                P{engineResult.priority}
+              </span>
             </div>
-            {manualMode ? (
-              <span className="rounded-full border border-current/20 bg-white/60 px-3 py-1 text-xs font-semibold">
-                Manual
+            <p className="mt-1.5 text-sm">
+              {engineResult.priorityLabel} · max {engineResult.maxWaitMinutes} min
+            </p>
+          </div>
+
+          <div className={["rounded-[22px] border p-3", finalTone.softSurface].join(" ")}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-75">
+                  Resultado actual
+                </p>
+                <p className="mt-1 text-xl font-semibold">
+                  {finalColor.toUpperCase()} · P{finalPriority}
+                </p>
+              </div>
+              <span className="rounded-full border border-current/20 bg-white/60 px-2.5 py-1 text-xs font-semibold">
+                {finalWait} min
               </span>
-            ) : (
-              <span className="rounded-full border border-current/20 bg-white/60 px-3 py-1 text-xs font-semibold">
-                Automatico
-              </span>
-            )}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="rounded-[28px] border border-stone-200 bg-white p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-stone-400">
-          Panel clinico
-        </p>
+        {engineResult.reasons.length > 0 ? (
+          <p className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm leading-6 text-stone-600">
+            {engineResult.reasons[0]}
+          </p>
+        ) : null}
 
-        <SummaryList
-          className="mt-4"
-          title="Alertas"
-          values={engineResult.alerts}
-          emptyLabel="Sin alertas activas"
-          tone="danger"
-        />
+        <div className="mt-4 grid gap-4 xl:gap-3">
+          <SummaryList
+            title="Alertas"
+            values={engineResult.alerts}
+            emptyLabel="Sin alertas activas"
+            tone="danger"
+          />
 
-        <SummaryList
-          className="mt-4"
-          title="Protocolos"
-          values={protocolsInUse.map((item) => protocolLabel(item))}
-          emptyLabel="Sin subprotocolos activos"
-          tone="success"
-        />
+          <SummaryList
+            title="Protocolos"
+            values={protocolsInUse.map((item) => protocolLabel(item))}
+            emptyLabel="Sin subprotocolos activos"
+            tone="success"
+          />
 
-        <SummaryList
-          className="mt-4"
-          title="Signos vitales alterados"
-          values={criticalVitalLabels}
-          emptyLabel="Sin valores criticos detectados"
-          tone="warning"
-        />
+          <SummaryList
+            title="Signos alterados"
+            values={criticalVitalLabels}
+            emptyLabel="Sin valores criticos detectados"
+            tone="warning"
+          />
 
-        <SummaryList
-          className="mt-4"
-          title="Pendientes del paso"
-          values={currentSectionMissing}
-          emptyLabel="Paso actual completo"
-          tone="neutral"
-        />
+          <SummaryList
+            title="Pendientes del paso"
+            values={currentSectionMissing}
+            emptyLabel="Paso actual completo"
+            tone="neutral"
+          />
+        </div>
       </div>
     </div>
   );
