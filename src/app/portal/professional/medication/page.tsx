@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { ModulePage, Panel, StatCard } from "../_components/clinical-ui";
 import {
@@ -42,8 +43,10 @@ const defaultDraft: MedicationDraft = {
 const routeOptions = ["Oral", "IV", "IM", "SC", "Topica", "Inhalada", "Sublingual", "Rectal"];
 
 export default function MedicationPage() {
+  const searchParams = useSearchParams();
   const { search, setSearch, selectedPatientId, setSelectedPatientId, filteredPatients, selectedPatient } =
     usePatientSelection(mockPatients);
+  const requestedPatientId = searchParams.get("patientId") ?? "";
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [draft, setDraft] = useState<MedicationDraft>(defaultDraft);
@@ -51,6 +54,16 @@ export default function MedicationPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [catalogSearch, setCatalogSearch] = useState("");
+
+  useEffect(() => {
+    if (!requestedPatientId) {
+      return;
+    }
+
+    if (mockPatients.some((patient) => patient.id === requestedPatientId)) {
+      setSelectedPatientId(requestedPatientId);
+    }
+  }, [requestedPatientId, setSelectedPatientId]);
 
   const medicationCatalog = useMemo<MedicationCatalogItem[]>(() => {
     const fromRecords = mockPatients.flatMap((patient) =>

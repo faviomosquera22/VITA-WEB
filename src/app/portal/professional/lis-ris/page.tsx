@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { ModulePage, Panel, StatCard } from "../_components/clinical-ui";
 import {
@@ -45,6 +46,7 @@ const examProfiles = [
 ];
 
 export default function LisRisPage() {
+  const searchParams = useSearchParams();
   const [areaFilter, setAreaFilter] = useState<"all" | ServiceArea>("all");
 
   const patientsByArea = useMemo(
@@ -63,6 +65,17 @@ export default function LisRisPage() {
     filteredPatients,
     selectedPatient,
   } = usePatientSelection(patientsByArea);
+  const requestedPatientId = searchParams.get("patientId") ?? "";
+
+  useEffect(() => {
+    if (!requestedPatientId) {
+      return;
+    }
+
+    if (patientsByArea.some((patient) => patient.id === requestedPatientId)) {
+      setSelectedPatientId(requestedPatientId);
+    }
+  }, [patientsByArea, requestedPatientId, setSelectedPatientId]);
 
   const examRows = useMemo(
     () =>

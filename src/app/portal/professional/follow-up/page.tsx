@@ -12,6 +12,7 @@ import {
 } from "../_data/clinical-mock-data";
 
 type QuickFilter = "all" | "pending" | "risk" | "discharge";
+type QuickActionMode = "control" | "lab";
 
 type FollowUpTask = {
   id: string;
@@ -28,6 +29,23 @@ type TimelineItem = {
   tone: "critical" | "warning" | "info" | "neutral";
 };
 
+type ScheduledControl = {
+  id: string;
+  patientId: string;
+  datetime: string;
+  controlType: string;
+  note: string;
+};
+
+type RequestedLab = {
+  id: string;
+  patientId: string;
+  name: string;
+  requestedAt: string;
+  priority: "rutina" | "urgente" | "critico";
+  note: string;
+};
+
 type FollowUpPatient = {
   patient: PatientRecord;
   pendingCount: number;
@@ -41,6 +59,8 @@ type FollowUpPatient = {
   pendingTasks: FollowUpTask[];
 };
 
+const followUpReferenceNow = "2026-03-15 11:26";
+
 const quickFilters: Array<{ id: QuickFilter; label: string }> = [
   { id: "all", label: "Todos" },
   { id: "pending", label: "Pendientes" },
@@ -52,11 +72,42 @@ export default function FollowUpPage() {
   const [search, setSearch] = useState("");
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
   const [selectedPatientId, setSelectedPatientId] = useState("");
+  const [scheduledControlsByPatient, setScheduledControlsByPatient] = useState<
+    Record<string, ScheduledControl[]>
+  >({});
+  const [requestedLabsByPatient, setRequestedLabsByPatient] = useState<
+    Record<string, RequestedLab[]>
+  >({});
+  const [quickActionPanel, setQuickActionPanel] = useState<{
+    patientId: string;
+    mode: QuickActionMode;
+  } | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [controlForm, setControlForm] = useState({
+    datetime: "",
+    controlType: "Control clinico",
+    note: "",
+  });
+  const [labForm, setLabForm] = useState<{
+    name: string;
+    priority: RequestedLab["priority"];
+    note: string;
+  }>({
+    name: "",
+    priority: "urgente",
+    note: "",
+  });
   const deferredSearch = useDeferredValue(search);
 
   const followUpPatients = useMemo(
-    () => mockPatients.map((patient) => buildFollowUpPatient(patient)),
-    []
+    () =>
+      mockPatients.map((patient) =>
+        buildFollowUpPatient(patient, {
+          scheduledControls: scheduledControlsByPatient[patient.id] ?? [],
+          requestedLabs: requestedLabsByPatient[patient.id] ?? [],
+        })
+      ),
+    [requestedLabsByPatient, scheduledControlsByPatient]
   );
 
   const filteredPatients = useMemo(() => {
@@ -98,6 +149,9 @@ export default function FollowUpPage() {
   const selectedPatient = selectedEntry?.patient ?? null;
   const latestVital = selectedPatient?.vitalSigns[0] ?? null;
   const previousVital = selectedPatient?.vitalSigns[1] ?? null;
+  const selectedPatientWorkspaceHref = selectedEntry
+    ? `/portal/professional/patients/${selectedEntry.patient.id}`
+    : "/portal/professional/patients";
 
   const metrics = useMemo(
     () => ({
@@ -114,6 +168,95 @@ export default function FollowUpPage() {
     [followUpPatients]
   );
 
+  const openQuickActionPanel = (mode: QuickActionMode, patient: PatientRecord) => {
+    setQuickActionPanel({ mode, patientId: patient.id });
+    setActionFeedback(null);
+
+    if (mode === "control") {
+      setControlForm({
+        datetime: getSuggestedControlDateTime(patient),
+        controlType:
+          patient.triageColor === "rojo" ? "Control cardiaco" : "Control de seguimiento",
+        note: "",
+      });
+      return;
+    }
+
+    setLabForm({
+      name:
+        patient.triageColor === "rojo" ? "Troponina I urgente" : "Hemograma de control",
+      priority: patient.triageColor === "rojo" ? "critico" : "urgente",
+      note: "",
+    });
+  };
+
+  const handleScheduleControl = () => {
+    if (!quickActionPanel || quickActionPanel.mode !== "control") {
+      return;
+    }
+
+    if (!controlForm.datetime || !controlForm.controlType.trim()) {
+      return;
+    }
+
+    const patient = mockPatients.find((item) => item.id === quickActionPanel.patientId);
+    if (!patient) {
+      return;
+    }
+
+    const record: ScheduledControl = {
+      id: `ctrl-${quickActionPanel.patientId}-${Date.now()}`,
+      patientId: quickActionPanel.patientId,
+      datetime: toStorageDateTime(controlForm.datetime),
+      controlType: controlForm.controlType.trim(),
+      note: controlForm.note.trim(),
+    };
+
+    setScheduledControlsByPatient((prev) => ({
+      ...prev,
+      [quickActionPanel.patientId]: [record, ...(prev[quickActionPanel.patientId] ?? [])].sort((left, right) =>
+        left.datetime.localeCompare(right.datetime)
+      ),
+    }));
+    setQuickActionPanel(null);
+    setActionFeedback(
+      `${record.controlType} programado para ${patient.fullName} el ${formatCompactDateTime(record.datetime)}.`
+    );
+  };
+
+  const handleRequestLab = () => {
+    if (!quickActionPanel || quickActionPanel.mode !== "lab") {
+      return;
+    }
+
+    if (!labForm.name.trim()) {
+      return;
+    }
+
+    const patient = mockPatients.find((item) => item.id === quickActionPanel.patientId);
+    if (!patient) {
+      return;
+    }
+
+    const record: RequestedLab = {
+      id: `lab-${quickActionPanel.patientId}-${Date.now()}`,
+      patientId: quickActionPanel.patientId,
+      name: labForm.name.trim(),
+      requestedAt: followUpReferenceNow,
+      priority: labForm.priority,
+      note: labForm.note.trim(),
+    };
+
+    setRequestedLabsByPatient((prev) => ({
+      ...prev,
+      [quickActionPanel.patientId]: [record, ...(prev[quickActionPanel.patientId] ?? [])],
+    }));
+    setQuickActionPanel(null);
+    setActionFeedback(
+      `${record.name} solicitado para ${patient.fullName} con prioridad ${record.priority}.`
+    );
+  };
+
   return (
     <ModulePage
       title="Seguimiento clinico longitudinal"
@@ -121,13 +264,23 @@ export default function FollowUpPage() {
       actions={
         <div className="flex flex-wrap gap-2">
           <Link
-            href="/portal/professional/reports"
+            href={
+              selectedEntry
+                ? `/portal/professional/reports?patientId=${selectedEntry.patient.id}`
+                : "/portal/professional/reports"
+            }
             className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
             Ir a reportes
           </Link>
           <button
             type="button"
+            onClick={() => {
+              if (selectedEntry) {
+                openQuickActionPanel("control", selectedEntry.patient);
+              }
+            }}
+            disabled={!selectedEntry}
             className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
           >
             Nuevo control
@@ -350,13 +503,201 @@ export default function FollowUpPage() {
                   </div>
 
                   <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
-                    <ActionButton label="Registrar evolucion" />
-                    <ActionButton label="Actualizar signos" />
-                    <ActionButton label="Prescribir" />
-                    <ActionButton label="Solicitar lab" />
-                    <ActionButton label="Programar control" />
-                    <ActionButton label="Re-triaje" tone="critical" />
+                    <ActionButton
+                      label="Registrar evolucion"
+                      href={`${selectedPatientWorkspaceHref}?tab=medical_notes`}
+                    />
+                    <ActionButton
+                      label="Actualizar signos"
+                      href={`/portal/professional/vitals?patientId=${selectedEntry.patient.id}`}
+                    />
+                    <ActionButton
+                      label="Prescribir"
+                      href={`/portal/professional/medication?patientId=${selectedEntry.patient.id}`}
+                    />
+                    <ActionButton
+                      label="Solicitar lab"
+                      onClick={() => openQuickActionPanel("lab", selectedEntry.patient)}
+                    />
+                    <ActionButton
+                      label="Programar control"
+                      onClick={() => openQuickActionPanel("control", selectedEntry.patient)}
+                    />
+                    <ActionButton
+                      label="Re-triaje"
+                      href={`${selectedPatientWorkspaceHref}?tab=triage`}
+                      tone="critical"
+                    />
                   </div>
+
+                  {actionFeedback ? (
+                    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      {actionFeedback}
+                    </div>
+                  ) : null}
+
+                  {quickActionPanel?.patientId === selectedEntry.patient.id ? (
+                    <section className="mt-4 rounded-[24px] border border-stone-200 bg-[#fcfbf8] p-4">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-stone-400">
+                            {quickActionPanel.mode === "control"
+                              ? "Programacion rapida de control"
+                              : "Solicitud rapida de laboratorio"}
+                          </p>
+                          <p className="mt-1 text-sm text-stone-600">
+                            {quickActionPanel.mode === "control"
+                              ? "Agenda un nuevo control sin salir de seguimiento."
+                              : "Registra un examen pendiente y dejalo visible en la trazabilidad del paciente."}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setQuickActionPanel(null)}
+                          className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600 hover:bg-stone-100"
+                        >
+                          Cerrar
+                        </button>
+                      </div>
+
+                      {quickActionPanel.mode === "control" ? (
+                        <div className="mt-4 grid gap-3 md:grid-cols-3">
+                          <label className="text-sm text-stone-600">
+                            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400">
+                              Fecha y hora
+                            </span>
+                            <input
+                              type="datetime-local"
+                              value={controlForm.datetime}
+                              onChange={(event) =>
+                                setControlForm((prev) => ({
+                                  ...prev,
+                                  datetime: event.target.value,
+                                }))
+                              }
+                              className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-300"
+                            />
+                          </label>
+                          <label className="text-sm text-stone-600">
+                            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400">
+                              Tipo de control
+                            </span>
+                            <input
+                              value={controlForm.controlType}
+                              onChange={(event) =>
+                                setControlForm((prev) => ({
+                                  ...prev,
+                                  controlType: event.target.value,
+                                }))
+                              }
+                              className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-300"
+                              placeholder="Control clinico"
+                            />
+                          </label>
+                          <label className="text-sm text-stone-600 md:col-span-3">
+                            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400">
+                              Observacion
+                            </span>
+                            <textarea
+                              value={controlForm.note}
+                              onChange={(event) =>
+                                setControlForm((prev) => ({
+                                  ...prev,
+                                  note: event.target.value,
+                                }))
+                              }
+                              className="min-h-[96px] w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-300"
+                              placeholder="Indicaciones para el siguiente control..."
+                            />
+                          </label>
+                          <div className="md:col-span-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={handleScheduleControl}
+                              className="rounded-2xl border border-emerald-200 bg-emerald-600 px-4 py-3 text-sm font-medium text-white hover:bg-emerald-700"
+                            >
+                              Guardar control
+                            </button>
+                            <Link
+                              href={`${selectedPatientWorkspaceHref}?tab=medical_notes`}
+                              className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm font-medium text-stone-700 hover:bg-stone-50"
+                            >
+                              Abrir reporte medico
+                            </Link>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-4 grid gap-3 md:grid-cols-3">
+                          <label className="text-sm text-stone-600">
+                            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400">
+                              Examen / perfil
+                            </span>
+                            <input
+                              value={labForm.name}
+                              onChange={(event) =>
+                                setLabForm((prev) => ({
+                                  ...prev,
+                                  name: event.target.value,
+                                }))
+                              }
+                              className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-300"
+                              placeholder="Troponina I urgente"
+                            />
+                          </label>
+                          <label className="text-sm text-stone-600">
+                            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400">
+                              Prioridad
+                            </span>
+                            <select
+                              value={labForm.priority}
+                              onChange={(event) =>
+                                setLabForm((prev) => ({
+                                  ...prev,
+                                  priority: event.target.value as RequestedLab["priority"],
+                                }))
+                              }
+                              className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-300"
+                            >
+                              <option value="rutina">Rutina</option>
+                              <option value="urgente">Urgente</option>
+                              <option value="critico">Critico</option>
+                            </select>
+                          </label>
+                          <label className="text-sm text-stone-600 md:col-span-3">
+                            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400">
+                              Indicacion
+                            </span>
+                            <textarea
+                              value={labForm.note}
+                              onChange={(event) =>
+                                setLabForm((prev) => ({
+                                  ...prev,
+                                  note: event.target.value,
+                                }))
+                              }
+                              className="min-h-[96px] w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-300"
+                              placeholder="Motivo clinico de la solicitud..."
+                            />
+                          </label>
+                          <div className="md:col-span-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={handleRequestLab}
+                              className="rounded-2xl border border-emerald-200 bg-emerald-600 px-4 py-3 text-sm font-medium text-white hover:bg-emerald-700"
+                            >
+                              Registrar solicitud
+                            </button>
+                            <Link
+                              href={`/portal/professional/lis-ris?patientId=${selectedEntry.patient.id}`}
+                              className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm font-medium text-stone-700 hover:bg-stone-50"
+                            >
+                              Abrir LIS / RIS
+                            </Link>
+                          </div>
+                        </div>
+                      )}
+                    </section>
+                  ) : null}
                 </section>
 
                 {selectedEntry.pendingTasks[0] ? (
@@ -381,12 +722,12 @@ export default function FollowUpPage() {
                           Tendencia frente al control previo
                         </p>
                       </div>
-                      <button
-                        type="button"
+                      <Link
+                        href={`/portal/professional/vitals?patientId=${selectedEntry.patient.id}`}
                         className="text-sm font-medium text-emerald-700"
                       >
                         Ver todos
-                      </button>
+                      </Link>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
@@ -588,20 +929,31 @@ function HeaderKpi({
 function ActionButton({
   label,
   tone = "default",
+  href,
+  onClick,
 }: {
   label: string;
   tone?: "default" | "critical";
+  href?: string;
+  onClick?: () => void;
 }) {
+  const className = [
+    "rounded-2xl border px-4 py-3 text-center text-sm font-medium transition",
+    tone === "critical"
+      ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+      : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50",
+  ].join(" ");
+
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {label}
+      </Link>
+    );
+  }
+
   return (
-    <button
-      type="button"
-      className={[
-        "rounded-2xl border px-4 py-3 text-sm font-medium transition",
-        tone === "critical"
-          ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-          : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50",
-      ].join(" ")}
-    >
+    <button type="button" onClick={onClick} className={className}>
       {label}
     </button>
   );
@@ -686,18 +1038,25 @@ function PendingTaskCard({ task }: { task: FollowUpTask }) {
   );
 }
 
-function buildFollowUpPatient(patient: PatientRecord): FollowUpPatient {
-  const timelineItems = buildTimelineItems(patient);
-  const pendingTasks = buildPendingTasks(patient);
-  const pendingLabs = patient.exams.filter((exam) => exam.status === "Pendiente").length;
+function buildFollowUpPatient(
+  patient: PatientRecord,
+  extras: {
+    scheduledControls: ScheduledControl[];
+    requestedLabs: RequestedLab[];
+  }
+): FollowUpPatient {
+  const timelineItems = buildTimelineItems(patient, extras);
+  const pendingTasks = buildPendingTasks(patient, extras);
+  const pendingLabs =
+    patient.exams.filter((exam) => exam.status === "Pendiente").length + extras.requestedLabs.length;
   const stayHours = getStayHours(patient);
   const followUpStatus = getFollowUpStatus(patient, pendingTasks.length);
 
   return {
     patient,
     pendingCount: pendingTasks.length,
-    controlLabel: getControlLabel(patient),
-    controlCountdown: getControlCountdown(patient),
+    controlLabel: getControlLabel(patient, extras.scheduledControls),
+    controlCountdown: getControlCountdown(patient, extras.scheduledControls),
     followUpStatus,
     pendingLabs,
     stayHours,
@@ -707,7 +1066,13 @@ function buildFollowUpPatient(patient: PatientRecord): FollowUpPatient {
   };
 }
 
-function buildTimelineItems(patient: PatientRecord): TimelineItem[] {
+function buildTimelineItems(
+  patient: PatientRecord,
+  extras: {
+    scheduledControls: ScheduledControl[];
+    requestedLabs: RequestedLab[];
+  }
+): TimelineItem[] {
   const timelineEvents = patient.timeline.map((event) => ({
     id: event.id,
     datetime: event.datetime,
@@ -732,13 +1097,47 @@ function buildTimelineItems(patient: PatientRecord): TimelineItem[] {
     tone: exam.status === "Pendiente" ? ("warning" as const) : ("neutral" as const),
   }));
 
-  return [...timelineEvents, ...noteEvents, ...examEvents]
+  const scheduledEvents = extras.scheduledControls.map((control) => ({
+    id: control.id,
+    datetime: control.datetime,
+    category: "Control programado",
+    detail: `${control.controlType}${control.note ? ` · ${control.note}` : ""}`,
+    tone: "info" as const,
+  }));
+
+  const requestedLabEvents = extras.requestedLabs.map((exam) => ({
+    id: exam.id,
+    datetime: exam.requestedAt,
+    category: "Solicitud laboratorio",
+    detail: `${exam.name} · Prioridad ${exam.priority}${exam.note ? ` · ${exam.note}` : ""}`,
+    tone: exam.priority === "critico" ? ("critical" as const) : ("warning" as const),
+  }));
+
+  return [...timelineEvents, ...noteEvents, ...examEvents, ...scheduledEvents, ...requestedLabEvents]
     .sort((left, right) => right.datetime.localeCompare(left.datetime))
     .slice(0, 7);
 }
 
-function buildPendingTasks(patient: PatientRecord): FollowUpTask[] {
+function buildPendingTasks(
+  patient: PatientRecord,
+  extras: {
+    scheduledControls: ScheduledControl[];
+    requestedLabs: RequestedLab[];
+  }
+): FollowUpTask[] {
   const tasks: FollowUpTask[] = [];
+  const nextControl = getNextScheduledControl(extras.scheduledControls);
+
+  if (nextControl) {
+    tasks.push({
+      id: nextControl.id,
+      title: nextControl.controlType,
+      detail: `${formatCompactDateTime(nextControl.datetime)} · ${getCountdownLabel(nextControl.datetime)}${
+        nextControl.note ? ` · ${nextControl.note}` : ""
+      }`,
+      urgency: getScheduledControlUrgency(nextControl.datetime),
+    });
+  }
 
   if (patient.triageColor === "rojo") {
     tasks.push({
@@ -771,6 +1170,17 @@ function buildPendingTasks(patient: PatientRecord): FollowUpTask[] {
       });
     });
 
+  extras.requestedLabs.forEach((exam) => {
+    tasks.push({
+      id: exam.id,
+      title: `Solicitud de laboratorio: ${exam.name}`,
+      detail: `Registrado ${formatCompactDateTime(exam.requestedAt)} · prioridad ${exam.priority}${
+        exam.note ? ` · ${exam.note}` : ""
+      }`,
+      urgency: exam.priority === "critico" ? "critical" : "warning",
+    });
+  });
+
   if (patient.currentStatus === "Alta proxima" || patient.careMode === "Ambulatorio") {
     tasks.push({
       id: `${patient.id}-discharge`,
@@ -799,7 +1209,13 @@ function getFollowUpStatus(patient: PatientRecord, pendingCount: number) {
   return "Adecuada";
 }
 
-function getControlLabel(patient: PatientRecord) {
+function getControlLabel(patient: PatientRecord, scheduledControls: ScheduledControl[] = []) {
+  const nextControl = getNextScheduledControl(scheduledControls);
+
+  if (nextControl) {
+    return formatControlSlot(nextControl.datetime);
+  }
+
   if (patient.triageColor === "rojo") {
     return "hoy 12:00";
   }
@@ -815,7 +1231,13 @@ function getControlLabel(patient: PatientRecord) {
   return "manana 09:00";
 }
 
-function getControlCountdown(patient: PatientRecord) {
+function getControlCountdown(patient: PatientRecord, scheduledControls: ScheduledControl[] = []) {
+  const nextControl = getNextScheduledControl(scheduledControls);
+
+  if (nextControl) {
+    return getCountdownLabel(nextControl.datetime);
+  }
+
   if (patient.triageColor === "rojo") {
     return "Vence en 45 min";
   }
@@ -847,7 +1269,10 @@ function getProtocolLabel(patient: PatientRecord) {
 function getStayHours(patient: PatientRecord) {
   const latest = patient.vitalSigns[0]?.recordedAt ?? `${patient.admissionDate} 08:00`;
   const admitted = `${patient.admissionDate} 08:00`;
-  const hours = Math.max(Math.round((Date.parse(latest) - Date.parse(admitted)) / 36e5), 6);
+  const hours = Math.max(
+    Math.round((parseFollowUpDateTime(latest).getTime() - parseFollowUpDateTime(admitted).getTime()) / 36e5),
+    6
+  );
   return hours;
 }
 
@@ -945,4 +1370,96 @@ function getInitials(value: string) {
     .map((item) => item[0] ?? "")
     .join("")
     .toUpperCase();
+}
+
+function getSuggestedControlDateTime(patient: PatientRecord) {
+  if (patient.triageColor === "rojo") {
+    return "2026-03-15T12:00";
+  }
+  if (patient.triageColor === "naranja") {
+    return "2026-03-15T14:00";
+  }
+  if (patient.currentStatus === "Alta proxima") {
+    return "2026-03-15T18:00";
+  }
+  return patient.careMode === "Hospitalizacion" ? "2026-03-15T16:00" : "2026-03-16T09:00";
+}
+
+function getNextScheduledControl(controls: ScheduledControl[]) {
+  if (controls.length === 0) {
+    return null;
+  }
+
+  return [...controls].sort((left, right) => left.datetime.localeCompare(right.datetime))[0] ?? null;
+}
+
+function getScheduledControlUrgency(datetime: string): FollowUpTask["urgency"] {
+  const diffMinutes = Math.round(
+    (parseFollowUpDateTime(datetime).getTime() - parseFollowUpDateTime(followUpReferenceNow).getTime()) / 6e4
+  );
+
+  if (diffMinutes <= 60) {
+    return "critical";
+  }
+
+  if (diffMinutes <= 180) {
+    return "warning";
+  }
+
+  return "normal";
+}
+
+function getCountdownLabel(datetime: string) {
+  const diffMinutes = Math.round(
+    (parseFollowUpDateTime(datetime).getTime() - parseFollowUpDateTime(followUpReferenceNow).getTime()) / 6e4
+  );
+
+  if (diffMinutes < 0) {
+    return `Vencido hace ${Math.abs(diffMinutes)} min`;
+  }
+
+  if (diffMinutes < 60) {
+    return `Vence en ${diffMinutes} min`;
+  }
+
+  const hours = Math.floor(diffMinutes / 60);
+  const minutes = diffMinutes % 60;
+  return minutes === 0 ? `Vence en ${hours} h` : `Vence en ${hours} h ${minutes} min`;
+}
+
+function formatControlSlot(datetime: string) {
+  const date = parseFollowUpDateTime(datetime);
+  const reference = parseFollowUpDateTime(followUpReferenceNow);
+  const sameDay = date.toDateString() === reference.toDateString();
+
+  if (sameDay) {
+    return `hoy ${formatHour(date)}`;
+  }
+
+  const tomorrow = new Date(reference);
+  tomorrow.setDate(reference.getDate() + 1);
+  if (date.toDateString() === tomorrow.toDateString()) {
+    return `manana ${formatHour(date)}`;
+  }
+
+  return formatCompactDateTime(datetime);
+}
+
+function formatCompactDateTime(datetime: string) {
+  const date = parseFollowUpDateTime(datetime);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month} ${formatHour(date)}`;
+}
+
+function formatHour(date: Date) {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function toStorageDateTime(value: string) {
+  return value.replace("T", " ");
+}
+
+function parseFollowUpDateTime(value: string) {
+  return new Date(value.replace(" ", "T"));
 }

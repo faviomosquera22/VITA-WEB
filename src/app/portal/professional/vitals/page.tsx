@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { ModulePage, Panel, StatCard } from "../_components/clinical-ui";
 import {
@@ -17,6 +18,7 @@ import {
 } from "../_data/clinical-mock-data";
 
 export default function VitalsPage() {
+  const searchParams = useSearchParams();
   const [areaFilter, setAreaFilter] = useState<"all" | ServiceArea>("all");
   const patientsByArea = useMemo(
     () =>
@@ -28,6 +30,17 @@ export default function VitalsPage() {
 
   const { search, setSearch, selectedPatientId, setSelectedPatientId, filteredPatients, selectedPatient } =
     usePatientSelection(patientsByArea);
+  const requestedPatientId = searchParams.get("patientId") ?? "";
+
+  useEffect(() => {
+    if (!requestedPatientId) {
+      return;
+    }
+
+    if (patientsByArea.some((patient) => patient.id === requestedPatientId)) {
+      setSelectedPatientId(requestedPatientId);
+    }
+  }, [patientsByArea, requestedPatientId, setSelectedPatientId]);
 
   const rows = useMemo(
     () =>
