@@ -176,6 +176,144 @@ type FormState = {
 };
 
 const bloodGroups = ["", "O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
+const sexBiologicalOptions = ["", "masculino", "femenino", "intersexual", "no especificado"];
+const genderOptions = [
+  "",
+  "masculino",
+  "femenino",
+  "no binario",
+  "transmasculino",
+  "transfemenino",
+  "prefiere no indicar",
+];
+const nationalityOptions = [
+  "Ecuatoriana",
+  "Colombiana",
+  "Peruana",
+  "Venezolana",
+  "Boliviana",
+  "Argentina",
+  "Chilena",
+  "Cubana",
+  "Estadounidense",
+  "Otra",
+];
+const ethnicityOptions = [
+  "",
+  "Mestizo/a",
+  "Montubio/a",
+  "Afroecuatoriano/a",
+  "Indigena",
+  "Blanco/a",
+  "Mulato/a",
+  "Otro",
+];
+const civilStatusOptions = [
+  "",
+  "Soltero/a",
+  "Casado/a",
+  "Union de hecho",
+  "Divorciado/a",
+  "Viudo/a",
+  "Separado/a",
+];
+const educationLevelOptions = [
+  "",
+  "Sin instruccion",
+  "Inicial",
+  "Basica",
+  "Bachillerato",
+  "Tecnico / tecnologico",
+  "Superior",
+  "Posgrado",
+];
+const occupationOptions = [
+  "Estudiante",
+  "Empleado publico",
+  "Empleado privado",
+  "Independiente",
+  "Comerciante",
+  "Agricultor/a",
+  "Ama de casa",
+  "Jubilado/a",
+  "Desempleado/a",
+  "Chofer",
+  "Docente",
+  "Enfermero/a",
+  "Medico/a",
+  "Obrero/a",
+  "Administrativo/a",
+  "Tecnico/a",
+  "Policia",
+  "Militar",
+  "Artesano/a",
+  "Otro",
+];
+const religionOptions = [
+  "Catolica",
+  "Evangelica",
+  "Cristiana",
+  "Adventista",
+  "Testigos de Jehova",
+  "Mormona",
+  "Judia",
+  "Islamica",
+  "Agnostico/a",
+  "Ninguna",
+  "Otra",
+];
+const relationshipOptions = [
+  "",
+  "Madre",
+  "Padre",
+  "Hijo/a",
+  "Hermano/a",
+  "Esposo/a",
+  "Pareja",
+  "Abuelo/a",
+  "Tio/a",
+  "Tutor legal",
+  "Amigo/a",
+  "Vecino/a",
+  "Otro",
+];
+const provinceOptions = [
+  "",
+  "Pichincha",
+  "Guayas",
+  "Azuay",
+  "Manabi",
+  "Tungurahua",
+  "Loja",
+  "El Oro",
+  "Santo Domingo de los Tsachilas",
+];
+const cantonCatalogByProvince: Record<string, string[]> = {
+  Pichincha: ["Quito", "Cayambe", "Mejia", "Pedro Moncayo", "Ruminahui"],
+  Guayas: ["Guayaquil", "Duran", "Samborondon", "Milagro", "Daule"],
+  Azuay: ["Cuenca", "Gualaceo", "Paute"],
+  Manabi: ["Manta", "Portoviejo", "Chone", "Jipijapa"],
+  Tungurahua: ["Ambato", "Banos", "Pelileo"],
+  Loja: ["Loja", "Catamayo", "Saraguro"],
+  "El Oro": ["Machala", "Santa Rosa", "Pasaje"],
+  "Santo Domingo de los Tsachilas": ["Santo Domingo", "La Concordia"],
+};
+const parishCatalogByCanton: Record<string, string[]> = {
+  Quito: ["Inaquito", "Belisario Quevedo", "Chillogallo", "Cotocollao", "Quitumbe"],
+  Cayambe: ["Cayambe", "Ayora", "Cangahua"],
+  Mejia: ["Machachi", "Aloag", "Tambillo"],
+  Ruminahui: ["Sangolqui", "San Rafael", "Cotogchoa"],
+  Guayaquil: ["Tarqui", "Ximena", "Febres Cordero", "Pascuales", "Urdaneta"],
+  Duran: ["Eloy Alfaro", "El Recreo"],
+  Samborondon: ["La Puntilla", "Samborondon"],
+  Cuenca: ["El Sagrario", "Yanuncay", "Totoracocha", "Monay"],
+  Manta: ["Manta", "Tarqui", "Los Esteros"],
+  Portoviejo: ["12 de Marzo", "Portoviejo", "Andres de Vera"],
+  Ambato: ["Atocha", "Ficoa", "Huachi Grande", "Izamba"],
+  Loja: ["El Sagrario", "San Sebastian", "Sucre"],
+  Machala: ["Machala", "Puerto Bolivar", "El Cambio"],
+  "Santo Domingo": ["Santo Domingo", "Chiguilpe", "Rio Verde"],
+};
 
 type IntakeStepId = 1 | 2 | 3 | 4 | 5;
 
@@ -410,6 +548,14 @@ export default function PatientIntakePage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [createdRecord, setCreatedRecord] = useState<RegisteredPatientRecord | null>(null);
   const [latest, setLatest] = useState<RegisteredPatientSummary[]>([]);
+  const availableCantons = useMemo(
+    () => (form.province ? (cantonCatalogByProvince[form.province] ?? []) : []),
+    [form.province]
+  );
+  const availableParishes = useMemo(
+    () => (form.canton ? (parishCatalogByCanton[form.canton] ?? []) : []),
+    [form.canton]
+  );
 
   useEffect(() => {
     const cedula = searchParams.get("cedula") ?? "";
@@ -457,6 +603,18 @@ export default function PatientIntakePage() {
 
     loadLatest();
   }, []);
+
+  useEffect(() => {
+    if (form.canton && availableCantons.length > 0 && !availableCantons.includes(form.canton)) {
+      setForm((prev) => ({ ...prev, canton: "", parish: "" }));
+    }
+  }, [availableCantons, form.canton]);
+
+  useEffect(() => {
+    if (form.parish && availableParishes.length > 0 && !availableParishes.includes(form.parish)) {
+      setForm((prev) => ({ ...prev, parish: "" }));
+    }
+  }, [availableParishes, form.parish]);
 
   const requiredMissing = useMemo(() => {
     const missing: string[] = [];
@@ -797,6 +955,9 @@ export default function PatientIntakePage() {
         {activeStep === 1 && (
           <>
             <Panel title="1) Identificacion del paciente" subtitle="Datos base de historia clinica y estadistica poblacional">
+              <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                Usa listas y opciones sugeridas para agilizar el registro. Si un valor no aparece, puedes escribirlo manualmente.
+              </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <SelectField
                   label="Tipo documento"
@@ -812,15 +973,55 @@ export default function PatientIntakePage() {
                 <InputField label="Nombres *" value={form.firstNames} onChange={onChange("firstNames")} />
                 <InputField label="Apellidos *" value={form.lastNames} onChange={onChange("lastNames")} />
                 <InputField label="Fecha nacimiento" type="date" value={form.birthDate} onChange={onChange("birthDate")} />
-                <InputField label="Sexo biologico" value={form.sexBiological} onChange={onChange("sexBiological")} />
-                <InputField label="Genero" value={form.gender} onChange={onChange("gender")} />
-                <InputField label="Nacionalidad" value={form.nationality} onChange={onChange("nationality")} />
-                <InputField label="Etnia" value={form.ethnicity} onChange={onChange("ethnicity")} />
-                <InputField label="Estado civil" value={form.civilStatus} onChange={onChange("civilStatus")} />
-                <InputField label="Nivel instruccion" value={form.educationLevel} onChange={onChange("educationLevel")} />
-                <InputField label="Ocupacion" value={form.occupation} onChange={onChange("occupation")} />
+                <SelectField
+                  label="Sexo biologico"
+                  value={form.sexBiological}
+                  onChange={onChange("sexBiological")}
+                  options={sexBiologicalOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
+                />
+                <SelectField
+                  label="Genero"
+                  value={form.gender}
+                  onChange={onChange("gender")}
+                  options={genderOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
+                />
+                <DatalistField
+                  label="Nacionalidad"
+                  value={form.nationality}
+                  onChange={onChange("nationality")}
+                  options={nationalityOptions}
+                />
+                <SelectField
+                  label="Etnia"
+                  value={form.ethnicity}
+                  onChange={onChange("ethnicity")}
+                  options={ethnicityOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
+                />
+                <SelectField
+                  label="Estado civil"
+                  value={form.civilStatus}
+                  onChange={onChange("civilStatus")}
+                  options={civilStatusOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
+                />
+                <SelectField
+                  label="Nivel instruccion"
+                  value={form.educationLevel}
+                  onChange={onChange("educationLevel")}
+                  options={educationLevelOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
+                />
+                <DatalistField
+                  label="Ocupacion"
+                  value={form.occupation}
+                  onChange={onChange("occupation")}
+                  options={occupationOptions}
+                />
                 <InputField label="Lugar de trabajo" value={form.workplace} onChange={onChange("workplace")} />
-                <InputField label="Religion" value={form.religion} onChange={onChange("religion")} />
+                <DatalistField
+                  label="Religion"
+                  value={form.religion}
+                  onChange={onChange("religion")}
+                  options={religionOptions}
+                />
                 <SelectField
                   label="Grupo sanguineo"
                   value={form.bloodGroup}
@@ -833,9 +1034,26 @@ export default function PatientIntakePage() {
             <Panel title="2) Contacto y ubicacion" subtitle="Direccion, georreferencia y red de apoyo">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <InputField label="Direccion" value={form.address} onChange={onChange("address")} />
-                <InputField label="Parroquia" value={form.parish} onChange={onChange("parish")} />
-                <InputField label="Canton" value={form.canton} onChange={onChange("canton")} />
-                <InputField label="Provincia" value={form.province} onChange={onChange("province")} />
+                <SelectField
+                  label="Provincia"
+                  value={form.province}
+                  onChange={onChange("province")}
+                  options={provinceOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
+                />
+                <DatalistField
+                  label="Canton"
+                  value={form.canton}
+                  onChange={onChange("canton")}
+                  options={availableCantons}
+                  placeholder={form.province ? "Selecciona o escribe el canton" : "Primero selecciona la provincia"}
+                />
+                <DatalistField
+                  label="Parroquia"
+                  value={form.parish}
+                  onChange={onChange("parish")}
+                  options={availableParishes}
+                  placeholder={form.canton ? "Selecciona o escribe la parroquia" : "Primero selecciona el canton"}
+                />
                 <InputField label="GPS lat" value={form.gpsLat} onChange={onChange("gpsLat")} />
                 <InputField label="GPS lng" value={form.gpsLng} onChange={onChange("gpsLng")} />
                 <InputField label="Telefono principal" value={form.phonePrimary} onChange={onChange("phonePrimary")} />
@@ -843,7 +1061,12 @@ export default function PatientIntakePage() {
                 <InputField label="WhatsApp" value={form.whatsapp} onChange={onChange("whatsapp")} />
                 <InputField label="Email" type="email" value={form.email} onChange={onChange("email")} />
                 <InputField label="Contacto emergencia" value={form.emergencyName} onChange={onChange("emergencyName")} />
-                <InputField label="Relacion" value={form.emergencyRelationship} onChange={onChange("emergencyRelationship")} />
+                <SelectField
+                  label="Relacion"
+                  value={form.emergencyRelationship}
+                  onChange={onChange("emergencyRelationship")}
+                  options={relationshipOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
+                />
                 <InputField label="Telefono emergencia" value={form.emergencyPhone} onChange={onChange("emergencyPhone")} />
                 <InputField label="Representante legal" value={form.legalRepresentative} onChange={onChange("legalRepresentative")} />
               </div>
@@ -1932,6 +2155,47 @@ function SelectField({
           </option>
         ))}
       </select>
+    </label>
+  );
+}
+
+function DatalistField({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  options: string[];
+  placeholder?: string;
+  type?: React.HTMLInputTypeAttribute;
+}) {
+  const listId = `list-${label
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")}`;
+
+  return (
+    <label className="text-[11px] font-semibold text-slate-600">
+      {label}
+      <input
+        type={type}
+        list={listId}
+        value={value}
+        placeholder={placeholder}
+        onChange={onChange}
+        className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-700 focus:border-sky-500 focus:bg-white focus:outline-none"
+      />
+      <datalist id={listId}>
+        {options.map((option) => (
+          <option key={option} value={option} />
+        ))}
+      </datalist>
     </label>
   );
 }
