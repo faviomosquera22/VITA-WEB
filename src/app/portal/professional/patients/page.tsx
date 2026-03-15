@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import { ModulePage, Panel, RiskBadge, StatCard, TriageBadge } from "../_components/clinical-ui";
+import { ModulePage, Panel, RiskBadge, TriageBadge } from "../_components/clinical-ui";
 import type { PatientRecord, ServiceArea } from "../_data/clinical-mock-data";
 import {
   getCriticalPatients,
@@ -16,6 +16,15 @@ import type { RegisteredPatientSummary } from "@/types/patient-intake";
 
 type SortBy = "name" | "last_control" | "risk" | "recent";
 type SearchMode = "all" | "patient" | "document" | "hc" | "room" | "professional";
+type ModuleIconId =
+  | "record"
+  | "vitals"
+  | "balance"
+  | "medication"
+  | "kardex"
+  | "nursing"
+  | "medical"
+  | "msp";
 
 const riskOrder: Record<string, number> = {
   alto: 3,
@@ -63,7 +72,7 @@ const searchModes: Array<{
   },
   {
     id: "room",
-    label: "Sala",
+    label: "Sala / ubicacion",
     helper: "Busqueda por sala, box, consultorio o servicio.",
     placeholder: "Ej. habitacion 204, observacion, emergencia",
   },
@@ -195,7 +204,7 @@ export default function PatientsPage() {
       return haystack.includes(normalizedSearch);
     });
 
-    return normalizedSearch ? items : items.slice(0, 5);
+    return normalizedSearch ? items : items.slice(0, 4);
   }, [registeredPatients, search]);
 
   const registeredMatchByPatientId = useMemo(() => {
@@ -266,62 +275,22 @@ export default function PatientsPage() {
     setQuickMode("all");
   };
 
-  const selectedPatientActions = selectedPatient
-    ? [
-        {
-          title: "Abrir ficha clinica",
-          detail: "Entrar al expediente integral del paciente.",
-          href: `/portal/professional/patients/${selectedPatient.id}`,
-          tone: "dark" as const,
-        },
-        {
-          title: "Signos vitales",
-          detail: "Registrar y revisar controles recientes.",
-          href: `/portal/professional/patients/${selectedPatient.id}?tab=vitals`,
-          tone: "default" as const,
-        },
-        {
-          title: "Balance hidrico",
-          detail: "Control de ingresos, egresos y balance.",
-          href: `/portal/professional/patients/${selectedPatient.id}?tab=fluid_balance`,
-          tone: "default" as const,
-        },
-        {
-          title: "Kardex",
-          detail: "Indicaciones, administraciones y cuidados.",
-          href: `/portal/professional/patients/${selectedPatient.id}?tab=kardex`,
-          tone: "default" as const,
-        },
-        {
-          title: "Reporte medico",
-          detail: "Notas y evolucion medica del paciente.",
-          href: `/portal/professional/patients/${selectedPatient.id}?tab=medical_notes`,
-          tone: "default" as const,
-        },
-        {
-          title: selectedPatientRegisteredMatch ? "Formularios MSP" : "Crear expediente MSP",
-          detail: selectedPatientRegisteredMatch
-            ? "Abrir 008 y demas formularios disponibles."
-            : "Este paciente aun no tiene ingreso estructurado.",
-          href: selectedPatientRegisteredMatch
-            ? `/portal/professional/patients/${selectedPatient.id}?tab=msp_forms`
-            : "/portal/professional/patients/ingreso",
-          tone: "sky" as const,
-        },
-      ]
-    : [];
+  const patientModules =
+    selectedPatient === null
+      ? []
+      : buildPatientModules(selectedPatient, selectedPatientRegisteredMatch);
 
   return (
     <ModulePage
-      title="Pacientes"
-      subtitle="Busca, selecciona y trabaja al paciente desde una vista mas ordenada, con acceso directo a su ficha clinica y formularios MSP."
+      title="Centro de pacientes"
+      subtitle="Explora pacientes, selecciona un caso activo y navega por sus modulos clinicos desde una vista tipo panel."
       actions={
         <div className="flex flex-wrap gap-2">
           <Link
             href="/portal/professional/patients/ingreso"
             className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100"
           >
-            Ingresar paciente
+            Nuevo ingreso
           </Link>
           <Link
             href="/portal/professional/reports"
@@ -333,27 +302,32 @@ export default function PatientsPage() {
             href="/portal/professional"
             className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
-            Volver a inicio
+            Inicio
           </Link>
         </div>
       }
     >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total pacientes" value={mockPatients.length} hint="Base clinica operativa" />
-        <StatCard label="Pacientes criticos" value={criticalPatients.length} hint="Riesgo alto o estado critico" />
-        <StatCard label="Con alertas" value={patientsWithAlerts.length} hint="Alertas clinicas abiertas" />
-        <StatCard label="Expedientes MSP" value={registeredPatients.length} hint="Registros estructurados disponibles" />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
         <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
           <Panel
-            title="Buscar y filtrar"
-            subtitle="Primero localiza al paciente por nombre, documento, HC, sala o profesional"
+            title="Monitor"
+            subtitle="Vista rapida del area de pacientes"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <MiniMetricCard label="Activos" value={mockPatients.length} tone="slate" />
+              <MiniMetricCard label="Criticos" value={criticalPatients.length} tone="red" />
+              <MiniMetricCard label="Alertas" value={patientsWithAlerts.length} tone="amber" />
+              <MiniMetricCard label="MSP" value={registeredPatients.length} tone="sky" />
+            </div>
+          </Panel>
+
+          <Panel
+            title="Explorador de pacientes"
+            subtitle="Busca primero al paciente y luego abre su espacio de trabajo"
           >
             <label className="block">
               <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Busqueda principal
+                Buscar paciente
               </span>
               <input
                 value={search}
@@ -363,10 +337,10 @@ export default function PatientsPage() {
               />
             </label>
 
-            <div className="mt-4 rounded-2xl bg-slate-100 p-1">
-              <div className="flex flex-wrap gap-1">
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-2">
+              <div className="grid grid-cols-2 gap-2">
                 {searchModes.map((mode) => (
-                  <SearchModeTab
+                  <SearchModeButton
                     key={mode.id}
                     active={searchMode === mode.id}
                     label={mode.label}
@@ -376,9 +350,9 @@ export default function PatientsPage() {
               </div>
             </div>
 
-            <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-3 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Buscando por
+                Criterio activo
               </p>
               <p className="mt-1 text-sm font-semibold text-slate-900">{activeSearchMode.label}</p>
               <p className="mt-1 text-xs leading-5 text-slate-600">{activeSearchMode.helper}</p>
@@ -386,13 +360,25 @@ export default function PatientsPage() {
 
             <div className="mt-4">
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Vistas rapidas
+                Filtros rapidos
               </p>
               <div className="flex flex-wrap gap-2">
-                <QuickModeButton active={quickMode === "all"} onClick={() => setQuickMode("all")} label="Todos" />
-                <QuickModeButton active={quickMode === "recent"} onClick={() => setQuickMode("recent")} label="Recientes" />
-                <QuickModeButton active={quickMode === "alerts"} onClick={() => setQuickMode("alerts")} label="Con alertas" />
-                <QuickModeButton active={quickMode === "critical"} onClick={() => setQuickMode("critical")} label="Criticos" />
+                <QuickFilter active={quickMode === "all"} label="Todos" onClick={() => setQuickMode("all")} />
+                <QuickFilter
+                  active={quickMode === "recent"}
+                  label="Recientes"
+                  onClick={() => setQuickMode("recent")}
+                />
+                <QuickFilter
+                  active={quickMode === "alerts"}
+                  label="Con alertas"
+                  onClick={() => setQuickMode("alerts")}
+                />
+                <QuickFilter
+                  active={quickMode === "critical"}
+                  label="Criticos"
+                  onClick={() => setQuickMode("critical")}
+                />
               </div>
             </div>
 
@@ -473,40 +459,77 @@ export default function PatientsPage() {
               </div>
             </details>
 
-            <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+            <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  Resultado actual
+                  Resultado
                 </p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">{filteredPatients.length} pacientes</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">{filteredPatients.length}</p>
               </div>
               <button
                 type="button"
                 onClick={clearFilters}
-                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
               >
                 Limpiar
               </button>
             </div>
           </Panel>
 
-          <article className="rounded-3xl border border-slate-200 bg-slate-900 p-4 text-white">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60">
-              Flujo recomendado
-            </p>
-            <div className="mt-4 space-y-3">
-              <WorkflowStep index="1" title="Busca al paciente" detail="Usa nombre, HC, documento, sala o profesional." />
-              <WorkflowStep index="2" title="Selecciona el contexto" detail="El paciente activo se vuelve el foco de la pantalla." />
-              <WorkflowStep index="3" title="Trabaja desde la ficha" detail="Signos, balance, kardex, reportes y formularios MSP." />
-            </div>
-          </article>
+          <Panel
+            title={`Pacientes (${filteredPatients.length})`}
+            subtitle="Selecciona un paciente para cargar su tablero"
+          >
+            {filteredPatients.length === 0 ? (
+              <p className="text-sm text-slate-600">
+                No hay pacientes que coincidan con los filtros actuales.
+              </p>
+            ) : (
+              <div className="max-h-[540px] space-y-2 overflow-y-auto pr-1">
+                {filteredPatients.map((patient) => {
+                  const active = patient.id === effectiveSelectedPatientId;
+                  const match = registeredMatchByPatientId.get(patient.id) ?? null;
+
+                  return (
+                    <button
+                      key={patient.id}
+                      type="button"
+                      onClick={() => setSelectedPatientId(patient.id)}
+                      className={[
+                        "w-full rounded-2xl border px-3 py-3 text-left transition",
+                        active
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100",
+                      ].join(" ")}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">{patient.fullName}</p>
+                          <p className={["mt-1 text-[11px]", active ? "text-white/70" : "text-slate-500"].join(" ")}>
+                            HC {patient.medicalRecordNumber}
+                          </p>
+                          <p className={["mt-2 text-[11px]", active ? "text-white/80" : "text-slate-600"].join(" ")}>
+                            {getPatientLocation(patient)}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <TriageBadge triage={patient.triageColor} />
+                          <PatientMatchBadge match={match} compact />
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </Panel>
 
           <details className="rounded-2xl border border-slate-200 bg-white p-3">
             <summary className="cursor-pointer list-none text-sm font-semibold text-slate-900">
               Alta rapida de paciente nuevo
             </summary>
             <p className="mt-1 text-xs text-slate-500">
-              Si el paciente aun no existe, comienza aqui el ingreso clinico.
+              Inicia aqui el flujo de ingreso cuando el paciente no existe todavia.
             </p>
             <div className="mt-3">
               <BuscadorPaciente />
@@ -516,156 +539,118 @@ export default function PatientsPage() {
 
         <section className="space-y-4">
           {selectedPatient ? (
-            <PatientWorkspaceHero
+            <PatientHero
               patient={selectedPatient}
-              patientLocation={getPatientLocation(selectedPatient)}
-              patientService={getPatientServiceArea(selectedPatient)}
+              location={getPatientLocation(selectedPatient)}
+              service={getPatientServiceArea(selectedPatient)}
               match={selectedPatientRegisteredMatch}
-              actions={selectedPatientActions}
             />
           ) : (
-            <Panel title="Sin paciente seleccionado" subtitle="Ajusta la busqueda o filtros para empezar a trabajar.">
+            <Panel title="Sin paciente activo" subtitle="Selecciona un paciente desde el explorador lateral.">
               <p className="text-sm text-slate-600">
-                No hay pacientes visibles con los filtros actuales. Limpia filtros o cambia el criterio de busqueda.
+                El tablero de trabajo se activara cuando selecciones un paciente.
               </p>
             </Panel>
           )}
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <Panel
+            title="Modulos del paciente"
+            subtitle="Accesos visuales para entrar directo a las funciones clinicas del paciente activo"
+          >
+            {!selectedPatient ? (
+              <p className="text-sm text-slate-600">No hay un paciente seleccionado.</p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {patientModules.map((module) => (
+                  <ModuleTile
+                    key={module.title}
+                    title={module.title}
+                    description={module.description}
+                    href={module.href}
+                    tone={module.tone}
+                    badge={module.badge}
+                    icon={module.icon}
+                  />
+                ))}
+              </div>
+            )}
+          </Panel>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
             <Panel
-              title={`Pacientes encontrados (${filteredPatients.length})`}
-              subtitle="Selecciona un paciente para fijarlo como contexto principal de trabajo"
+              title="Resumen clinico"
+              subtitle="Contexto rapido del paciente seleccionado antes de entrar a un modulo"
             >
-              {filteredPatients.length === 0 ? (
-                <p className="text-sm text-slate-600">No hay pacientes que coincidan con la busqueda actual.</p>
+              {!selectedPatient ? (
+                <p className="text-sm text-slate-600">Sin paciente seleccionado.</p>
               ) : (
-                <div className="space-y-3">
-                  {filteredPatients.map((patient) => {
-                    const isSelected = patient.id === effectiveSelectedPatientId;
-                    const registeredMatch = registeredMatchByPatientId.get(patient.id) ?? null;
+                <div className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <InfoBlock label="Paciente" value={selectedPatient.fullName} />
+                    <InfoBlock label="Diagnostico principal" value={selectedPatient.primaryDiagnosis} />
+                    <InfoBlock label="Servicio" value={getPatientServiceArea(selectedPatient)} />
+                    <InfoBlock label="Ultimo control" value={selectedPatient.lastControlAt} />
+                  </div>
 
-                    return (
-                      <article
-                        key={patient.id}
-                        className={[
-                          "rounded-3xl border px-4 py-4 transition",
-                          isSelected
-                            ? "border-sky-300 bg-sky-50/70 shadow-sm"
-                            : "border-slate-200 bg-slate-50 hover:bg-white",
-                        ].join(" ")}
-                      >
-                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedPatientId(patient.id)}
-                            className="min-w-0 flex-1 text-left"
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Alertas y estado actual
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <RiskBadge risk={selectedPatient.riskLevel} />
+                      <TriageBadge triage={selectedPatient.triageColor} />
+                      <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                        {selectedPatient.currentStatus}
+                      </span>
+                      {selectedPatient.activeAlerts.length === 0 ? (
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                          Sin alertas activas
+                        </span>
+                      ) : (
+                        selectedPatient.activeAlerts.map((alert) => (
+                          <span
+                            key={alert}
+                            className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700"
                           >
-                            <div className="flex items-start gap-3">
-                              <div
-                                className={[
-                                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold",
-                                  isSelected
-                                    ? "bg-sky-600 text-white"
-                                    : "bg-white text-slate-700",
-                                ].join(" ")}
-                              >
-                                {getInitials(patient.fullName)}
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <p className="truncate text-base font-semibold text-slate-900">
-                                    {patient.fullName}
-                                  </p>
-                                  {isSelected ? (
-                                    <span className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700">
-                                      Activo
-                                    </span>
-                                  ) : null}
-                                </div>
-                                <p className="mt-1 text-xs text-slate-500">
-                                  HC {patient.medicalRecordNumber} · Documento {patient.identification}
-                                </p>
-                                <p className="mt-2 text-sm text-slate-700">{patient.primaryDiagnosis}</p>
-                              </div>
-                            </div>
-                          </button>
+                            {alert}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
 
-                          <div className="flex flex-wrap items-center gap-2">
-                            <RiskBadge risk={patient.riskLevel} />
-                            <TriageBadge triage={patient.triageColor} />
-                            <PatientMatchBadge match={registeredMatch} />
-                          </div>
-                        </div>
-
-                        <div className="mt-4 grid gap-3 md:grid-cols-3">
-                          <PatientInfoCard label="Sala / ubicacion" value={getPatientLocation(patient)} />
-                          <PatientInfoCard label="Servicio" value={getPatientServiceArea(patient)} />
-                          <PatientInfoCard label="Responsable" value={patient.assignedProfessional} />
-                        </div>
-
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedPatientId(patient.id)}
-                            className={[
-                              "rounded-full border px-3 py-1.5 text-[11px] font-semibold transition",
-                              isSelected
-                                ? "border-slate-900 bg-slate-900 text-white"
-                                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
-                            ].join(" ")}
-                          >
-                            {isSelected ? "Paciente activo" : "Seleccionar"}
-                          </button>
-                          <Link
-                            href={`/portal/professional/patients/${patient.id}`}
-                            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
-                          >
-                            Abrir ficha
-                          </Link>
-                          <Link
-                            href={
-                              registeredMatch
-                                ? `/portal/professional/patients/${patient.id}?tab=msp_forms`
-                                : "/portal/professional/patients/ingreso"
-                            }
-                            className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-[11px] font-semibold text-sky-700 hover:bg-sky-100"
-                          >
-                            {registeredMatch ? "Formularios MSP" : "Crear expediente MSP"}
-                          </Link>
-                        </div>
-                      </article>
-                    );
-                  })}
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <SummaryStrip label="Sala / ubicacion" value={getPatientLocation(selectedPatient)} />
+                    <SummaryStrip label="Profesional responsable" value={selectedPatient.assignedProfessional} />
+                    <SummaryStrip label="Documento" value={selectedPatient.identification} />
+                  </div>
                 </div>
               )}
             </Panel>
 
             <div className="space-y-4">
               <Panel
-                title="Estado MSP del paciente"
-                subtitle="Situacion documental del paciente actualmente seleccionado"
+                title="Estado MSP"
+                subtitle="Disponibilidad del expediente estructurado y formularios"
               >
                 {!selectedPatient ? (
                   <p className="text-sm text-slate-600">Selecciona un paciente para revisar su estado MSP.</p>
                 ) : selectedPatientRegisteredMatch ? (
                   <div className="space-y-3">
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                    <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
-                        Expediente disponible
+                        Expediente activo
                       </p>
-                      <p className="mt-1 text-sm font-semibold text-emerald-900">
-                        MSP {selectedPatientRegisteredMatch.mspScore}%
+                      <p className="mt-1 text-2xl font-semibold text-emerald-900">
+                        {selectedPatientRegisteredMatch.mspScore}%
                       </p>
                       <p className="mt-1 text-xs text-emerald-800">
-                        {selectedPatientRegisteredMatch.criticalPendingCount} pendientes criticos visibles
+                        {selectedPatientRegisteredMatch.criticalPendingCount} pendientes criticos
                       </p>
                     </div>
 
-                    <div className="space-y-2">
-                      <MspMetricRow label="Paciente" value={selectedPatientRegisteredMatch.fullName} />
-                      <MspMetricRow label="Historia clinica" value={selectedPatientRegisteredMatch.medicalRecordNumber} />
-                      <MspMetricRow label="Motivo" value={selectedPatientRegisteredMatch.consultationReason} />
-                    </div>
+                    <CompactRow label="Historia clinica" value={selectedPatientRegisteredMatch.medicalRecordNumber} />
+                    <CompactRow label="Motivo" value={selectedPatientRegisteredMatch.consultationReason} />
 
                     <div className="flex flex-wrap gap-2">
                       <Link
@@ -678,28 +663,28 @@ export default function PatientsPage() {
                         href={`/portal/professional/reports?patientId=${selectedPatientRegisteredMatch.id}`}
                         className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-[11px] font-semibold text-sky-700 hover:bg-sky-100"
                       >
-                        Ver formularios MSP
+                        Formularios
                       </Link>
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
                         MSP pendiente
                       </p>
                       <p className="mt-1 text-sm font-semibold text-amber-900">
-                        Este paciente aun no tiene expediente estructurado.
+                        Este paciente todavia no tiene expediente estructurado.
                       </p>
                       <p className="mt-1 text-xs text-amber-800">
-                        Sin ingreso estructurado no se pueden generar formularios como el 008 desde la ficha.
+                        Sin el ingreso estructurado no podras emitir 008 ni otros formularios oficiales.
                       </p>
                     </div>
                     <Link
                       href="/portal/professional/patients/ingreso"
                       className="inline-flex rounded-full border border-slate-900 bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800"
                     >
-                      Crear ingreso estructurado
+                      Crear ingreso
                     </Link>
                   </div>
                 )}
@@ -707,7 +692,7 @@ export default function PatientsPage() {
 
               <Panel
                 title="Expedientes MSP recientes"
-                subtitle="Pacientes con registro estructurado y formularios disponibles"
+                subtitle="Acceso rapido a pacientes con formularios disponibles"
               >
                 {registeredPatients.length === 0 ? (
                   <p className="text-sm text-slate-600">Aun no hay expedientes MSP registrados.</p>
@@ -719,11 +704,11 @@ export default function PatientsPage() {
                           <div>
                             <p className="text-sm font-semibold text-slate-900">{entry.fullName}</p>
                             <p className="mt-1 text-[11px] text-slate-500">
-                              HC {entry.medicalRecordNumber} · {entry.documentNumber}
+                              HC {entry.medicalRecordNumber}
                             </p>
                           </div>
                           <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700">
-                            MSP {entry.mspScore}%
+                            {entry.mspScore}%
                           </span>
                         </div>
                         <p className="mt-2 text-xs text-slate-600">{entry.consultationReason}</p>
@@ -754,84 +739,80 @@ export default function PatientsPage() {
   );
 }
 
-function PatientWorkspaceHero({
-  patient,
-  patientLocation,
-  patientService,
-  match,
-  actions,
-}: {
-  patient: PatientRecord;
-  patientLocation: string;
-  patientService: string;
-  match: RegisteredPatientSummary | null;
-  actions: Array<{
-    title: string;
-    detail: string;
-    href: string;
-    tone: "dark" | "default" | "sky";
-  }>;
-}) {
-  return (
-    <article className="overflow-hidden rounded-[30px] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fbff_62%,#f8fafc_100%)] p-5 shadow-sm">
-      <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-sky-600 text-lg font-semibold text-white shadow-sm">
-              {getInitials(patient.fullName)}
-            </div>
-
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Paciente seleccionado
-              </p>
-              <h2 className="mt-1 truncate text-2xl font-semibold text-slate-950">{patient.fullName}</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                HC {patient.medicalRecordNumber} · Documento {patient.identification}
-              </p>
-              <p className="mt-3 max-w-2xl text-sm text-slate-700">
-                Diagnostico principal: <span className="font-semibold text-slate-900">{patient.primaryDiagnosis}</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <RiskBadge risk={patient.riskLevel} />
-            <TriageBadge triage={patient.triageColor} />
-            <PatientMatchBadge match={match} />
-            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-              {patient.currentStatus}
-            </span>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricTile label="Sala / ubicacion" value={patientLocation} />
-            <MetricTile label="Servicio" value={patientService} />
-            <MetricTile label="Responsable" value={patient.assignedProfessional} />
-            <MetricTile label="Ultimo control" value={patient.lastControlAt} />
-          </div>
-        </div>
-
-        <div className="w-full xl:max-w-[300px]">
-          <div className="rounded-3xl border border-slate-200 bg-white/90 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-              Siguiente paso
-            </p>
-            <p className="mt-2 text-base font-semibold text-slate-900">Trabajar la ficha desde un solo contexto</p>
-            <p className="mt-2 text-xs leading-6 text-slate-600">
-              Usa los accesos de abajo para entrar directo a signos, balance, kardex, reportes o formularios MSP.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {actions.map((action) => (
-          <ActionTile key={action.title} title={action.title} detail={action.detail} href={action.href} tone={action.tone} />
-        ))}
-      </div>
-    </article>
-  );
+function buildPatientModules(
+  patient: PatientRecord,
+  match: RegisteredPatientSummary | null
+) {
+  return [
+    {
+      title: "Ficha clinica",
+      description: "Resumen integral del paciente y navegacion por submodulos.",
+      href: `/portal/professional/patients/${patient.id}`,
+      tone: "dark" as const,
+      icon: "record" as ModuleIconId,
+      badge: "Principal",
+    },
+    {
+      title: "Signos vitales",
+      description: "Control y seguimiento de constantes del paciente.",
+      href: `/portal/professional/patients/${patient.id}?tab=vitals`,
+      tone: "white" as const,
+      icon: "vitals" as ModuleIconId,
+      badge: null,
+    },
+    {
+      title: "Balance hidrico",
+      description: "Ingresos, egresos y resumen por turno.",
+      href: `/portal/professional/patients/${patient.id}?tab=fluid_balance`,
+      tone: "white" as const,
+      icon: "balance" as ModuleIconId,
+      badge: null,
+    },
+    {
+      title: "Medicacion",
+      description: "Plan farmacologico y administraciones registradas.",
+      href: `/portal/professional/patients/${patient.id}?tab=medication`,
+      tone: "white" as const,
+      icon: "medication" as ModuleIconId,
+      badge: null,
+    },
+    {
+      title: "Kardex",
+      description: "Indicaciones, cuidados y actividades del paciente.",
+      href: `/portal/professional/patients/${patient.id}?tab=kardex`,
+      tone: "white" as const,
+      icon: "kardex" as ModuleIconId,
+      badge: null,
+    },
+    {
+      title: "Reporte de enfermeria",
+      description: "Notas y reporte de turno del area de enfermeria.",
+      href: `/portal/professional/patients/${patient.id}?tab=nursing_report`,
+      tone: "white" as const,
+      icon: "nursing" as ModuleIconId,
+      badge: null,
+    },
+    {
+      title: "Reporte medico",
+      description: "Evolucion, observaciones y notas medicas.",
+      href: `/portal/professional/patients/${patient.id}?tab=medical_notes`,
+      tone: "white" as const,
+      icon: "medical" as ModuleIconId,
+      badge: null,
+    },
+    {
+      title: "Formularios MSP",
+      description: match
+        ? "Abrir formulario 008 y demas documentos oficiales disponibles."
+        : "Requiere crear primero el expediente estructurado MSP.",
+      href: match
+        ? `/portal/professional/patients/${patient.id}?tab=msp_forms`
+        : "/portal/professional/patients/ingreso",
+      tone: "sky" as const,
+      icon: "msp" as ModuleIconId,
+      badge: match ? "Disponible" : "Pendiente",
+    },
+  ];
 }
 
 function matchesPatientSearch(patient: PatientRecord, normalizedSearch: string, searchMode: SearchMode) {
@@ -895,7 +876,97 @@ function getInitials(value: string) {
     .join("");
 }
 
-function SearchModeTab({
+function PatientHero({
+  patient,
+  location,
+  service,
+  match,
+}: {
+  patient: PatientRecord;
+  location: string;
+  service: string;
+  match: RegisteredPatientSummary | null;
+}) {
+  return (
+    <article className="overflow-hidden rounded-[32px] border border-slate-200 bg-[linear-gradient(135deg,#0f172a_0%,#132b4c_52%,#1d4ed8_100%)] p-6 text-white shadow-sm">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">
+            Paciente activo
+          </p>
+
+          <div className="mt-4 flex items-start gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-white/10 text-xl font-semibold text-white ring-1 ring-white/15">
+              {getInitials(patient.fullName)}
+            </div>
+
+            <div className="min-w-0">
+              <h2 className="truncate text-2xl font-semibold">{patient.fullName}</h2>
+              <p className="mt-1 text-sm text-white/75">
+                {patient.age} anios · {patient.sex} · HC {patient.medicalRecordNumber}
+              </p>
+              <p className="mt-3 max-w-2xl text-sm text-white/85">
+                Diagnostico principal: <span className="font-semibold text-white">{patient.primaryDiagnosis}</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <RiskBadge risk={patient.riskLevel} />
+            <TriageBadge triage={patient.triageColor} />
+            <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white">
+              {patient.currentStatus}
+            </span>
+            {match ? (
+              <span className="rounded-full border border-emerald-300/40 bg-emerald-400/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-100">
+                MSP disponible
+              </span>
+            ) : (
+              <span className="rounded-full border border-amber-300/40 bg-amber-400/15 px-2.5 py-1 text-[11px] font-semibold text-amber-100">
+                MSP pendiente
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="grid w-full gap-3 sm:grid-cols-2 xl:max-w-[420px]">
+          <HeroMetric label="Sala / ubicacion" value={location} />
+          <HeroMetric label="Servicio" value={service} />
+          <HeroMetric label="Responsable" value={patient.assignedProfessional} />
+          <HeroMetric label="Ultimo control" value={patient.lastControlAt} />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function MiniMetricCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  tone: "slate" | "red" | "amber" | "sky";
+}) {
+  const toneClassName =
+    tone === "red"
+      ? "border-red-200 bg-red-50 text-red-700"
+      : tone === "amber"
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : tone === "sky"
+          ? "border-sky-200 bg-sky-50 text-sky-700"
+          : "border-slate-200 bg-slate-50 text-slate-700";
+
+  return (
+    <div className={`rounded-2xl border px-3 py-3 ${toneClassName}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-wide">{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function SearchModeButton({
   active,
   label,
   onClick,
@@ -909,8 +980,35 @@ function SearchModeTab({
       type="button"
       onClick={onClick}
       className={[
-        "rounded-2xl px-3 py-2 text-[11px] font-semibold transition",
-        active ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-white hover:text-slate-900",
+        "rounded-2xl border px-3 py-2 text-left text-[11px] font-semibold transition",
+        active
+          ? "border-slate-900 bg-slate-900 text-white"
+          : "border-transparent bg-white text-slate-600 hover:border-slate-200 hover:text-slate-900",
+      ].join(" ")}
+    >
+      {label}
+    </button>
+  );
+}
+
+function QuickFilter({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "rounded-full border px-3 py-1.5 text-[11px] font-semibold transition",
+        active
+          ? "border-slate-900 bg-slate-900 text-white"
+          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100",
       ].join(" ")}
     >
       {label}
@@ -949,54 +1047,133 @@ function SelectField({
   );
 }
 
-function QuickModeButton({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "rounded-full border px-3 py-1.5 text-[11px] font-semibold transition",
-        active
-          ? "border-slate-900 bg-slate-900 text-white"
-          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100",
-      ].join(" ")}
-    >
-      {label}
-    </button>
-  );
-}
-
-function WorkflowStep({
-  index,
+function ModuleTile({
   title,
-  detail,
+  description,
+  href,
+  tone,
+  badge,
+  icon,
 }: {
-  index: string;
   title: string;
-  detail: string;
+  description: string;
+  href: string;
+  tone: "dark" | "white" | "sky";
+  badge: string | null;
+  icon: ModuleIconId;
 }) {
+  const toneClassName =
+    tone === "dark"
+      ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+      : tone === "sky"
+        ? "border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100"
+        : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50";
+
+  const detailClassName = tone === "dark" ? "text-white/70" : tone === "sky" ? "text-sky-800/80" : "text-slate-500";
+  const iconClassName = tone === "dark" ? "bg-white/10 text-white" : tone === "sky" ? "bg-white text-sky-700" : "bg-slate-100 text-slate-700";
+  const badgeClassName =
+    tone === "dark"
+      ? "border-white/15 bg-white/10 text-white"
+      : "border-slate-200 bg-white text-slate-600";
+
   return (
-    <div className="flex items-start gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-xs font-semibold text-white">
-        {index}
+    <Link
+      href={href}
+      className={`group rounded-[28px] border p-4 transition ${toneClassName}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className={`flex h-14 w-14 items-center justify-center rounded-full ${iconClassName}`}>
+          <ModuleIcon icon={icon} />
+        </div>
+        {badge ? (
+          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badgeClassName}`}>
+            {badge}
+          </span>
+        ) : null}
       </div>
-      <div>
-        <p className="text-sm font-semibold text-white">{title}</p>
-        <p className="mt-1 text-xs leading-5 text-white/70">{detail}</p>
-      </div>
-    </div>
+
+      <p className="mt-4 text-base font-semibold">{title}</p>
+      <p className={`mt-2 text-xs leading-6 ${detailClassName}`}>{description}</p>
+    </Link>
   );
 }
 
-function MetricTile({
+function ModuleIcon({ icon }: { icon: ModuleIconId }) {
+  if (icon === "record") {
+    return (
+      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <rect x="6" y="4" width="12" height="16" rx="2" />
+        <path d="M9 8h6M9 12h6M9 16h4" />
+      </svg>
+    );
+  }
+
+  if (icon === "vitals") {
+    return (
+      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M3 12h4l2-4 4 8 2-4h6" />
+        <path d="M12 21c-4-3-7-5.6-7-9a4 4 0 0 1 7-2.4A4 4 0 0 1 19 12c0 3.4-3 6-7 9Z" />
+      </svg>
+    );
+  }
+
+  if (icon === "balance") {
+    return (
+      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M12 3s5 5.2 5 9a5 5 0 1 1-10 0c0-3.8 5-9 5-9Z" />
+        <path d="M9 14c.5 1.6 1.6 2.4 3 2.4s2.5-.8 3-2.4" />
+      </svg>
+    );
+  }
+
+  if (icon === "medication") {
+    return (
+      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M7 8.5 11.5 4a3 3 0 1 1 4.2 4.2L11.2 12.7A3 3 0 1 1 7 8.5Z" />
+        <path d="M9 6.5 14.5 12" />
+        <path d="M5 19h14" />
+      </svg>
+    );
+  }
+
+  if (icon === "kardex") {
+    return (
+      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M7 4h10l2 3v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+        <path d="M9 9h6M9 13h6M9 17h4" />
+      </svg>
+    );
+  }
+
+  if (icon === "nursing") {
+    return (
+      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M12 4v16M4 12h16" />
+        <circle cx="12" cy="12" r="7" />
+      </svg>
+    );
+  }
+
+  if (icon === "medical") {
+    return (
+      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M12 4a4 4 0 0 1 4 4v1a4 4 0 0 1-8 0V8a4 4 0 0 1 4-4Z" />
+        <path d="M5 20a7 7 0 0 1 14 0" />
+        <path d="M18 7h4M20 5v4" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M7 4h7l5 5v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+      <path d="M14 4v5h5" />
+      <path d="M9 14l2 2 4-4" />
+    </svg>
+  );
+}
+
+function HeroMetric({
   label,
   value,
 }: {
@@ -1004,45 +1181,29 @@ function MetricTile({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-slate-900">{value}</p>
+    <div className="rounded-3xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/55">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-white">{value}</p>
     </div>
   );
 }
 
-function ActionTile({
-  title,
-  detail,
-  href,
-  tone,
+function InfoBlock({
+  label,
+  value,
 }: {
-  title: string;
-  detail: string;
-  href: string;
-  tone: "dark" | "default" | "sky";
+  label: string;
+  value: string;
 }) {
-  const toneClassName =
-    tone === "dark"
-      ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
-      : tone === "sky"
-        ? "border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100"
-        : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50";
-
-  const detailClassName = tone === "dark" ? "text-white/70" : "text-slate-500";
-
   return (
-    <Link
-      href={href}
-      className={`rounded-3xl border p-4 transition ${toneClassName}`}
-    >
-      <p className="text-sm font-semibold">{title}</p>
-      <p className={`mt-2 text-xs leading-6 ${detailClassName}`}>{detail}</p>
-    </Link>
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</p>
+      <p className="mt-2 text-sm text-slate-900">{value}</p>
+    </div>
   );
 }
 
-function PatientInfoCard({
+function SummaryStrip({
   label,
   value,
 }: {
@@ -1051,7 +1212,7 @@ function PatientInfoCard({
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</p>
       <p className="mt-2 text-sm text-slate-800">{value}</p>
     </div>
   );
@@ -1059,25 +1220,23 @@ function PatientInfoCard({
 
 function PatientMatchBadge({
   match,
+  compact = false,
 }: {
   match: RegisteredPatientSummary | null;
+  compact?: boolean;
 }) {
+  const className = compact
+    ? "rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+    : "rounded-full border px-2.5 py-1 text-[11px] font-semibold";
+
   if (!match) {
-    return (
-      <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
-        MSP pendiente
-      </span>
-    );
+    return <span className={`${className} border-amber-200 bg-amber-50 text-amber-700`}>MSP pendiente</span>;
   }
 
-  return (
-    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-      MSP disponible
-    </span>
-  );
+  return <span className={`${className} border-emerald-200 bg-emerald-50 text-emerald-700`}>MSP disponible</span>;
 }
 
-function MspMetricRow({
+function CompactRow({
   label,
   value,
 }: {
