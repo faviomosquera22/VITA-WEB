@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { ModulePage, Panel, StatCard } from "../../_components/clinical-ui";
@@ -954,9 +954,9 @@ export default function PatientIntakePage() {
 
         {activeStep === 1 && (
           <>
-            <Panel title="1) Identificacion del paciente" subtitle="Datos base de historia clinica y estadistica poblacional">
+            <Panel title="1) Identificacion del paciente" subtitle="Muestra primero solo los datos esenciales para crear la ficha">
               <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-                Usa listas y opciones sugeridas para agilizar el registro. Si un valor no aparece, puedes escribirlo manualmente.
+                Los campos complementarios siguen disponibles, pero quedan plegados para que el ingreso inicial sea mas rapido y claro.
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <SelectField
@@ -980,59 +980,68 @@ export default function PatientIntakePage() {
                   options={sexBiologicalOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
                 />
                 <SelectField
-                  label="Genero"
-                  value={form.gender}
-                  onChange={onChange("gender")}
-                  options={genderOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
-                />
-                <DatalistField
-                  label="Nacionalidad"
-                  value={form.nationality}
-                  onChange={onChange("nationality")}
-                  options={nationalityOptions}
-                />
-                <SelectField
-                  label="Etnia"
-                  value={form.ethnicity}
-                  onChange={onChange("ethnicity")}
-                  options={ethnicityOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
-                />
-                <SelectField
-                  label="Estado civil"
-                  value={form.civilStatus}
-                  onChange={onChange("civilStatus")}
-                  options={civilStatusOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
-                />
-                <SelectField
-                  label="Nivel instruccion"
-                  value={form.educationLevel}
-                  onChange={onChange("educationLevel")}
-                  options={educationLevelOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
-                />
-                <DatalistField
-                  label="Ocupacion"
-                  value={form.occupation}
-                  onChange={onChange("occupation")}
-                  options={occupationOptions}
-                />
-                <InputField label="Lugar de trabajo" value={form.workplace} onChange={onChange("workplace")} />
-                <DatalistField
-                  label="Religion"
-                  value={form.religion}
-                  onChange={onChange("religion")}
-                  options={religionOptions}
-                />
-                <SelectField
                   label="Grupo sanguineo"
                   value={form.bloodGroup}
                   onChange={onChange("bloodGroup")}
                   options={bloodGroups.map((item) => ({ value: item, label: item || "Seleccione" }))}
                 />
               </div>
+
+              <OptionalGroup
+                title="Datos demograficos opcionales"
+                description="Solo abrir si necesitas ampliar estadistica poblacional o contexto social del paciente."
+              >
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                  <SelectField
+                    label="Genero"
+                    value={form.gender}
+                    onChange={onChange("gender")}
+                    options={genderOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
+                  />
+                  <DatalistField
+                    label="Nacionalidad"
+                    value={form.nationality}
+                    onChange={onChange("nationality")}
+                    options={nationalityOptions}
+                  />
+                  <SelectField
+                    label="Etnia"
+                    value={form.ethnicity}
+                    onChange={onChange("ethnicity")}
+                    options={ethnicityOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
+                  />
+                  <SelectField
+                    label="Estado civil"
+                    value={form.civilStatus}
+                    onChange={onChange("civilStatus")}
+                    options={civilStatusOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
+                  />
+                  <SelectField
+                    label="Nivel instruccion"
+                    value={form.educationLevel}
+                    onChange={onChange("educationLevel")}
+                    options={educationLevelOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
+                  />
+                  <DatalistField
+                    label="Ocupacion"
+                    value={form.occupation}
+                    onChange={onChange("occupation")}
+                    options={occupationOptions}
+                  />
+                  <InputField label="Lugar de trabajo" value={form.workplace} onChange={onChange("workplace")} />
+                  <DatalistField
+                    label="Religion"
+                    value={form.religion}
+                    onChange={onChange("religion")}
+                    options={religionOptions}
+                  />
+                </div>
+              </OptionalGroup>
             </Panel>
 
-            <Panel title="2) Contacto y ubicacion" subtitle="Direccion, georreferencia y red de apoyo">
+            <Panel title="2) Contacto y ubicacion" subtitle="Solo se muestran los datos de localizacion y contacto realmente utiles para abrir la atencion">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <InputField label="Telefono principal" value={form.phonePrimary} onChange={onChange("phonePrimary")} />
                 <InputField label="Direccion" value={form.address} onChange={onChange("address")} />
                 <SelectField
                   label="Provincia"
@@ -1054,12 +1063,6 @@ export default function PatientIntakePage() {
                   options={availableParishes}
                   placeholder={form.canton ? "Selecciona o escribe la parroquia" : "Primero selecciona el canton"}
                 />
-                <InputField label="GPS lat" value={form.gpsLat} onChange={onChange("gpsLat")} />
-                <InputField label="GPS lng" value={form.gpsLng} onChange={onChange("gpsLng")} />
-                <InputField label="Telefono principal" value={form.phonePrimary} onChange={onChange("phonePrimary")} />
-                <InputField label="Telefono secundario" value={form.phoneSecondary} onChange={onChange("phoneSecondary")} />
-                <InputField label="WhatsApp" value={form.whatsapp} onChange={onChange("whatsapp")} />
-                <InputField label="Email" type="email" value={form.email} onChange={onChange("email")} />
                 <InputField label="Contacto emergencia" value={form.emergencyName} onChange={onChange("emergencyName")} />
                 <SelectField
                   label="Relacion"
@@ -1068,11 +1071,24 @@ export default function PatientIntakePage() {
                   options={relationshipOptions.map((item) => ({ value: item, label: item || "Seleccione" }))}
                 />
                 <InputField label="Telefono emergencia" value={form.emergencyPhone} onChange={onChange("emergencyPhone")} />
-                <InputField label="Representante legal" value={form.legalRepresentative} onChange={onChange("legalRepresentative")} />
               </div>
+
+              <OptionalGroup
+                title="Contacto ampliado y datos legales"
+                description="Se recomienda llenarlo solo si aporta al seguimiento o si el caso lo requiere."
+              >
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                  <InputField label="Telefono secundario" value={form.phoneSecondary} onChange={onChange("phoneSecondary")} />
+                  <InputField label="WhatsApp" value={form.whatsapp} onChange={onChange("whatsapp")} />
+                  <InputField label="Email" type="email" value={form.email} onChange={onChange("email")} />
+                  <InputField label="Representante legal" value={form.legalRepresentative} onChange={onChange("legalRepresentative")} />
+                  <InputField label="GPS lat" value={form.gpsLat} onChange={onChange("gpsLat")} />
+                  <InputField label="GPS lng" value={form.gpsLng} onChange={onChange("gpsLng")} />
+                </div>
+              </OptionalGroup>
             </Panel>
 
-            <Panel title="3) Afiliacion y financiamiento" subtitle="Cobertura de seguro y condicion administrativa">
+            <Panel title="3) Afiliacion y financiamiento" subtitle="Se simplifica a la cobertura principal; el resto queda como dato complementario">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <SelectField
                   label="Tipo afiliacion"
@@ -1087,14 +1103,29 @@ export default function PatientIntakePage() {
                     { value: "otro", label: "Otro" },
                   ]}
                 />
-                <InputField label="Numero IESS" value={form.iessNumber} onChange={onChange("iessNumber")} />
-                <InputField label="Aseguradora privada" value={form.privateInsurer} onChange={onChange("privateInsurer")} />
-                <InputField label="Poliza" value={form.privatePolicyNumber} onChange={onChange("privatePolicyNumber")} />
-                <InputField label="Empresa empleadora" value={form.employer} onChange={onChange("employer")} />
-                <InputField label="Copago/exoneracion" value={form.copayExemption} onChange={onChange("copayExemption")} />
-                <InputField label="% discapacidad" value={form.disabilityPercent} onChange={onChange("disabilityPercent")} />
-                <InputField label="Nro CONADIS" value={form.conadisNumber} onChange={onChange("conadisNumber")} />
+
+                {form.affiliationType === "IESS" ? (
+                  <InputField label="Numero IESS" value={form.iessNumber} onChange={onChange("iessNumber")} />
+                ) : null}
+                {form.affiliationType === "privado" ? (
+                  <>
+                    <InputField label="Aseguradora privada" value={form.privateInsurer} onChange={onChange("privateInsurer")} />
+                    <InputField label="Poliza" value={form.privatePolicyNumber} onChange={onChange("privatePolicyNumber")} />
+                  </>
+                ) : null}
               </div>
+
+              <OptionalGroup
+                title="Condiciones administrativas opcionales"
+                description="Mantengo estos campos disponibles, pero ya no estorban en el ingreso principal."
+              >
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                  <InputField label="Empresa empleadora" value={form.employer} onChange={onChange("employer")} />
+                  <InputField label="Copago/exoneracion" value={form.copayExemption} onChange={onChange("copayExemption")} />
+                  <InputField label="% discapacidad" value={form.disabilityPercent} onChange={onChange("disabilityPercent")} />
+                  <InputField label="Nro CONADIS" value={form.conadisNumber} onChange={onChange("conadisNumber")} />
+                </div>
+              </OptionalGroup>
             </Panel>
           </>
         )}
@@ -1139,23 +1170,28 @@ export default function PatientIntakePage() {
                 onChange={onChange("allergiesContrastLatex")}
               />
             </div>
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
-              <InputField label="Tabaco" value={form.tobacco} onChange={onChange("tobacco")} />
-              <InputField label="Alcohol" value={form.alcohol} onChange={onChange("alcohol")} />
-              <InputField label="Drogas" value={form.drugs} onChange={onChange("drugs")} />
-              <InputField
-                label="Actividad fisica (min/sem)"
-                value={form.physicalActivityMinutesPerWeek}
-                onChange={onChange("physicalActivityMinutesPerWeek")}
-              />
-              <InputField label="Dieta" value={form.dietType} onChange={onChange("dietType")} />
-              <InputField label="Sueno (horas)" value={form.sleepHours} onChange={onChange("sleepHours")} />
-              <InputField
-                label="Riesgo ocupacional"
-                value={form.occupationalRiskExposure}
-                onChange={onChange("occupationalRiskExposure")}
-              />
-            </div>
+            <OptionalGroup
+              title="Habitos y estilo de vida"
+              description="Datos utiles para seguimiento, pero no indispensables para abrir el caso."
+            >
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+                <InputField label="Tabaco" value={form.tobacco} onChange={onChange("tobacco")} />
+                <InputField label="Alcohol" value={form.alcohol} onChange={onChange("alcohol")} />
+                <InputField label="Drogas" value={form.drugs} onChange={onChange("drugs")} />
+                <InputField
+                  label="Actividad fisica (min/sem)"
+                  value={form.physicalActivityMinutesPerWeek}
+                  onChange={onChange("physicalActivityMinutesPerWeek")}
+                />
+                <InputField label="Dieta" value={form.dietType} onChange={onChange("dietType")} />
+                <InputField label="Sueno (horas)" value={form.sleepHours} onChange={onChange("sleepHours")} />
+                <InputField
+                  label="Riesgo ocupacional"
+                  value={form.occupationalRiskExposure}
+                  onChange={onChange("occupationalRiskExposure")}
+                />
+              </div>
+            </OptionalGroup>
           </Panel>
         )}
 
@@ -2197,6 +2233,28 @@ function DatalistField({
         ))}
       </datalist>
     </label>
+  );
+}
+
+function OptionalGroup({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70">
+      <summary className="cursor-pointer list-none px-3 py-2 text-sm font-semibold text-slate-800">
+        <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
+          <span>{title}</span>
+          <span className="text-[11px] font-medium text-slate-500">{description}</span>
+        </div>
+      </summary>
+      <div className="border-t border-slate-200 px-3 py-3">{children}</div>
+    </details>
   );
 }
 
