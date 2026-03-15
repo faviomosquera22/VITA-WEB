@@ -461,134 +461,103 @@ export default function TriageIntakePage() {
       }
     >
       <section className="rounded-[34px] border border-stone-200 bg-[#f5f3ee] p-4 sm:p-5">
-        <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_280px]">
-          <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-            <div className="rounded-[28px] border border-stone-200 bg-white p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-stone-400">
-                Progreso
-              </p>
-              <h2 className="mt-2 text-lg font-semibold text-stone-900">Formulario de triaje</h2>
-              <p className="mt-1 text-sm text-stone-500">
-                Navega por pasos y valida lo pendiente antes de confirmar.
-              </p>
-
-              <div className="mt-4 space-y-2">
-                {sectionProgress.map((section) => (
-                  <button
-                    key={section.id}
-                    type="button"
-                    onClick={() => goToSection(section.id)}
-                    className={[
-                      "flex w-full items-start gap-3 rounded-2xl border px-3 py-3 text-left transition",
-                      section.isActive
-                        ? "border-emerald-300 bg-emerald-50"
-                        : section.isComplete
-                        ? "border-emerald-100 bg-white hover:bg-stone-50"
-                        : "border-stone-200 bg-white hover:bg-stone-50",
-                    ].join(" ")}
-                  >
-                    <span
-                      className={[
-                        "mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold",
-                        section.isActive
-                          ? "bg-emerald-600 text-white"
-                          : section.isComplete
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-stone-100 text-stone-500",
-                      ].join(" ")}
-                    >
-                      {section.isComplete ? "✓" : section.code}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-stone-900">
-                        {section.label}
-                      </span>
-                      <span className="mt-0.5 block text-xs text-stone-500">
-                        {section.missing.length > 0
-                          ? `Pendiente: ${section.missing.join(", ")}`
-                          : section.isComplete
-                          ? "Completo"
-                          : section.helper}
-                      </span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </aside>
-
-          <div className="space-y-4">
-            <div className="rounded-[28px] border border-stone-200 bg-white p-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <p className="text-sm font-medium text-stone-500">
-                    Paso {activeIndex + 1} de {triageIntakeSections.length}
-                  </p>
-                  <h2 className="mt-1 text-2xl font-semibold tracking-tight text-stone-950 xl:text-3xl">
-                    {activeSection.code} · {activeSection.label}
-                  </h2>
-                  <p className="mt-1.5 max-w-3xl text-sm leading-6 text-stone-600">
-                    {activeSection.helper}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <span className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-medium text-stone-600">
-                    Sugerido: {engineResult.suggestedColor.toUpperCase()}
-                  </span>
-                  <span className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-medium text-stone-600">
-                    {engineResult.priorityLabel} · {engineResult.maxWaitMinutes} min
-                  </span>
-                </div>
+        <div className="space-y-4">
+          <div className="rounded-[28px] border border-stone-200 bg-white p-4">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <p className="text-sm font-medium text-stone-500">
+                  Paso {activeIndex + 1} de {triageIntakeSections.length}
+                </p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-stone-950">
+                  {activeSection.code} · {activeSection.label}
+                </h2>
+                <p className="mt-1 max-w-3xl text-sm leading-6 text-stone-600">
+                  {activeSection.helper}
+                </p>
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                {sectionProgress.map((section) => (
-                  <button
-                    key={section.id}
-                    type="button"
-                    onClick={() => goToSection(section.id)}
-                    className={[
-                      "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition",
-                      section.isActive
-                        ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                        : section.isComplete
-                        ? "border-emerald-100 bg-white text-emerald-700"
-                        : "border-stone-200 bg-white text-stone-500",
-                    ].join(" ")}
-                  >
-                    <span
-                      className={[
-                        "inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold",
-                        section.isActive
-                          ? "bg-emerald-600 text-white"
-                          : section.isComplete
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-stone-100 text-stone-500",
-                      ].join(" ")}
-                    >
-                      {section.isComplete ? "✓" : section.code}
-                    </span>
-                    {section.shortLabel}
-                  </button>
-                ))}
+              <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[360px] xl:max-w-[420px] xl:grid-cols-2">
+                <CompactSummaryStat
+                  label="Sugerido"
+                  value={engineResult.suggestedColor.toUpperCase()}
+                  hint={`${engineResult.priorityLabel} · ${engineResult.maxWaitMinutes} min`}
+                  tone={engineResult.suggestedColor}
+                />
+                <CompactSummaryStat
+                  label="Actual"
+                  value={`${finalColor.toUpperCase()} · P${finalPriority}`}
+                  hint={`${manualMode ? "Manual" : "Automatico"} · ${finalWait} min`}
+                  tone={finalColor}
+                />
               </div>
             </div>
 
-            <div className="xl:hidden">
-              <LiveTriageSummary
-                engineResult={engineResult}
-                finalColor={finalColor}
-                finalPriority={finalPriority}
-                finalWait={finalWait}
-                protocolsInUse={protocolsInUse}
-                manualMode={manualMode}
-                currentSectionMissing={currentSectionMissing}
-                criticalVitalLabels={criticalVitalLabels}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {sectionProgress.map((section) => (
+                <button
+                  key={section.id}
+                  type="button"
+                  onClick={() => goToSection(section.id)}
+                  className={[
+                    "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition",
+                    section.isActive
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                      : section.isComplete
+                      ? "border-emerald-100 bg-white text-emerald-700"
+                      : "border-stone-200 bg-white text-stone-500",
+                  ].join(" ")}
+                >
+                  <span
+                    className={[
+                      "inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold",
+                      section.isActive
+                        ? "bg-emerald-600 text-white"
+                        : section.isComplete
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-stone-100 text-stone-500",
+                    ].join(" ")}
+                  >
+                    {section.isComplete ? "✓" : section.code}
+                  </span>
+                  {section.shortLabel}
+                  {section.missing.length > 0 ? (
+                    <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] text-stone-500">
+                      {section.missing.length}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+              <InlineSummaryList
+                title="Alertas"
+                values={engineResult.alerts}
+                emptyLabel="Sin alertas"
+                tone="danger"
+              />
+              <InlineSummaryList
+                title="Protocolos"
+                values={protocolsInUse.map((item) => protocolLabel(item))}
+                emptyLabel="Sin protocolos"
+                tone="success"
+              />
+              <InlineSummaryList
+                title="Signos alterados"
+                values={criticalVitalLabels}
+                emptyLabel="Sin signos criticos"
+                tone="warning"
+              />
+              <InlineSummaryList
+                title="Pendientes"
+                values={currentSectionMissing}
+                emptyLabel="Paso completo"
+                tone="neutral"
               />
             </div>
+          </div>
 
-            <div className="rounded-[28px] border border-stone-200 bg-white p-4 xl:p-5">
+          <div className="rounded-[28px] border border-stone-200 bg-white p-4 xl:p-5">
               {submitMessage ? (
                 <div
                   className={[
@@ -1323,21 +1292,7 @@ export default function TriageIntakePage() {
                   <p className="text-xs font-medium text-emerald-700">Paso completo.</p>
                 )}
               </div>
-            </div>
           </div>
-
-          <aside className="hidden xl:block xl:sticky xl:top-4 xl:self-start">
-            <LiveTriageSummary
-              engineResult={engineResult}
-              finalColor={finalColor}
-              finalPriority={finalPriority}
-              finalWait={finalWait}
-              protocolsInUse={protocolsInUse}
-              manualMode={manualMode}
-              currentSectionMissing={currentSectionMissing}
-              criticalVitalLabels={criticalVitalLabels}
-            />
-          </aside>
         </div>
       </section>
     </ModulePage>
@@ -1380,134 +1335,38 @@ function FormSectionCard({
   );
 }
 
-function LiveTriageSummary({
-  engineResult,
-  finalColor,
-  finalPriority,
-  finalWait,
-  protocolsInUse,
-  manualMode,
-  currentSectionMissing,
-  criticalVitalLabels,
+function CompactSummaryStat({
+  label,
+  value,
+  hint,
+  tone,
 }: {
-  engineResult: ReturnType<typeof runTriageEngine>;
-  finalColor: TriageColor;
-  finalPriority: TriagePriority;
-  finalWait: number;
-  protocolsInUse: TriageSubprotocolId[];
-  manualMode: boolean;
-  currentSectionMissing: string[];
-  criticalVitalLabels: string[];
+  label: string;
+  value: string;
+  hint: string;
+  tone: TriageColor;
 }) {
-  const automaticTone = getTriageTone(engineResult.suggestedColor);
-  const finalTone = getTriageTone(finalColor);
+  const toneClassName = getTriageTone(tone);
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-[28px] border border-stone-200 bg-white p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-stone-400">
-              Resumen automatico
-            </p>
-            <p className="mt-1 text-sm text-stone-500">
-              El color sigue calculandose automaticamente mientras completas el paso.
-            </p>
-          </div>
-          <span className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-semibold text-stone-600">
-            {manualMode ? "Manual" : "Automatico"}
-          </span>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-          <div className={["rounded-[22px] border p-3", automaticTone.surface].join(" ")}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-75">
-                  Sugerida por el motor
-                </p>
-                <p className="mt-1 text-2xl font-semibold tracking-tight">
-                  {engineResult.suggestedColor.toUpperCase()}
-                </p>
-              </div>
-              <span className="rounded-full border border-current/20 bg-white/60 px-2.5 py-1 text-xs font-semibold">
-                P{engineResult.priority}
-              </span>
-            </div>
-            <p className="mt-1.5 text-sm">
-              {engineResult.priorityLabel} · max {engineResult.maxWaitMinutes} min
-            </p>
-          </div>
-
-          <div className={["rounded-[22px] border p-3", finalTone.softSurface].join(" ")}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-75">
-                  Resultado actual
-                </p>
-                <p className="mt-1 text-xl font-semibold">
-                  {finalColor.toUpperCase()} · P{finalPriority}
-                </p>
-              </div>
-              <span className="rounded-full border border-current/20 bg-white/60 px-2.5 py-1 text-xs font-semibold">
-                {finalWait} min
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {engineResult.reasons.length > 0 ? (
-          <p className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm leading-6 text-stone-600">
-            {engineResult.reasons[0]}
-          </p>
-        ) : null}
-
-        <div className="mt-4 grid gap-4 xl:gap-3">
-          <SummaryList
-            title="Alertas"
-            values={engineResult.alerts}
-            emptyLabel="Sin alertas activas"
-            tone="danger"
-          />
-
-          <SummaryList
-            title="Protocolos"
-            values={protocolsInUse.map((item) => protocolLabel(item))}
-            emptyLabel="Sin subprotocolos activos"
-            tone="success"
-          />
-
-          <SummaryList
-            title="Signos alterados"
-            values={criticalVitalLabels}
-            emptyLabel="Sin valores criticos detectados"
-            tone="warning"
-          />
-
-          <SummaryList
-            title="Pendientes del paso"
-            values={currentSectionMissing}
-            emptyLabel="Paso actual completo"
-            tone="neutral"
-          />
-        </div>
-      </div>
+    <div className={["rounded-[22px] border p-3", toneClassName.softSurface].join(" ")}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-75">{label}</p>
+      <p className="mt-1 text-lg font-semibold">{value}</p>
+      <p className="mt-1 text-xs">{hint}</p>
     </div>
   );
 }
 
-function SummaryList({
+function InlineSummaryList({
   title,
   values,
   emptyLabel,
   tone,
-  className = "",
 }: {
   title: string;
   values: string[];
   emptyLabel: string;
   tone: "danger" | "warning" | "success" | "neutral";
-  className?: string;
 }) {
   const toneClassName =
     tone === "danger"
@@ -1519,7 +1378,7 @@ function SummaryList({
       : "border-stone-200 bg-stone-50 text-stone-700";
 
   return (
-    <div className={className}>
+    <div className="rounded-[22px] border border-stone-200 bg-[#fcfbf8] p-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400">
         {title}
       </p>
@@ -1527,7 +1386,7 @@ function SummaryList({
         <p className="mt-2 text-sm text-stone-500">{emptyLabel}</p>
       ) : (
         <div className="mt-2 flex flex-wrap gap-2">
-          {values.slice(0, 6).map((value) => (
+          {values.slice(0, 4).map((value) => (
             <span
               key={`${title}-${value}`}
               className={["rounded-full border px-3 py-1.5 text-xs font-semibold", toneClassName].join(" ")}
