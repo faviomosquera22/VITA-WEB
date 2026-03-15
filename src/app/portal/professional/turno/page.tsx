@@ -412,33 +412,39 @@ export default function ProfessionalShiftPage() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.03fr)_minmax(360px,0.97fr)]">
         <div className="space-y-4">
           <Panel title="Ficha de turno profesional" subtitle="Resumen operativo y condiciones de cobertura">
-            <div className="grid grid-cols-1 gap-3 text-xs text-slate-700 md:grid-cols-2 xl:grid-cols-4">
-              <Field label="Profesional" value={currentClinicalContext.professionalName} />
-              <Field label="Servicio" value={professionalShiftOverview.assignedService} />
-              <Field label="Turno base" value={professionalShiftOverview.activeShift} />
-              <Field label="Coordinacion" value={professionalShiftOverview.coordinator} />
-              <Field label="Contrato" value={professionalShiftOverview.contract} />
-              <Field label="Horas semanales" value={`${professionalShiftOverview.weeklyHours} horas`} />
-              <Field label="Centro" value={currentClinicalContext.centerName} />
-              <Field label="Proxima guardia" value={professionalShiftOverview.nextOnCall} />
-            </div>
+            <div className="space-y-4">
+              <div className="overflow-x-auto pb-2">
+                <div className="flex min-w-max gap-3">
+                  <Field label="Profesional" value={currentClinicalContext.professionalName} />
+                  <Field label="Servicio" value={professionalShiftOverview.assignedService} />
+                  <Field label="Turno base" value={professionalShiftOverview.activeShift} />
+                  <Field label="Coordinacion" value={professionalShiftOverview.coordinator} />
+                  <Field label="Contrato" value={professionalShiftOverview.contract} />
+                  <Field label="Horas semanales" value={`${professionalShiftOverview.weeklyHours} horas`} />
+                  <Field label="Centro" value={currentClinicalContext.centerName} />
+                  <Field label="Proxima guardia" value={professionalShiftOverview.nextOnCall} />
+                </div>
+              </div>
 
-            <div className="mt-4 grid gap-3 lg:grid-cols-3">
-              <MiniCallout
-                label="Cobertura actual"
-                value={todayShift.service}
-                detail={`Area ${todayShift.area} · ${todayShift.shiftName}`}
-              />
-              <MiniCallout
-                label="Siguiente punto critico"
-                value={professionalShiftOverview.nextOnCall}
-                detail="Revisar traspaso de pacientes complejos antes de iniciar."
-              />
-              <MiniCallout
-                label="Checklist de jornada"
-                value="3 items"
-                detail="Cobertura, traspaso y reporte de incidencias."
-              />
+              <div className="overflow-x-auto pb-1">
+                <div className="flex min-w-max gap-3">
+                  <MiniCallout
+                    label="Cobertura actual"
+                    value={todayShift.service}
+                    detail={`Area ${todayShift.area} · ${todayShift.shiftName}`}
+                  />
+                  <MiniCallout
+                    label="Siguiente punto critico"
+                    value={professionalShiftOverview.nextOnCall}
+                    detail="Revisar traspaso de pacientes complejos antes de iniciar."
+                  />
+                  <MiniCallout
+                    label="Checklist de jornada"
+                    value="3 items"
+                    detail="Cobertura, traspaso y reporte de incidencias."
+                  />
+                </div>
+              </div>
             </div>
           </Panel>
 
@@ -843,7 +849,7 @@ function ShiftRow({ entry }: { entry: ProfessionalShiftCalendarEntry }) {
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+    <div className="min-w-[220px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
       <p className="mt-0.5 text-xs text-slate-700">{value}</p>
     </div>
@@ -1032,7 +1038,7 @@ function MiniCallout({
   detail: string;
 }) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+    <article className="min-w-[280px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
       <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
       <p className="mt-1 text-[11px] text-slate-500">{detail}</p>

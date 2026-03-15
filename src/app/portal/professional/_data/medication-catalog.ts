@@ -348,5 +348,5 @@ const medicationCatalogSeed: MedicationCatalogItem[] = [
   { name: "Sirolimus", presentations: ["1 mg tableta"], therapeuticGroup: "inmunologicos" },
 ];
 
-export const medicationCatalogBase = medicationCatalogSeed.slice(0, 200);
-export const medicationCatalogTotal = medicationCatalogBase.length;
+export const medicationCatalogBase = medicationCatalogSeed;
+export const medicationCatalogTotal = medicationCatalogSeed.length;
