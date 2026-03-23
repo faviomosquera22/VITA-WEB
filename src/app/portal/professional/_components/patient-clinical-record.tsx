@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { ClinicalSurveillancePanel } from "./clinical-surveillance-panel";
 import { Panel, RiskBadge, TriageBadge } from "./clinical-ui";
 import { getAvailableMspForms } from "@/lib/msp-form-reports";
 import type { RegisteredPatientRecord, RegisteredPatientSummary } from "@/types/patient-intake";
@@ -2011,6 +2012,13 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
               </div>
             </Panel>
           </div>
+
+          <ClinicalSurveillancePanel
+            patientId={patient.id}
+            compact
+            title="Observaciones del sistema"
+            subtitle="Hallazgos automatizados del motor de vigilancia clinica. Requieren validacion profesional antes de cualquier decision."
+          />
 
           <Panel title="Eventos clinicos recientes" subtitle="Ultimos hitos del paciente ordenados por tiempo">
             {recentTimeline.length === 0 ? (

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { ClinicalSurveillancePanel } from "../_components/clinical-surveillance-panel";
 import { ModulePage } from "../_components/clinical-ui";
 import {
   getPatientById,
@@ -853,6 +854,11 @@ export default function HospitalizationPage() {
         <MetricCard label="Limpieza" value={cleaningBeds.length} hint="Preparacion de cama" tone="warning" />
         <MetricCard label="Alta planificada" value={plannedDischarges.length} hint="Liberar hoy / manana" tone="danger" />
       </section>
+
+      <ClinicalSurveillancePanel
+        title="Vigilancia clinica inteligente"
+        subtitle="Motor estructurado de reglas para pacientes activos hospitalizados. Apoya la decision clinica sin reemplazar el juicio profesional."
+      />
 
       {renderActionPanel()}
 
