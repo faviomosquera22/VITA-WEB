@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { startTransition, useEffect, useMemo, useState } from "react";
 
 import { Panel } from "./clinical-ui";
@@ -88,9 +88,12 @@ export function ClinicalSurveillancePanel({
   subtitle?: string;
   compact?: boolean;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [payload, setPayload] = useState<ClinicalSurveillancePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
@@ -152,11 +155,42 @@ export function ClinicalSurveillancePanel({
     return observations.filter((observation) => observation.priority === priorityFilter);
   }, [observations, priorityFilter]);
 
+  const isCurrentPatientContext = useMemo(() => {
+    if (!patientId) {
+      return false;
+    }
+
+    return pathname === `/portal/professional/patients/${patientId}`;
+  }, [pathname, patientId]);
+
+  const handleOpenChart = (observation: ClinicalObservation) => {
+    setActionMessage("");
+    setErrorMessage("");
+
+    router.push(`/portal/professional/patients/${observation.patientId}?tab=summary`);
+
+    if (isCurrentPatientContext && observation.patientId === patientId) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setActionMessage("Se llevo la vista al resumen principal del expediente.");
+    }
+  };
+
   const handleStatusChange = async (
     observation: ClinicalObservation,
     status: Extract<ObservationStatus, "acknowledged" | "dismissed">
   ) => {
+    if (
+      status === "dismissed" &&
+      !window.confirm(
+        "Esta accion descartara la observacion activa del panel. Continua solo si ya fue validada clinicamente."
+      )
+    ) {
+      return;
+    }
+
     setUpdatingId(observation.id);
+    setErrorMessage("");
+    setActionMessage("");
 
     startTransition(async () => {
       try {
@@ -207,6 +241,12 @@ export function ClinicalSurveillancePanel({
             ),
           };
         });
+
+        setActionMessage(
+          status === "acknowledged"
+            ? "La observacion se marco como revisada."
+            : "La observacion se descarto del panel activo."
+        );
       } catch (error) {
         setErrorMessage(
           error instanceof Error ? error.message : "No se pudo actualizar la observacion."
@@ -220,6 +260,12 @@ export function ClinicalSurveillancePanel({
   return (
     <Panel title={title} subtitle={subtitle}>
       <div className="space-y-4">
+        {actionMessage ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {actionMessage}
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
           <span>
             Motor principal: reglas clinicas estructuradas.
@@ -337,19 +383,26 @@ export function ClinicalSurveillancePanel({
                 </div>
 
                 <div className="flex shrink-0 flex-wrap gap-2">
-                  <Link
-                    href={`/portal/professional/patients/${observation.patientId}`}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenChart(observation)}
                     className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                   >
-                    Ver expediente
-                  </Link>
+                    {isCurrentPatientContext && observation.patientId === patientId
+                      ? "Ir al resumen"
+                      : "Ver expediente"}
+                  </button>
                   <button
                     type="button"
                     disabled={updatingId === observation.id || observation.status === "acknowledged"}
                     onClick={() => void handleStatusChange(observation, "acknowledged")}
                     className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Marcar revisada
+                    {updatingId === observation.id && observation.status !== "acknowledged"
+                      ? "Guardando..."
+                      : observation.status === "acknowledged"
+                        ? "Revisada"
+                        : "Marcar revisada"}
                   </button>
                   <button
                     type="button"
@@ -357,7 +410,7 @@ export function ClinicalSurveillancePanel({
                     onClick={() => void handleStatusChange(observation, "dismissed")}
                     className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Descartar
+                    {updatingId === observation.id ? "Procesando..." : "Descartar"}
                   </button>
                 </div>
               </div>
