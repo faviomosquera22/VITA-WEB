@@ -1,8 +1,14 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+@source "../**/*.{ts,tsx}";
+@source not "../../repo vita web/**/*";
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --surface-soft: #f8fafc;
+  --surface-elevated: #ffffff;
+  --clinical-accent: #0284c7;
   --app-font-sans:
     var(--font-plus-jakarta), "Avenir Next", "Segoe UI", sans-serif;
   --app-font-mono:

@@ -1,4 +1,5 @@
 import type { SessionUser } from "@/lib/auth";
+import { NotificationCenter } from "@/app/portal/professional/_components/notifications-center";
 
 import LogoutButton from "./logout-button";
 
@@ -12,7 +13,10 @@ export default function SessionBar({ user }: { user: SessionUser }) {
           </p>
           <p className="truncate text-[11px] text-slate-500">{user.centerName}</p>
         </div>
-        <LogoutButton />
+        <div className="flex items-center gap-2">
+          {user.role === "professional" ? <NotificationCenter /> : null}
+          <LogoutButton />
+        </div>
       </div>
     </div>
   );

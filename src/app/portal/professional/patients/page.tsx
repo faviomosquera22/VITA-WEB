@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useDeferredValue, useMemo, useState } from "react";
 
+import type { ColumnDef } from "@tanstack/react-table";
+
 import { ModulePage, RiskBadge, TriageBadge } from "../_components/clinical-ui";
+import { DataTable } from "../_components/data-table";
 import {
   getPatientServiceArea,
   mockPatients,
@@ -78,10 +81,89 @@ export default function PatientsPage() {
     });
   }, [deferredSearch, searchMode, serviceFilter]);
 
+  const columns = useMemo<ColumnDef<PatientRecord>[]>(
+    () => [
+      {
+        accessorKey: "fullName",
+        header: "Paciente",
+        cell: ({ row }) => {
+          const patient = row.original;
+          return (
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-semibold text-slate-950">{patient.fullName}</p>
+                <RiskBadge risk={patient.riskLevel} />
+                <TriageBadge triage={patient.triageColor} />
+              </div>
+              <p className="text-xs text-slate-500">
+                {patient.identification} · HC {patient.medicalRecordNumber}
+              </p>
+            </div>
+          );
+        },
+      },
+      {
+        id: "serviceArea",
+        header: "Servicio",
+        accessorFn: (patient) => getPatientServiceArea(patient),
+        cell: ({ row }) => (
+          <div className="space-y-1">
+            <p className="font-medium text-slate-800">{getPatientServiceArea(row.original)}</p>
+            <p className="text-xs text-slate-500">{patientLocationLabels[row.original.id] ?? "Sin ubicacion"}</p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "assignedProfessional",
+        header: "Responsable",
+        cell: ({ row }) => (
+          <div className="space-y-1">
+            <p className="font-medium text-slate-800">{row.original.assignedProfessional}</p>
+            <p className="text-xs text-slate-500">{row.original.primaryDiagnosis}</p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "currentStatus",
+        header: "Estado",
+        cell: ({ row }) => (
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+            {row.original.currentStatus}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "lastControlAt",
+        header: "Ultimo control",
+      },
+      {
+        id: "actions",
+        header: "Acciones",
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/portal/professional/patients/${row.original.id}`}
+              className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800"
+            >
+              Abrir ficha
+            </Link>
+            <Link
+              href={`/portal/professional/patients/${row.original.id}?tab=msp_forms`}
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              MSP
+            </Link>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
   return (
     <ModulePage
       title="Pacientes"
-      subtitle="Busca primero al paciente por nombre, cedula, HC, sala o profesional y luego abre su ficha clinica."
+      subtitle="Censo clinico con filtros de busqueda, ordenamiento y acceso directo a la ficha asistencial."
       actions={
         <Link
           href="/portal/professional/patients/ingreso"
@@ -91,19 +173,17 @@ export default function PatientsPage() {
         </Link>
       }
     >
-      <section className="mx-auto max-w-5xl space-y-4">
+      <section className="space-y-4">
         <article className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                Busqueda de paciente
+                Portal profesional
               </p>
-              <h2 className="mt-2 text-3xl font-semibold text-slate-950">
-                Localiza al paciente antes de abrir su ficha
-              </h2>
-              <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-                Esta pantalla solo sirve para buscar. Una vez seleccionado el paciente, se abre
-                directamente la ficha clinica completa.
+              <h2 className="mt-2 text-3xl font-semibold text-slate-950">Lista maestra de pacientes</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
+                La busqueda deja de ser una lista de tarjetas aisladas y pasa a un censo operativo
+                mas claro para triage, seguimiento, consultorio y hospitalizacion.
               </p>
             </div>
 
@@ -121,19 +201,19 @@ export default function PatientsPage() {
             </div>
           </div>
 
-          <div className="mt-5 space-y-4">
-            <div className="flex flex-wrap gap-2">
-              {searchModes.map((mode) => (
-                <SearchModeChip
-                  key={mode.id}
-                  label={mode.label}
-                  active={searchMode === mode.id}
-                  onClick={() => setSearchMode(mode.id)}
-                />
-              ))}
-            </div>
+          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
+            <div>
+              <div className="mb-3 flex flex-wrap gap-2">
+                {searchModes.map((mode) => (
+                  <SearchModeChip
+                    key={mode.id}
+                    label={mode.label}
+                    active={searchMode === mode.id}
+                    onClick={() => setSearchMode(mode.id)}
+                  />
+                ))}
+              </div>
 
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
               <label className="block">
                 <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
                   Buscar
@@ -145,106 +225,68 @@ export default function PatientsPage() {
                   className={fieldClassName}
                 />
               </label>
-
-              <label className="block">
-                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  Servicio
-                </span>
-                <select
-                  value={serviceFilter}
-                  onChange={(event) =>
-                    setServiceFilter(event.target.value as "all" | ServiceArea)
-                  }
-                  className={fieldClassName}
-                >
-                  <option value="all">Todos</option>
-                  {serviceAreas.map((service) => (
-                    <option key={service} value={service}>
-                      {service}
-                    </option>
-                  ))}
-                </select>
-              </label>
             </div>
+
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                Servicio
+              </span>
+              <select
+                value={serviceFilter}
+                onChange={(event) => setServiceFilter(event.target.value as "all" | ServiceArea)}
+                className={fieldClassName}
+              >
+                <option value="all">Todos</option>
+                {serviceAreas.map((service) => (
+                  <option key={service} value={service}>
+                    {service}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         </article>
 
         <article className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-lg font-semibold text-slate-950">Resultados</p>
+              <p className="text-lg font-semibold text-slate-950">Censo filtrado</p>
               <p className="text-sm text-slate-500">
-                {filteredPatients.length} paciente{filteredPatients.length === 1 ? "" : "s"} encontrado
-                {filteredPatients.length === 1 ? "" : "s"}
+                {filteredPatients.length} paciente{filteredPatients.length === 1 ? "" : "s"} visible
+                {filteredPatients.length === 1 ? "" : "s"} en la lista actual
               </p>
+            </div>
+
+            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
+              Ordena por nombre, servicio, estado o ultimo control
             </div>
           </div>
 
-          {filteredPatients.length === 0 ? (
-            <div className="mt-4 rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">
-              No hay pacientes que coincidan con la busqueda actual.
-            </div>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {filteredPatients.map((patient) => (
-                <PatientSearchCard key={patient.id} patient={patient} />
-              ))}
-            </div>
-          )}
+          <DataTable
+            columns={columns}
+            data={filteredPatients}
+            initialPageSize={8}
+            searchPlaceholder="Refinar dentro del censo visible"
+            getSearchText={(patient) =>
+              [
+                patient.fullName,
+                patient.identification,
+                patient.medicalRecordNumber,
+                patient.assignedProfessional,
+                patient.primaryDiagnosis,
+                getPatientServiceArea(patient),
+                patientLocationLabels[patient.id] ?? "",
+              ].join(" ")
+            }
+            emptyState={
+              <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                No hay pacientes que coincidan con la busqueda o filtros seleccionados.
+              </div>
+            }
+          />
         </article>
       </section>
     </ModulePage>
-  );
-}
-
-function PatientSearchCard({ patient }: { patient: PatientRecord }) {
-  return (
-    <article className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xl font-semibold text-slate-950">{patient.fullName}</p>
-            <RiskBadge risk={patient.riskLevel} />
-            <TriageBadge triage={patient.triageColor} />
-          </div>
-          <p className="mt-1 text-sm text-slate-600">
-            {patient.identification} · HC {patient.medicalRecordNumber}
-          </p>
-          <p className="mt-1 text-sm text-slate-700">
-            {patient.primaryDiagnosis}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">
-              Sala: {patientLocationLabels[patient.id] ?? "Sin ubicacion"}
-            </span>
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">
-              Servicio: {getPatientServiceArea(patient)}
-            </span>
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">
-              Profesional: {patient.assignedProfessional}
-            </span>
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">
-              Estado: {patient.currentStatus}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <Link
-            href={`/portal/professional/patients/${patient.id}`}
-            className="rounded-[18px] bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-          >
-            Abrir ficha
-          </Link>
-          <Link
-            href={`/portal/professional/patients/${patient.id}?tab=msp_forms`}
-            className="rounded-[18px] border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-          >
-            MSP
-          </Link>
-        </div>
-      </div>
-    </article>
   );
 }
 

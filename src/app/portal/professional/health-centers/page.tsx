@@ -1,16 +1,30 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 
 import { ModulePage, Panel, StatCard } from "../_components/clinical-ui";
 import { getCenterVaccineInventory, healthCenters } from "../_data/clinical-mock-data";
+import { healthCenterLocations } from "../_data/health-center-locations";
+
+const HealthCentersMap = dynamic(() => import("../_components/health-centers-map"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[360px] items-center justify-center rounded-[28px] border border-slate-200 bg-white text-sm text-slate-500">
+      Cargando mapa de centros...
+    </div>
+  ),
+});
 
 export default function HealthCentersPage() {
   const [selectedCenterId, setSelectedCenterId] = useState(healthCenters[0]?.id ?? "");
 
   const selectedCenter =
     healthCenters.find((center) => center.id === selectedCenterId) ?? healthCenters[0];
+
+  const selectedCenterLocation =
+    healthCenterLocations.find((center) => center.centerId === selectedCenterId) ?? healthCenterLocations[0];
 
   const inventory = useMemo(
     () => (selectedCenter ? getCenterVaccineInventory(selectedCenter.id) : []),
@@ -20,7 +34,7 @@ export default function HealthCentersPage() {
   return (
     <ModulePage
       title="Centros de salud"
-      subtitle="Informacion operativa de centros, servicios, capacidad y disponibilidad de vacunas."
+      subtitle="Mapa, capacidad operativa, tiempos de respuesta y disponibilidad para futuras derivaciones."
       actions={
         <Link
           href="/portal/professional/vaccination"
@@ -38,11 +52,9 @@ export default function HealthCentersPage() {
           hint="Personal en red"
         />
         <StatCard
-          label="Servicios promedio"
-          value={Math.round(
-            healthCenters.reduce((sum, center) => sum + center.services.length, 0) / healthCenters.length
-          )}
-          hint="Cobertura asistencial"
+          label="Espera estimada"
+          value={`${selectedCenterLocation?.waitTimeMinutes ?? 0} min`}
+          hint="Centro seleccionado"
         />
         <StatCard
           label="Vacunas con stock"
@@ -51,63 +63,81 @@ export default function HealthCentersPage() {
         />
       </div>
 
-      <Panel title="Selector de centro" subtitle="Consulta horario, capacidad, equipo y observaciones del centro">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <div className="xl:col-span-2">
-            <label className="mb-1 block text-[11px] font-semibold text-slate-600">Centro de salud</label>
-            <select
-              value={selectedCenterId}
-              onChange={(event) => setSelectedCenterId(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
-            >
-              {healthCenters.map((center) => (
-                <option key={center.id} value={center.id}>
-                  {center.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <InfoField label="Ciudad" value={selectedCenter?.city ?? "-"} />
-          <InfoField label="Horario" value={selectedCenter?.schedule ?? "-"} />
-          <InfoField label="Capacidad" value={selectedCenter?.capacity ?? "-"} />
-        </div>
+      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <Panel title="Selector de centro" subtitle="Perfil operativo y lectura rapida de derivacion">
+          <div className="space-y-4">
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                Centro de salud
+              </span>
+              <select
+                value={selectedCenterId}
+                onChange={(event) => setSelectedCenterId(event.target.value)}
+                className="w-full rounded-[18px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+              >
+                {healthCenters.map((center) => (
+                  <option key={center.id} value={center.id}>
+                    {center.name}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
-          <article className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-            <p className="font-semibold text-slate-900">Servicios disponibles</p>
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {selectedCenter?.services.map((service) => (
-                <span key={service} className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600">
-                  {service}
-                </span>
-              ))}
+            <div className="grid grid-cols-2 gap-3">
+              <InfoField label="Ciudad" value={selectedCenter?.city ?? "-"} />
+              <InfoField label="Horario" value={selectedCenter?.schedule ?? "-"} />
+              <InfoField label="Capacidad" value={selectedCenter?.capacity ?? "-"} />
+              <InfoField label="Espera" value={`${selectedCenterLocation?.waitTimeMinutes ?? 0} min`} />
             </div>
-            <p className="mt-2 text-[11px] text-slate-500">Profesionales activos: {selectedCenter?.professionalsActive ?? 0}</p>
-            <p className="text-[11px] text-slate-500">Contacto: {selectedCenter?.contact ?? "-"}</p>
-            <p className="text-[11px] text-slate-500">Observaciones: {selectedCenter?.observations ?? "-"}</p>
-          </article>
 
-          <article className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-            <p className="font-semibold text-slate-900">Vacunas y stock del centro</p>
-            <div className="mt-2 space-y-2">
-              {inventory.map((item) => (
-                <div key={item.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                  <p className="text-xs font-semibold text-slate-900">{item.vaccine}</p>
-                  <p className="text-[11px] text-slate-500">Stock: {item.stock} · Actualizacion: {item.updatedAt}</p>
-                  <span
-                    className={[
-                      "mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px]",
-                      item.status === "Disponible"
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : item.status === "Baja disponibilidad"
-                        ? "border-amber-200 bg-amber-50 text-amber-700"
-                        : "border-rose-200 bg-rose-50 text-rose-700",
-                    ].join(" ")}
-                  >
-                    {item.status}
+            <article className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-900">Derivacion preferente</p>
+              <p className="mt-2 text-sm text-slate-600">{selectedCenterLocation?.referralFocus ?? "-"}</p>
+              <p className="mt-3 text-xs text-slate-500">
+                {selectedCenter?.observations ?? "Sin observaciones registradas."}
+              </p>
+            </article>
+
+            <article className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-900">Servicios</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedCenter?.services.map((service) => (
+                  <span key={service} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
+                    {service}
                   </span>
+                ))}
+              </div>
+            </article>
+          </div>
+        </Panel>
+
+        <HealthCentersMap selectedCenterId={selectedCenterId} />
+      </div>
+
+      <Panel title="Inventario y soporte de red" subtitle="Disponibilidad operativa por centro seleccionado">
+        <div className="grid gap-4 xl:grid-cols-2">
+          <article className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-900">Vacunas y stock</p>
+            <div className="mt-3 space-y-2">
+              {inventory.map((item) => (
+                <div key={item.id} className="rounded-[18px] border border-slate-200 bg-white px-3 py-3">
+                  <p className="text-sm font-semibold text-slate-900">{item.vaccine}</p>
+                  <p className="text-xs text-slate-500">Stock: {item.stock} · Actualizacion: {item.updatedAt}</p>
                 </div>
               ))}
+            </div>
+          </article>
+
+          <article className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-900">Contacto y cobertura</p>
+            <div className="mt-3 space-y-3 text-sm text-slate-600">
+              <p>Contacto: {selectedCenter?.contact ?? "-"}</p>
+              <p>Profesionales activos: {selectedCenter?.professionalsActive ?? 0}</p>
+              <p>Disponibilidad vacunal: {selectedCenter?.vaccineAvailability ?? "-"}</p>
+              <p>
+                Este bloque deja lista una base visual y tecnica para centros cercanos, puntos de atencion,
+                referencias y red de derivacion.
+              </p>
             </div>
           </article>
         </div>
@@ -118,9 +148,9 @@ export default function HealthCentersPage() {
 
 function InfoField({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-0.5 text-xs text-slate-700">{value}</p>
+    <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-3 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-1 text-sm text-slate-700">{value}</p>
     </div>
   );
 }

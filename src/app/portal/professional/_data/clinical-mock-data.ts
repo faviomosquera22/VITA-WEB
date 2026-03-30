@@ -5,6 +5,7 @@ export type SidebarSectionId = "main" | "clinical" | "support" | "system";
 export type ProfessionalModuleId =
   | "home"
   | "patients"
+  | "appointments"
   | "triage"
   | "triage_intake"
   | "follow_up"
@@ -507,6 +508,13 @@ export const professionalSidebarModules: SidebarModuleItem[] = [
     id: "patients",
     label: "Pacientes",
     path: "/portal/professional/patients",
+    section: "main",
+    roles: ["professional", "institution"],
+  },
+  {
+    id: "appointments",
+    label: "Agenda y citas",
+    path: "/portal/professional/appointments",
     section: "main",
     roles: ["professional", "institution"],
   },

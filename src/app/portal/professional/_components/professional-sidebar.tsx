@@ -34,6 +34,7 @@ const sectionMeta: Record<SidebarSectionId, { title: string }> = {
 const moduleIconMap: Record<ProfessionalModuleId, (className: string) => JSX.Element> = {
   home: homeIcon,
   patients: patientsIcon,
+  appointments: appointmentsIcon,
   triage: triageIcon,
   triage_intake: triageIntakeIcon,
   follow_up: followUpIcon,
@@ -70,6 +71,10 @@ const modulePathMatchers: Array<{
       pathname.startsWith("/portal/professional/patient") ||
       pathname.startsWith("/portal/professional/care-plan") ||
       pathname.startsWith("/portal/professional/clinical-documents"),
+  },
+  {
+    id: "appointments",
+    matcher: (pathname) => pathname.startsWith("/portal/professional/appointments"),
   },
   {
     id: "triage_intake",
@@ -422,6 +427,20 @@ function patientsIcon(className: string) {
       <path d="M9.5 11.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7z" />
       <path d="M21 19.5c0-1.8-1.4-3.3-3.2-3.8" />
       <path d="M16.5 4.8a3.2 3.2 0 010 6.3" />
+    </>
+  );
+}
+
+function appointmentsIcon(className: string) {
+  return iconBase(
+    className,
+    <>
+      <path d="M7 3v4" />
+      <path d="M17 3v4" />
+      <path d="M4 8h16" />
+      <path d="M5 5h14v16H5z" />
+      <path d="M8.5 12.5h3" />
+      <path d="M8.5 16h7" />
     </>
   );
 }

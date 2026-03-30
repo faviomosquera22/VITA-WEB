@@ -1,6 +1,10 @@
 import Link from "next/link";
+import type { EChartsOption } from "echarts";
 
+import ClinicalChart from "./_components/clinical-chart";
 import { ModulePage, Panel, RiskBadge, TriageBadge } from "./_components/clinical-ui";
+import { NotificationInboxPanel } from "./_components/notifications-center";
+import { appointmentRecords, getAppointmentMetrics } from "./_data/appointments-mock-data";
 import {
   currentClinicalContext,
   getCurrentCenter,
@@ -11,6 +15,15 @@ import {
   type ProfessionalModuleId,
   type SidebarSectionId,
 } from "./_data/clinical-mock-data";
+import {
+  getMedicationAdherenceOverview,
+  getPriorityPatientForDashboard,
+  getRecentDashboardActivity,
+  getServiceDistribution,
+  getTriageDistribution,
+  getVitalTrend,
+} from "./_data/portal-insights";
+import { backgroundJobCatalog } from "@/lib/background-jobs/catalog";
 import { getMspComplianceDashboard } from "@/lib/msp-compliance";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +62,7 @@ const sectionMeta: Record<
 
 const moduleDescriptions: Partial<Record<ProfessionalModuleId, string>> = {
   patients: "Busqueda, seleccion y trabajo clinico centrado en el paciente.",
+  appointments: "Agenda operativa, disponibilidad y continuidad de citas.",
   triage: "Priorizacion, clasificacion y decision inicial del caso.",
   triage_intake: "Registro estructurado del ingreso de triaje.",
   follow_up: "Controles pendientes, seguimiento y continuidad asistencial.",
@@ -78,6 +92,14 @@ export default function ProfessionalHomePage() {
   const center = getCurrentCenter();
   const prioritizedPatients = getPatientsByTriagePriority().slice(0, 4);
   const compliance = getMspComplianceDashboard();
+  const appointmentMetrics = getAppointmentMetrics();
+  const priorityPatient = getPriorityPatientForDashboard();
+  const vitalTrend = getVitalTrend(priorityPatient);
+  const triageDistribution = getTriageDistribution();
+  const serviceDistribution = getServiceDistribution();
+  const medicationAdherence = getMedicationAdherenceOverview();
+  const recentActivity = getRecentDashboardActivity();
+  const operationalJobs = backgroundJobCatalog.filter((job) => job.status === "ready").slice(0, 3);
   const modules = professionalSidebarModules.filter(
     (module) => module.roles.includes("professional") && module.id !== "home"
   );
@@ -93,6 +115,7 @@ export default function ProfessionalHomePage() {
 
   const moduleBadgeMap: Partial<Record<ProfessionalModuleId, string>> = {
     patients: `${metrics.activePatients} activos`,
+    appointments: `${appointmentMetrics.upcoming} proximas`,
     triage: `${metrics.criticalPatients} criticos`,
     follow_up: `${metrics.dayPending} pendientes`,
     vitals: `${metrics.observationPatients} en observacion`,
@@ -129,7 +152,9 @@ export default function ProfessionalHomePage() {
 
             <div className="mt-5 flex flex-wrap gap-2">
               <QuickLaunchLink href="/portal/professional/patients" label="Pacientes" tone="dark" />
+              <QuickLaunchLink href="/portal/professional/appointments" label="Agenda" tone="sky" />
               <QuickLaunchLink href="/portal/professional/patients/ingreso" label="Nuevo ingreso" />
+              <QuickLaunchLink href="/portal/professional/clinical-documents" label="Documentos" />
               <QuickLaunchLink href="/portal/professional/reports" label="Formularios MSP" tone="sky" />
               <QuickLaunchLink href="/portal/professional/cumplimiento" label="Cumplimiento" />
             </div>
@@ -209,6 +234,101 @@ export default function ProfessionalHomePage() {
           })}
         </div>
       </Panel>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <Panel
+          title="Monitor clinico prioritario"
+          subtitle={
+            priorityPatient
+              ? `Tendencia reciente de presion arterial y glucosa para ${priorityPatient.fullName}.`
+              : "No hay paciente prioritario disponible."
+          }
+        >
+          <ClinicalChart option={buildVitalTrendOption(vitalTrend)} height={340} />
+        </Panel>
+
+        <Panel
+          title="Distribucion asistencial"
+          subtitle="Panorama rapido de prioridades de triaje y carga por servicio."
+        >
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ClinicalChart option={buildTriageOption(triageDistribution)} height={220} />
+            <ClinicalChart option={buildServiceOption(serviceDistribution)} height={220} />
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <Panel
+          title="Actividad reciente y adherencia"
+          subtitle="Eventos clinicos cercanos al tiempo real junto con estado de administracion farmacologica."
+        >
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="space-y-3">
+              {recentActivity.map((item) => (
+                <article key={item.id} className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950">{item.patientName}</p>
+                      <p className="text-xs text-slate-500">
+                        {item.category} · {item.datetime}
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600">
+                      {item.category}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-600">{item.detail}</p>
+                </article>
+              ))}
+            </div>
+
+            <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-3">
+              <ClinicalChart option={buildMedicationOption(medicationAdherence)} height={260} />
+            </div>
+          </div>
+        </Panel>
+
+        <Panel
+          title="Recordatorios y operaciones"
+          subtitle="Base inicial para notificaciones clinicas, agenda y trabajos en segundo plano."
+        >
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+            <NotificationInboxPanel />
+            <div className="space-y-3">
+              <section className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-slate-950">Backlog asincrono</p>
+                <div className="mt-3 space-y-3">
+                  {operationalJobs.map((job) => (
+                    <article key={job.id} className="rounded-[18px] border border-slate-200 bg-white p-3">
+                      <p className="text-sm font-semibold text-slate-900">{job.name}</p>
+                      <p className="mt-1 text-sm text-slate-600">{job.description}</p>
+                      <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                        {job.queue} · {job.trigger}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-slate-950">Agenda proxima</p>
+                <div className="mt-3 space-y-2">
+                  {appointmentRecords.slice(0, 3).map((appointment) => (
+                    <article key={appointment.id} className="rounded-[18px] border border-slate-200 bg-white p-3">
+                      <p className="text-sm font-semibold text-slate-900">{appointment.patientName}</p>
+                      <p className="text-xs text-slate-500">
+                        {appointment.specialty} · {appointment.date} · {appointment.time}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">{appointment.clinician}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </div>
+          </div>
+        </Panel>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Panel
@@ -414,6 +534,16 @@ function DashboardModuleIcon({ id }: { id: ProfessionalModuleId }) {
     );
   }
 
+  if (id === "appointments") {
+    return (
+      <svg viewBox="0 0 24 24" className={iconClassName} fill="none" stroke="currentColor" strokeWidth="1.7">
+        <path d="M7 3v4M17 3v4M4 8h16" />
+        <path d="M5 5h14v16H5z" />
+        <path d="M8.5 12.5h3M8.5 16h7" />
+      </svg>
+    );
+  }
+
   if (id === "triage" || id === "alerts") {
     return (
       <svg viewBox="0 0 24 24" className={iconClassName} fill="none" stroke="currentColor" strokeWidth="1.7">
@@ -552,4 +682,162 @@ function CompactStatusRow({
       <span className="text-right text-xs text-slate-700">{value}</span>
     </div>
   );
+}
+
+function buildVitalTrendOption(
+  points: Array<{ label: string; systolic: number; diastolic: number; heartRate: number; glucose: number }>
+): EChartsOption {
+  return {
+    animationDuration: 500,
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "#0f172a",
+      borderWidth: 0,
+      textStyle: { color: "#f8fafc" },
+    },
+    legend: {
+      bottom: 0,
+      textStyle: { color: "#475569" },
+    },
+    grid: { left: 18, right: 18, top: 24, bottom: 42, containLabel: true },
+    xAxis: {
+      type: "category",
+      data: points.map((point) => point.label),
+      axisLine: { lineStyle: { color: "#cbd5e1" } },
+      axisLabel: { color: "#64748b" },
+    },
+    yAxis: {
+      type: "value",
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: "#e2e8f0" } },
+      axisLabel: { color: "#64748b" },
+    },
+    series: [
+      {
+        name: "Sistolica",
+        type: "line",
+        smooth: true,
+        symbolSize: 8,
+        lineStyle: { width: 3, color: "#0f172a" },
+        itemStyle: { color: "#0f172a" },
+        data: points.map((point) => point.systolic),
+      },
+      {
+        name: "Diastolica",
+        type: "line",
+        smooth: true,
+        symbolSize: 8,
+        lineStyle: { width: 3, color: "#0284c7" },
+        itemStyle: { color: "#0284c7" },
+        data: points.map((point) => point.diastolic),
+      },
+      {
+        name: "Glucosa",
+        type: "line",
+        smooth: true,
+        symbolSize: 8,
+        lineStyle: { width: 3, color: "#14b8a6" },
+        itemStyle: { color: "#14b8a6" },
+        data: points.map((point) => point.glucose),
+      },
+    ],
+  };
+}
+
+function buildTriageOption(points: Array<{ label: string; value: number }>): EChartsOption {
+  const colorMap: Record<string, string> = {
+    rojo: "#dc2626",
+    naranja: "#f97316",
+    amarillo: "#f59e0b",
+    verde: "#10b981",
+    azul: "#0284c7",
+  };
+
+  return {
+    animationDuration: 500,
+    tooltip: { trigger: "item" },
+    grid: { left: 16, right: 16, top: 12, bottom: 28, containLabel: true },
+    xAxis: {
+      type: "category",
+      data: points.map((point) => point.label),
+      axisLabel: { color: "#64748b" },
+      axisLine: { lineStyle: { color: "#cbd5e1" } },
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: { color: "#64748b" },
+      splitLine: { lineStyle: { color: "#e2e8f0" } },
+    },
+    series: [
+      {
+        type: "bar",
+        barWidth: 28,
+        data: points.map((point) => ({
+          value: point.value,
+          itemStyle: { color: colorMap[point.label] ?? "#0f172a", borderRadius: [12, 12, 0, 0] },
+        })),
+      },
+    ],
+  };
+}
+
+function buildServiceOption(
+  points: Array<{ label: string; total: number; highRisk: number }>
+): EChartsOption {
+  return {
+    animationDuration: 500,
+    tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+    legend: { bottom: 0, textStyle: { color: "#475569" } },
+    grid: { left: 16, right: 16, top: 18, bottom: 40, containLabel: true },
+    xAxis: {
+      type: "category",
+      data: points.map((point) => point.label),
+      axisLabel: { color: "#64748b", interval: 0, rotate: 12 },
+      axisLine: { lineStyle: { color: "#cbd5e1" } },
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: { color: "#64748b" },
+      splitLine: { lineStyle: { color: "#e2e8f0" } },
+    },
+    series: [
+      {
+        name: "Pacientes",
+        type: "bar",
+        barGap: "20%",
+        data: points.map((point) => point.total),
+        itemStyle: { color: "#0f172a", borderRadius: [12, 12, 0, 0] },
+      },
+      {
+        name: "Alto riesgo",
+        type: "bar",
+        data: points.map((point) => point.highRisk),
+        itemStyle: { color: "#0284c7", borderRadius: [12, 12, 0, 0] },
+      },
+    ],
+  };
+}
+
+function buildMedicationOption(points: Array<{ label: string; value: number }>): EChartsOption {
+  const colors = ["#0f172a", "#0284c7", "#f97316"];
+
+  return {
+    animationDuration: 500,
+    tooltip: { trigger: "item" },
+    legend: { bottom: 0, textStyle: { color: "#475569" } },
+    series: [
+      {
+        type: "pie",
+        radius: ["52%", "76%"],
+        avoidLabelOverlap: true,
+        label: { color: "#475569" },
+        itemStyle: { borderColor: "#ffffff", borderWidth: 4 },
+        data: points.map((point, index) => ({
+          name: point.label,
+          value: point.value,
+          itemStyle: { color: colors[index] ?? "#94a3b8" },
+        })),
+      },
+    ],
+  };
 }
