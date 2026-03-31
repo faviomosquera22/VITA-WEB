@@ -1794,37 +1794,65 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
         )}
       </header>
 
-      <div className="sticky top-2 z-20 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/85">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-slate-900">
+      <div
+        className={[
+          "sticky top-2 z-20 rounded-2xl border border-slate-200 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/85",
+          isBundleWorkspace ? "px-3 py-2" : "p-3",
+        ].join(" ")}
+      >
+        <div
+          className={[
+            "flex flex-col xl:flex-row xl:items-center xl:justify-between",
+            isBundleWorkspace ? "gap-2" : "gap-3",
+          ].join(" ")}
+        >
+          <div className={isBundleWorkspace ? "space-y-0.5" : "space-y-1"}>
+            <p className={isBundleWorkspace ? "text-[13px] font-semibold text-slate-900" : "text-sm font-semibold text-slate-900"}>
               {patient.fullName} · {patient.age} anios · HC {patient.medicalRecordNumber}
             </p>
             <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
-                Area: {patient.serviceArea ?? patient.careMode}
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
-                Estado: {patient.currentStatus}
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
-                Ultimo control: {patient.lastControlAt}
-              </span>
-              <RiskBadge risk={patient.riskLevel} />
-              <TriageBadge triage={patient.triageColor} />
-              {medicationAllergies.length > 0 ? (
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-800">
-                  Alergias: {medicationAllergies.slice(0, 2).join(" · ")}
-                </span>
+              {isBundleWorkspace ? (
+                <>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
+                    {patient.serviceArea ?? patient.careMode}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
+                    {patient.currentStatus}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
+                    {patient.lastControlAt}
+                  </span>
+                  <RiskBadge risk={patient.riskLevel} />
+                  <TriageBadge triage={patient.triageColor} />
+                </>
               ) : (
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
-                  Sin alergias medicamentosas
-                </span>
+                <>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
+                    Area: {patient.serviceArea ?? patient.careMode}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
+                    Estado: {patient.currentStatus}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
+                    Ultimo control: {patient.lastControlAt}
+                  </span>
+                  <RiskBadge risk={patient.riskLevel} />
+                  <TriageBadge triage={patient.triageColor} />
+                  {medicationAllergies.length > 0 ? (
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-800">
+                      Alergias: {medicationAllergies.slice(0, 2).join(" · ")}
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
+                      Sin alergias medicamentosas
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-1.5">
+          <div className={["flex flex-wrap", isBundleWorkspace ? "gap-1" : "gap-1.5"].join(" ")}>
             <StickyTabButton
               label="Resumen"
               active={activeTab === "summary"}
