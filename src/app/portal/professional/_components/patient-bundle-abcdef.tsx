@@ -513,8 +513,8 @@ export default function PatientBundleAbcdef({
         </div>
       </Panel>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_340px]">
-        <div className="space-y-4">
+      <div className="space-y-4 2xl:grid 2xl:grid-cols-[minmax(0,1.5fr)_340px] 2xl:items-start 2xl:gap-4 2xl:space-y-0">
+        <div className="min-w-0 space-y-4">
           <Panel
             title="Detalle operativo por componente"
             subtitle="Selecciona una letra para registrar, revisar historial y ajustar elegibilidad clinica"
@@ -554,10 +554,10 @@ export default function PatientBundleAbcdef({
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_320px]">
+              <div className="mt-4 space-y-4 2xl:grid 2xl:grid-cols-[minmax(0,1.2fr)_320px] 2xl:items-start 2xl:gap-4 2xl:space-y-0">
                   <div className="space-y-4">{renderSectionContent(activeCode)}</div>
 
-                  <div className="space-y-4">
+                  <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-1">
                     <Panel title="Elegibilidad" subtitle="Flexible segun condicion clinica actual">
                       <div className="space-y-3">
                         <SelectField
@@ -611,9 +611,9 @@ export default function PatientBundleAbcdef({
           </Panel>
         </div>
 
-        <div className="space-y-4">
+        <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-1">
           <Panel title="Indicadores" subtitle="Base inicial preparada para analitica futura">
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-1">
               <MetricCard
                 label="Cumplimiento total hoy"
                 value={`${dashboard.completedCount}/${dashboard.applicableCount || 6}`}
@@ -730,7 +730,7 @@ export default function PatientBundleAbcdef({
       return (
         <div className="space-y-4">
           <Panel title="Registro de dolor" subtitle="Valoracion, intervencion y respuesta del paciente">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 lg:grid-cols-2">
               <SelectField
                 label="Escala de dolor"
                 value={painForm.painScaleName}
@@ -759,6 +759,7 @@ export default function PatientBundleAbcdef({
                 placeholder="0-10"
               />
               <TextAreaField
+                className="lg:col-span-2"
                 label="Intervencion realizada"
                 value={painForm.interventionPerformed}
                 onChange={(value) =>
@@ -767,12 +768,14 @@ export default function PatientBundleAbcdef({
                 placeholder="Ej. analgesia, cambio de posicion, reevaluacion..."
               />
               <TextAreaField
+                className="lg:col-span-2"
                 label="Analgesia indicada"
                 value={painForm.analgesiaIndicated}
                 onChange={(value) => setPainForm((current) => ({ ...current, analgesiaIndicated: value }))}
                 placeholder="Ej. analgesia segun orden medica..."
               />
               <TextAreaField
+                className="lg:col-span-2"
                 label="Analgesia administrada"
                 value={painForm.analgesiaAdministered}
                 onChange={(value) =>
@@ -781,6 +784,7 @@ export default function PatientBundleAbcdef({
                 placeholder="Medicacion administrada o medidas no farmacologicas"
               />
               <TextAreaField
+                className="lg:col-span-2"
                 label="Respuesta posterior"
                 value={painForm.response}
                 onChange={(value) => setPainForm((current) => ({ ...current, response: value }))}
@@ -824,13 +828,14 @@ export default function PatientBundleAbcdef({
       return (
         <div className="space-y-4">
           <Panel title="Elegibilidad y ejecucion SAT/SBT" subtitle="Registrar revision clinica sin automatizar decisiones">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 lg:grid-cols-2">
               <BooleanField
                 label="Paciente en ventilacion mecanica"
                 value={satSbtForm.onMechanicalVentilation}
                 onChange={(value) =>
                   setSatSbtForm((current) => ({ ...current, onMechanicalVentilation: value }))
                 }
+                className="lg:col-span-2"
               />
               <InputField
                 label="Fecha / hora de revision"
@@ -845,6 +850,7 @@ export default function PatientBundleAbcdef({
                 options={yesNoPendingOptions}
               />
               <TextAreaField
+                className="lg:col-span-2"
                 label="Motivo si SAT no aplica"
                 value={satSbtForm.satExclusionReason}
                 onChange={(value) =>
@@ -859,6 +865,7 @@ export default function PatientBundleAbcdef({
                 options={yesNoPendingOptions}
               />
               <TextAreaField
+                className="lg:col-span-2"
                 label="Resultado SAT"
                 value={satSbtForm.satResult}
                 onChange={(value) => setSatSbtForm((current) => ({ ...current, satResult: value }))}
@@ -871,6 +878,7 @@ export default function PatientBundleAbcdef({
                 options={yesNoPendingOptions}
               />
               <TextAreaField
+                className="lg:col-span-2"
                 label="Motivo si SBT no aplica"
                 value={satSbtForm.sbtExclusionReason}
                 onChange={(value) =>
@@ -885,6 +893,7 @@ export default function PatientBundleAbcdef({
                 options={yesNoPendingOptions}
               />
               <TextAreaField
+                className="lg:col-span-2"
                 label="Resultado SBT"
                 value={satSbtForm.sbtResult}
                 onChange={(value) => setSatSbtForm((current) => ({ ...current, sbtResult: value }))}
@@ -928,7 +937,7 @@ export default function PatientBundleAbcdef({
       return (
         <div className="space-y-4">
           <Panel title="Analgesia y sedacion" subtitle="Documentar objetivo, escala y concordancia actual vs meta">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 lg:grid-cols-2">
               <InputField
                 label="Fecha / hora de revision"
                 type="datetime-local"
@@ -936,6 +945,7 @@ export default function PatientBundleAbcdef({
                 onChange={(value) => setSedationForm((current) => ({ ...current, recordedAt: value }))}
               />
               <InputField
+                className="lg:col-span-2"
                 label="Medicamentos activos relacionados"
                 value={sedationForm.relatedMedications}
                 onChange={(value) =>
@@ -944,6 +954,7 @@ export default function PatientBundleAbcdef({
                 placeholder="Separar por comas"
               />
               <TextAreaField
+                className="lg:col-span-2"
                 label="Objetivo de sedacion"
                 value={sedationForm.sedationGoal}
                 onChange={(value) => setSedationForm((current) => ({ ...current, sedationGoal: value }))}
@@ -1011,13 +1022,14 @@ export default function PatientBundleAbcdef({
       return (
         <div className="space-y-4">
           <Panel title="Tamizaje y prevencion de delirio" subtitle="Registrar instrumento, riesgos y medidas no farmacologicas">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 lg:grid-cols-2">
               <BooleanField
                 label="Tamizaje realizado"
                 value={deliriumForm.screeningPerformed}
                 onChange={(value) =>
                   setDeliriumForm((current) => ({ ...current, screeningPerformed: value }))
                 }
+                className="lg:col-span-2"
               />
               <InputField
                 label="Fecha / hora"
@@ -1040,12 +1052,14 @@ export default function PatientBundleAbcdef({
                 placeholder="Ej. negativo, positivo, no valorable..."
               />
               <InputField
+                className="lg:col-span-2"
                 label="Factores de riesgo identificados"
                 value={deliriumForm.riskFactors}
                 onChange={(value) => setDeliriumForm((current) => ({ ...current, riskFactors: value }))}
                 placeholder="Separar por comas"
               />
               <InputField
+                className="lg:col-span-2"
                 label="Medidas no farmacologicas"
                 value={deliriumForm.nonPharmacologicMeasures}
                 onChange={(value) =>
@@ -1101,7 +1115,7 @@ export default function PatientBundleAbcdef({
       return (
         <div className="space-y-4">
           <Panel title="Movilizacion temprana" subtitle="Registrar nivel del dia, tolerancia y barreras operativas">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 lg:grid-cols-2">
               <InputField
                 label="Fecha / hora"
                 type="datetime-local"
@@ -1158,6 +1172,7 @@ export default function PatientBundleAbcdef({
                 placeholder="Ej. adecuada, limitada por disnea..."
               />
               <TextAreaField
+                className="lg:col-span-2"
                 label="Barreras o contraindicaciones"
                 value={mobilityForm.barriers}
                 onChange={(value) => setMobilityForm((current) => ({ ...current, barriers: value }))}
@@ -1202,7 +1217,7 @@ export default function PatientBundleAbcdef({
     return (
       <div className="space-y-4">
         <Panel title="Familia y empoderamiento" subtitle="Comunicar, educar y documentar participacion en decisiones">
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 lg:grid-cols-2">
             <InputField
               label="Familiar / contacto identificado"
               value={familyForm.familyContact}
@@ -1221,6 +1236,7 @@ export default function PatientBundleAbcdef({
               onChange={(value) =>
                 setFamilyForm((current) => ({ ...current, communicationPerformed: value }))
               }
+              className="lg:col-span-2"
             />
             <InputField
               label="Profesional que registro"
@@ -1229,6 +1245,7 @@ export default function PatientBundleAbcdef({
               placeholder="Ej. Dra. Camila Rojas"
             />
             <TextAreaField
+              className="lg:col-span-2"
               label="Educacion brindada"
               value={familyForm.educationProvided}
               onChange={(value) =>
@@ -1237,6 +1254,7 @@ export default function PatientBundleAbcdef({
               placeholder="Resumen breve de informacion y educacion entregada"
             />
             <TextAreaField
+              className="lg:col-span-2"
               label="Participacion en decisiones"
               value={familyForm.participationInDecisions}
               onChange={(value) =>
@@ -1654,6 +1672,7 @@ function InputField({
   placeholder,
   min,
   max,
+  className,
 }: {
   label: string;
   value: string;
@@ -1662,9 +1681,10 @@ function InputField({
   placeholder?: string;
   min?: number;
   max?: number;
+  className?: string;
 }) {
   return (
-    <label className="block space-y-1">
+    <label className={`block space-y-1 ${className ?? ""}`}>
       <span className="text-[11px] font-semibold text-slate-600">{label}</span>
       <input
         type={type}
@@ -1685,15 +1705,17 @@ function TextAreaField({
   onChange,
   placeholder,
   rows = 3,
+  className,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   rows?: number;
+  className?: string;
 }) {
   return (
-    <label className="block space-y-1">
+    <label className={`block space-y-1 ${className ?? ""}`}>
       <span className="text-[11px] font-semibold text-slate-600">{label}</span>
       <textarea
         value={value}
@@ -1711,14 +1733,16 @@ function SelectField({
   value,
   onChange,
   options,
+  className,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: Array<{ value: string; label: string }>;
+  className?: string;
 }) {
   return (
-    <label className="block space-y-1">
+    <label className={`block space-y-1 ${className ?? ""}`}>
       <span className="text-[11px] font-semibold text-slate-600">{label}</span>
       <select
         value={value}
@@ -1740,13 +1764,15 @@ function BooleanField({
   label,
   value,
   onChange,
+  className,
 }: {
   label: string;
   value: boolean;
   onChange: (value: boolean) => void;
+  className?: string;
 }) {
   return (
-    <div className="space-y-1">
+    <div className={`space-y-1 ${className ?? ""}`}>
       <span className="text-[11px] font-semibold text-slate-600">{label}</span>
       <div className="grid grid-cols-2 gap-2">
         <button
