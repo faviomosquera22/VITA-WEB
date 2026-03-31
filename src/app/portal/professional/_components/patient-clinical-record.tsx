@@ -333,8 +333,17 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   );
   const [linkedRecordLoading, setLinkedRecordLoading] = useState(false);
   const [linkedRecordError, setLinkedRecordError] = useState<string | null>(null);
+  const [bundleNavigatorOpen, setBundleNavigatorOpen] = useState(false);
 
   const activeTab = selectedTab ?? (isTab(requestedTab) ? requestedTab : "summary");
+  const isBundleWorkspace = activeTab === "bundle_abcdef";
+  const showClinicalAside = !isBundleWorkspace || bundleNavigatorOpen;
+
+  useEffect(() => {
+    if (isBundleWorkspace) {
+      setBundleNavigatorOpen(false);
+    }
+  }, [isBundleWorkspace]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1855,7 +1864,13 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+      <div
+        className={[
+          "grid grid-cols-1 gap-4",
+          showClinicalAside ? "xl:grid-cols-[300px_minmax(0,1fr)]" : "",
+        ].join(" ")}
+      >
+        {showClinicalAside ? (
         <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-3 xl:sticky xl:top-24">
           <div className="mb-3 border-b border-slate-200 pb-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
@@ -1911,6 +1926,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
             ))}
           </div>
         </aside>
+        ) : null}
 
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
@@ -1931,6 +1947,24 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
               Ver historico
             </button>
           </div>
+
+          {isBundleWorkspace ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2">
+              <div>
+                <p className="text-xs font-semibold text-sky-900">Modo enfoque del Bundle ABCDEF</p>
+                <p className="text-[11px] text-sky-700">
+                  La navegacion clinica lateral se oculta para ganar ancho util de registro.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBundleNavigatorOpen((current) => !current)}
+                className="rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-xs font-semibold text-sky-800 hover:bg-sky-100"
+              >
+                {bundleNavigatorOpen ? "Ocultar navegacion clinica" : "Mostrar navegacion clinica"}
+              </button>
+            </div>
+          ) : null}
 
       {activeTab === "summary" && (
         <div className="space-y-4">
