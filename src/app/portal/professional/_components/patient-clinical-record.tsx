@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import PatientBundleAbcdef from "./patient-bundle-abcdef";
 import { ClinicalSurveillancePanel } from "./clinical-surveillance-panel";
 import { Panel, RiskBadge, TriageBadge } from "./clinical-ui";
 import { getAvailableMspForms } from "@/lib/msp-form-reports";
@@ -39,6 +40,7 @@ type PatientTabId =
   | "vaccination"
   | "emotional"
   | "care_plan"
+  | "bundle_abcdef"
   | "msp_forms"
   | "documents"
   | "timeline"
@@ -63,6 +65,7 @@ const patientTabs: Array<{ id: PatientTabId; label: string; group: string }> = [
   { id: "procedures", label: "Procedimientos", group: "Seguimiento clinico" },
   { id: "nursing_notes", label: "Notas enfermeria", group: "Seguimiento clinico" },
   { id: "care_plan", label: "Plan de cuidados", group: "Seguimiento clinico" },
+  { id: "bundle_abcdef", label: "Bundle ABCDEF", group: "Seguimiento clinico" },
   { id: "nutrition", label: "Nutricion", group: "Seguimiento clinico" },
   { id: "emotional", label: "Salud emocional", group: "Seguimiento clinico" },
   { id: "education", label: "Educacion", group: "Seguimiento clinico" },
@@ -1842,6 +1845,11 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
               label="MSP"
               active={activeTab === "msp_forms"}
               onClick={() => setSelectedTab("msp_forms")}
+            />
+            <StickyTabButton
+              label="Bundle ABCDEF"
+              active={activeTab === "bundle_abcdef"}
+              onClick={() => setSelectedTab("bundle_abcdef")}
             />
           </div>
         </div>
@@ -4286,6 +4294,14 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
             </div>
           )}
         </Panel>
+      )}
+
+      {activeTab === "bundle_abcdef" && (
+        <PatientBundleAbcdef
+          patient={patient}
+          currentProfessional={currentProfessional}
+          onAudit={(title, details) => addAuditRecord("bundle_abcdef", title, details)}
+        />
       )}
 
       {activeTab === "education" && (
