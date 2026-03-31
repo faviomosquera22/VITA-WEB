@@ -554,10 +554,10 @@ export default function PatientBundleAbcdef({
                   </div>
                 </div>
 
-              <div className="mt-4 space-y-4 2xl:grid 2xl:grid-cols-[minmax(0,1.2fr)_320px] 2xl:items-start 2xl:gap-4 2xl:space-y-0">
+                <div className="mt-4 space-y-4">
                   <div className="space-y-4">{renderSectionContent(activeCode)}</div>
 
-                  <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-1">
+                  <div className="grid gap-4 xl:grid-cols-2">
                     <Panel title="Elegibilidad" subtitle="Flexible segun condicion clinica actual">
                       <div className="space-y-3">
                         <SelectField
