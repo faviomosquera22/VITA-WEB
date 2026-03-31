@@ -4,13 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import PatientBundleAbcdef from "./patient-bundle-abcdef";
 import { ClinicalSurveillancePanel } from "./clinical-surveillance-panel";
 import { Panel, RiskBadge, TriageBadge } from "./clinical-ui";
-import PatientMedicationCatalogAssistant from "./patient-medication-catalog-assistant";
 import { getAvailableMspForms } from "@/lib/msp-form-reports";
 import type { RegisteredPatientRecord, RegisteredPatientSummary } from "@/types/patient-intake";
-import { resolveMedicationKnowledgeEntry } from "../_data/medication-knowledge-base";
-import { getMedicationStockSnapshot } from "../_data/medication-stock";
 import {
   type CarePlanRecord,
   educationResources,
@@ -42,6 +40,7 @@ type PatientTabId =
   | "vaccination"
   | "emotional"
   | "care_plan"
+  | "bundle_abcdef"
   | "msp_forms"
   | "documents"
   | "timeline"
@@ -66,6 +65,7 @@ const patientTabs: Array<{ id: PatientTabId; label: string; group: string }> = [
   { id: "procedures", label: "Procedimientos", group: "Seguimiento clinico" },
   { id: "nursing_notes", label: "Notas enfermeria", group: "Seguimiento clinico" },
   { id: "care_plan", label: "Plan de cuidados", group: "Seguimiento clinico" },
+  { id: "bundle_abcdef", label: "Bundle ABCDEF", group: "Seguimiento clinico" },
   { id: "nutrition", label: "Nutricion", group: "Seguimiento clinico" },
   { id: "emotional", label: "Salud emocional", group: "Seguimiento clinico" },
   { id: "education", label: "Educacion", group: "Seguimiento clinico" },
@@ -241,7 +241,6 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   });
   const [medicationForm, setMedicationForm] = useState<{
     name: string;
-    presentation: string;
     dose: string;
     frequency: string;
     route: string;
@@ -253,7 +252,6 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     notes: string;
   }>({
     name: "",
-    presentation: "",
     dose: "",
     frequency: "",
     route: "Oral",
@@ -335,8 +333,17 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   );
   const [linkedRecordLoading, setLinkedRecordLoading] = useState(false);
   const [linkedRecordError, setLinkedRecordError] = useState<string | null>(null);
+  const [bundleNavigatorOpen, setBundleNavigatorOpen] = useState(false);
 
   const activeTab = selectedTab ?? (isTab(requestedTab) ? requestedTab : "summary");
+  const isBundleWorkspace = activeTab === "bundle_abcdef";
+  const showClinicalAside = !isBundleWorkspace || bundleNavigatorOpen;
+
+  useEffect(() => {
+    if (isBundleWorkspace) {
+      setBundleNavigatorOpen(false);
+    }
+  }, [isBundleWorkspace]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1310,23 +1317,9 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       return;
     }
 
-    const medicationName = medicationForm.name.trim();
-    const selectedPresentation = medicationForm.presentation.trim();
-    const stockSnapshot = getMedicationStockSnapshot(medicationName, selectedPresentation);
-    const knowledgeEntry = resolveMedicationKnowledgeEntry(medicationName);
-    const notes = [
-      selectedPresentation ? `Presentacion: ${selectedPresentation}.` : "",
-      stockSnapshot ? `Stock ${stockSnapshot.status.toLowerCase()}: ${stockSnapshot.stock} en ${stockSnapshot.location}.` : "",
-      knowledgeEntry?.highAlert ? "Medicamento de alto riesgo: requiere doble chequeo clinico." : "",
-      medicationForm.notes.trim() || "Sin observaciones.",
-    ]
-      .filter(Boolean)
-      .join(" ");
-
     const newMedication: MedicationRecord = {
       id: `med-local-${Date.now()}`,
-      name: medicationName,
-      presentation: selectedPresentation || undefined,
+      name: medicationForm.name.trim(),
       dose: medicationForm.dose.trim(),
       frequency: medicationForm.frequency.trim(),
       route: medicationForm.route.trim(),
@@ -1336,11 +1329,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       prescriber: medicationForm.prescriber.trim() || currentProfessional.trim() || patient.assignedProfessional,
       adherence: medicationForm.adherence.trim() || "En seguimiento",
       administrationStatus: medicationForm.administrationStatus,
-      stockStatus: stockSnapshot?.status,
-      stockCount: stockSnapshot?.stock,
-      stockLocation: stockSnapshot?.location,
-      inventoryUpdatedAt: stockSnapshot?.updatedAt,
-      notes,
+      notes: medicationForm.notes.trim() || "Sin observaciones.",
     };
 
     setAddedMedicationRecords((prev) => [newMedication, ...prev]);
@@ -1352,7 +1341,6 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     setMedicationForm((prev) => ({
       ...prev,
       name: "",
-      presentation: "",
       dose: "",
       frequency: "",
       schedule: "",
@@ -1806,37 +1794,65 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
         )}
       </header>
 
-      <div className="sticky top-2 z-20 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/85">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-slate-900">
+      <div
+        className={[
+          "sticky top-2 z-20 rounded-2xl border border-slate-200 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/85",
+          isBundleWorkspace ? "px-3 py-2" : "p-3",
+        ].join(" ")}
+      >
+        <div
+          className={[
+            "flex flex-col xl:flex-row xl:items-center xl:justify-between",
+            isBundleWorkspace ? "gap-2" : "gap-3",
+          ].join(" ")}
+        >
+          <div className={isBundleWorkspace ? "space-y-0.5" : "space-y-1"}>
+            <p className={isBundleWorkspace ? "text-[13px] font-semibold text-slate-900" : "text-sm font-semibold text-slate-900"}>
               {patient.fullName} · {patient.age} anios · HC {patient.medicalRecordNumber}
             </p>
             <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
-                Area: {patient.serviceArea ?? patient.careMode}
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
-                Estado: {patient.currentStatus}
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
-                Ultimo control: {patient.lastControlAt}
-              </span>
-              <RiskBadge risk={patient.riskLevel} />
-              <TriageBadge triage={patient.triageColor} />
-              {medicationAllergies.length > 0 ? (
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-800">
-                  Alergias: {medicationAllergies.slice(0, 2).join(" · ")}
-                </span>
+              {isBundleWorkspace ? (
+                <>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
+                    {patient.serviceArea ?? patient.careMode}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
+                    {patient.currentStatus}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
+                    {patient.lastControlAt}
+                  </span>
+                  <RiskBadge risk={patient.riskLevel} />
+                  <TriageBadge triage={patient.triageColor} />
+                </>
               ) : (
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
-                  Sin alergias medicamentosas
-                </span>
+                <>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
+                    Area: {patient.serviceArea ?? patient.careMode}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
+                    Estado: {patient.currentStatus}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
+                    Ultimo control: {patient.lastControlAt}
+                  </span>
+                  <RiskBadge risk={patient.riskLevel} />
+                  <TriageBadge triage={patient.triageColor} />
+                  {medicationAllergies.length > 0 ? (
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-800">
+                      Alergias: {medicationAllergies.slice(0, 2).join(" · ")}
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
+                      Sin alergias medicamentosas
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-1.5">
+          <div className={["flex flex-wrap", isBundleWorkspace ? "gap-1" : "gap-1.5"].join(" ")}>
             <StickyTabButton
               label="Resumen"
               active={activeTab === "summary"}
@@ -1867,11 +1883,22 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
               active={activeTab === "msp_forms"}
               onClick={() => setSelectedTab("msp_forms")}
             />
+            <StickyTabButton
+              label="Bundle ABCDEF"
+              active={activeTab === "bundle_abcdef"}
+              onClick={() => setSelectedTab("bundle_abcdef")}
+            />
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+      <div
+        className={[
+          "grid grid-cols-1 gap-4",
+          showClinicalAside ? "xl:grid-cols-[300px_minmax(0,1fr)]" : "",
+        ].join(" ")}
+      >
+        {showClinicalAside ? (
         <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-3 xl:sticky xl:top-24">
           <div className="mb-3 border-b border-slate-200 pb-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
@@ -1927,6 +1954,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
             ))}
           </div>
         </aside>
+        ) : null}
 
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
@@ -1947,6 +1975,24 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
               Ver historico
             </button>
           </div>
+
+          {isBundleWorkspace ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2">
+              <div>
+                <p className="text-xs font-semibold text-sky-900">Modo enfoque del Bundle ABCDEF</p>
+                <p className="text-[11px] text-sky-700">
+                  La navegacion clinica lateral se oculta para ganar ancho util de registro.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBundleNavigatorOpen((current) => !current)}
+                className="rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-xs font-semibold text-sky-800 hover:bg-sky-100"
+              >
+                {bundleNavigatorOpen ? "Ocultar navegacion clinica" : "Mostrar navegacion clinica"}
+              </button>
+            </div>
+          ) : null}
 
       {activeTab === "summary" && (
         <div className="space-y-4">
@@ -2470,14 +2516,6 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
             </button>
           </div>
 
-          <div className="mb-3">
-            <PatientMedicationCatalogAssistant
-              patient={patient}
-              form={medicationForm}
-              onChange={(patch) => setMedicationForm((prev) => ({ ...prev, ...patch }))}
-            />
-          </div>
-
           <div className="rounded-xl border border-slate-200 bg-white p-3">
             <p className="text-xs font-semibold text-slate-800">Registrar medicamento</p>
             <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
@@ -2486,12 +2524,6 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                 value={medicationForm.name}
                 onChange={(value) => setMedicationForm((prev) => ({ ...prev, name: value }))}
                 placeholder="Metformina"
-              />
-              <InputText
-                label="Presentacion"
-                value={medicationForm.presentation}
-                onChange={(value) => setMedicationForm((prev) => ({ ...prev, presentation: value }))}
-                placeholder="850 mg tableta"
               />
               <InputText
                 label="Dosis"
@@ -2577,68 +2609,31 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                 No hay medicamentos registrados en esta ficha.
               </p>
             ) : (
-              effectiveMedicationRecords.map((record) => {
-                const stockSnapshot =
-                  record.stockStatus && record.stockLocation
-                    ? {
-                        status: record.stockStatus,
-                        stock: record.stockCount ?? 0,
-                        location: record.stockLocation,
-                        updatedAt: record.inventoryUpdatedAt ?? "Sin hora",
-                      }
-                    : getMedicationStockSnapshot(record.name, record.presentation);
-
-                return (
-                  <article
-                    key={record.id}
-                    className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"
-                  >
+              effectiveMedicationRecords.map((record) => (
+                <article
+                  key={record.id}
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"
+                >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="space-y-1">
-                      <p className="font-semibold text-slate-900">
-                        {record.name} · {record.dose}
-                      </p>
-                      {record.presentation ? (
-                        <p className="text-[11px] text-slate-500">Presentacion: {record.presentation}</p>
-                      ) : null}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {stockSnapshot ? (
-                        <span
-                          className={[
-                            "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                            stockSnapshot.status === "Disponible"
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                              : stockSnapshot.status === "Baja disponibilidad"
-                                ? "border-amber-200 bg-amber-50 text-amber-700"
-                                : "border-rose-200 bg-rose-50 text-rose-700",
-                          ].join(" ")}
-                        >
-                          Stock {stockSnapshot.status.toLowerCase()}
-                        </span>
-                      ) : null}
-                      <span
-                        className={[
-                          "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                          record.administrationStatus === "Pendiente"
-                            ? "border-amber-200 bg-amber-50 text-amber-700"
-                            : record.administrationStatus === "Administrado"
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                              : "border-rose-200 bg-rose-50 text-rose-700",
-                        ].join(" ")}
-                      >
-                        {record.administrationStatus}
-                      </span>
-                    </div>
+                    <p className="font-semibold text-slate-900">
+                      {record.name} · {record.dose}
+                    </p>
+                    <span
+                      className={[
+                        "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                        record.administrationStatus === "Pendiente"
+                          ? "border-amber-200 bg-amber-50 text-amber-700"
+                          : record.administrationStatus === "Administrado"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-rose-200 bg-rose-50 text-rose-700",
+                      ].join(" ")}
+                    >
+                      {record.administrationStatus}
+                    </span>
                   </div>
                   <p className="mt-1 text-[11px] text-slate-600">
                     {record.frequency} · Via {record.route} · Horario {record.schedule}
                   </p>
-                  {stockSnapshot ? (
-                    <p className="text-[11px] text-slate-500">
-                      Inventario: {stockSnapshot.stock} unidades · {stockSnapshot.location} · {stockSnapshot.updatedAt}
-                    </p>
-                  ) : null}
                   <p className="text-[11px] text-slate-500">Indicacion: {record.indication}</p>
                   <p className="text-[11px] text-slate-500">
                     Prescribe: {record.prescriber} · Adherencia: {record.adherence}
@@ -2690,9 +2685,8 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                       Marcar omitido
                     </button>
                   </div>
-                  </article>
-                );
-              })
+                </article>
+              ))
             )}
           </div>
         </Panel>
@@ -4362,6 +4356,14 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
             </div>
           )}
         </Panel>
+      )}
+
+      {activeTab === "bundle_abcdef" && (
+        <PatientBundleAbcdef
+          patient={patient}
+          currentProfessional={currentProfessional}
+          onAudit={(title, details) => addAuditRecord("bundle_abcdef", title, details)}
+        />
       )}
 
       {activeTab === "education" && (
