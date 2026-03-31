@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 
 import { ModulePage } from "../_components/clinical-ui";
 import { usePatientSelection } from "../_components/patient-workspace";
+import { hospitalBedSlots, hospitalRooms } from "../_data/facility-layout-mock-data";
 import {
   medicationCatalogTotal,
 } from "../_data/medication-catalog";
@@ -91,11 +92,15 @@ const defaultDraft: MedicationDraft = {
 export default function MedicationPage() {
   const searchParams = useSearchParams();
   const requestedPatientId = searchParams.get("patientId") ?? "";
-  const { search, setSearch, selectedPatientId, setSelectedPatientId, filteredPatients, selectedPatient } =
-    usePatientSelection(mockPatients);
+  const initialRoomId =
+    hospitalBedSlots.find((bed) => bed.patientId === requestedPatientId)?.roomId ??
+    hospitalRooms[0]?.id ??
+    "";
+  const { search, setSearch, selectedPatientId, setSelectedPatientId } = usePatientSelection(mockPatients);
 
   const [viewMode, setViewMode] = useState<MedicationViewMode>("detail");
   const [statusFilter, setStatusFilter] = useState<MedicationFilter>("all");
+  const [selectedRoomId, setSelectedRoomId] = useState(initialRoomId);
   const [showAddForm, setShowAddForm] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [catalogGroup, setCatalogGroup] = useState("todos");
@@ -117,8 +122,124 @@ export default function MedicationPage() {
     }
   }, [requestedPatientId, setSelectedPatientId]);
 
+  const selectedRoom = useMemo(
+    () => hospitalRooms.find((room) => room.id === selectedRoomId) ?? null,
+    [selectedRoomId]
+  );
+
+  const roomOccupancy = useMemo(() => {
+    return hospitalBedSlots
+      .filter((bed) => bed.roomId === selectedRoomId && bed.patientId)
+      .map((bed) => {
+        const patient = mockPatients.find((item) => item.id === bed.patientId);
+        return patient ? { bedLabel: bed.bedLabel, patient } : null;
+      })
+      .filter((entry): entry is { bedLabel: string; patient: PatientRecord } => Boolean(entry))
+      .sort((left, right) => left.bedLabel.localeCompare(right.bedLabel));
+  }, [selectedRoomId]);
+
+  const roomPatients = useMemo(() => roomOccupancy.map((entry) => entry.patient), [roomOccupancy]);
+
+  const filteredPatients = useMemo(() => {
+    const normalized = search.trim().toLowerCase();
+    if (!normalized) {
+      return roomPatients;
+    }
+
+    return roomPatients.filter((patient) => {
+      const terms = [
+        patient.fullName,
+        patient.identification,
+        patient.medicalRecordNumber,
+        patient.code,
+        patient.assignedProfessional,
+        getPatientServiceArea(patient),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return terms.includes(normalized);
+    });
+  }, [roomPatients, search]);
+
+  useEffect(() => {
+    if (!roomPatients.length) {
+      if (selectedPatientId) {
+        setSelectedPatientId("");
+      }
+      return;
+    }
+
+    if (!roomPatients.some((patient) => patient.id === selectedPatientId)) {
+      setSelectedPatientId(roomPatients[0]?.id ?? "");
+    }
+  }, [roomPatients, selectedPatientId, setSelectedPatientId]);
+
+  const selectedPatient = useMemo(() => {
+    return (
+      filteredPatients.find((patient) => patient.id === selectedPatientId) ??
+      roomPatients.find((patient) => patient.id === selectedPatientId) ??
+      filteredPatients[0] ??
+      roomPatients[0] ??
+      null
+    );
+  }, [filteredPatients, roomPatients, selectedPatientId]);
+
   const patientWeight = selectedPatient?.vitalSigns[0]?.weightKg ?? null;
   const patientService = selectedPatient ? getPatientServiceArea(selectedPatient) : "";
+
+  const roomMedicationBoard = useMemo(() => {
+    return roomOccupancy
+      .map(({ bedLabel, patient }) => {
+        const cards = patient.medicationRecords.map((record) =>
+          buildMedicationCardModel(
+            {
+              ...record,
+              presentation:
+                resolveMedicationKnowledgeEntry(record.name)?.presentations.find((item) =>
+                  normalizeText(item).includes(normalizeText(record.dose))
+                ) ?? resolveMedicationKnowledgeEntry(record.name)?.presentations[0],
+              formulaApplied: resolveMedicationKnowledgeEntry(record.name)?.formulaGuide,
+              sourceStatus: resolveMedicationKnowledgeEntry(record.name)?.sourceStatus,
+            },
+            patient,
+            runtimeByRecord[record.id]
+          )
+        );
+
+        return {
+          bedLabel,
+          patient,
+          activeCount: cards.length,
+          pendingCount: cards.filter((card) => card.status === "Pendiente").length,
+          highRiskCount: cards.filter((card) => card.highRisk).length,
+          blockedCount: cards.filter((card) => card.status === "Bloqueada").length,
+          nextDoseLabel:
+            cards.find((card) => card.status === "Pendiente")?.nextDoseLabel ??
+            cards[0]?.nextDoseLabel ??
+            "Sin orden activa",
+        };
+      })
+      .sort((left, right) => {
+        const leftPriority = left.patient.currentStatus === "Critico" || left.patient.riskLevel === "alto" ? 0 : 1;
+        const rightPriority = right.patient.currentStatus === "Critico" || right.patient.riskLevel === "alto" ? 0 : 1;
+        if (leftPriority !== rightPriority) {
+          return leftPriority - rightPriority;
+        }
+        return left.bedLabel.localeCompare(right.bedLabel);
+      });
+  }, [roomOccupancy, runtimeByRecord]);
+
+  const essentialRoomBoard = useMemo(() => {
+    const priorityPatients = roomMedicationBoard.filter(
+      (entry) =>
+        entry.patient.currentStatus === "Critico" ||
+        entry.patient.riskLevel === "alto" ||
+        entry.pendingCount > 0
+    );
+
+    return priorityPatients.length > 0 ? priorityPatients : roomMedicationBoard;
+  }, [roomMedicationBoard]);
 
   const selectedPatientRecords = useMemo<MedicationPageRecord[]>(() => {
     if (!selectedPatient) {
@@ -467,15 +588,35 @@ export default function MedicationPage() {
     >
       <section className="space-y-4">
         <article className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_340px]">
             <label className="block">
               <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">
-                Buscar paciente
+                Sala activa
+              </span>
+              <select
+                value={selectedRoomId}
+                onChange={(event) => {
+                  setSelectedRoomId(event.target.value);
+                  setFeedback(null);
+                  setFormError(null);
+                }}
+                className={fieldClassName}
+              >
+                {hospitalRooms.map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {room.label} · {room.floor} · {room.service}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500">
+                Buscar dentro de la sala
               </span>
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Maria Lopez, 1722334412, HC-2026-0001"
+                placeholder="Maria Lopez, HC-2026-0001, profesional..."
                 className={fieldClassName}
               />
             </label>
@@ -492,7 +633,7 @@ export default function MedicationPage() {
                 }}
                 className={fieldClassName}
               >
-                {(filteredPatients.length ? filteredPatients : mockPatients).map((patient) => (
+                {(filteredPatients.length ? filteredPatients : roomPatients).map((patient) => (
                   <option key={patient.id} value={patient.id}>
                     {patient.fullName} - {patient.medicalRecordNumber}
                   </option>
@@ -500,10 +641,116 @@ export default function MedicationPage() {
               </select>
             </label>
           </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-4">
+            <MetricCard
+              label="Sala"
+              value={selectedRoom?.label ?? "Sin sala"}
+              hint={selectedRoom ? `${selectedRoom.floor} · ${selectedRoom.service}` : "Sin contexto operativo"}
+            />
+            <MetricCard
+              label="Camas ocupadas"
+              value={roomOccupancy.length}
+              hint="Pacientes actualmente en la sala"
+            />
+            <MetricCard
+              label="Pacientes esenciales"
+              value={essentialRoomBoard.length}
+              hint="Criticos, alto riesgo o con pendientes"
+              tone={essentialRoomBoard.length > 0 ? "warning" : "success"}
+            />
+            <MetricCard
+              label="Pendientes de sala"
+              value={essentialRoomBoard.reduce((total, item) => total + item.pendingCount, 0)}
+              hint="Medicacion por administrar"
+              tone={essentialRoomBoard.some((item) => item.pendingCount > 0) ? "warning" : "success"}
+            />
+          </div>
+        </article>
+
+        <article className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-lg font-semibold text-slate-950">
+                Vista general de {selectedRoom?.label ?? "la sala"}
+              </p>
+              <p className="text-sm text-slate-500">
+                Prioriza pacientes criticos, de alto riesgo o con medicacion pendiente antes de abrir el detalle individual.
+              </p>
+            </div>
+            <Tag tone="info">
+              {selectedRoom ? `${selectedRoom.floor} · ${selectedRoom.service}` : "Sin sala seleccionada"}
+            </Tag>
+          </div>
+
+          {essentialRoomBoard.length === 0 ? (
+            <div className="mt-4">
+              <EmptyState message="No hay pacientes ocupando esta sala en el mock actual." />
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-3 xl:grid-cols-2">
+              {essentialRoomBoard.map((entry) => (
+                <button
+                  key={`${entry.bedLabel}-${entry.patient.id}`}
+                  type="button"
+                  onClick={() => {
+                    setSelectedPatientId(entry.patient.id);
+                    setFeedback(null);
+                    setFormError(null);
+                  }}
+                  className={[
+                    "rounded-[24px] border p-4 text-left transition",
+                    selectedPatientId === entry.patient.id
+                      ? "border-sky-300 bg-sky-50"
+                      : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white",
+                  ].join(" ")}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {entry.bedLabel} · {entry.patient.fullName}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {entry.patient.primaryDiagnosis}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Tag
+                        tone={
+                          entry.patient.riskLevel === "alto"
+                            ? "danger"
+                            : entry.patient.riskLevel === "medio"
+                              ? "warning"
+                              : "success"
+                        }
+                      >
+                        Riesgo {titleCase(entry.patient.riskLevel)}
+                      </Tag>
+                      <Tag tone="neutral">{entry.patient.currentStatus}</Tag>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-2 sm:grid-cols-4">
+                    <MetricInline label="Ordenes" value={String(entry.activeCount)} />
+                    <MetricInline label="Pendientes" value={String(entry.pendingCount)} />
+                    <MetricInline label="Alto riesgo" value={String(entry.highRiskCount)} />
+                    <MetricInline label="Bloqueadas" value={String(entry.blockedCount)} />
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-slate-600">Proxima accion: {entry.nextDoseLabel}</p>
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700">
+                      Abrir paciente
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </article>
 
         {!selectedPatient ? (
-          <EmptyState message="Selecciona un paciente para abrir la estacion de medicacion." />
+          <EmptyState message="Selecciona una sala con pacientes activos y luego el paciente para abrir la estacion de medicacion." />
         ) : (
           <>
             <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">

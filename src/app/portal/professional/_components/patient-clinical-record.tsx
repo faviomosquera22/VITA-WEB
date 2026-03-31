@@ -6,8 +6,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { ClinicalSurveillancePanel } from "./clinical-surveillance-panel";
 import { Panel, RiskBadge, TriageBadge } from "./clinical-ui";
+import PatientMedicationCatalogAssistant from "./patient-medication-catalog-assistant";
 import { getAvailableMspForms } from "@/lib/msp-form-reports";
 import type { RegisteredPatientRecord, RegisteredPatientSummary } from "@/types/patient-intake";
+import { resolveMedicationKnowledgeEntry } from "../_data/medication-knowledge-base";
+import { getMedicationStockSnapshot } from "../_data/medication-stock";
 import {
   type CarePlanRecord,
   educationResources,
@@ -238,6 +241,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
   });
   const [medicationForm, setMedicationForm] = useState<{
     name: string;
+    presentation: string;
     dose: string;
     frequency: string;
     route: string;
@@ -249,6 +253,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     notes: string;
   }>({
     name: "",
+    presentation: "",
     dose: "",
     frequency: "",
     route: "Oral",
@@ -1305,9 +1310,23 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       return;
     }
 
+    const medicationName = medicationForm.name.trim();
+    const selectedPresentation = medicationForm.presentation.trim();
+    const stockSnapshot = getMedicationStockSnapshot(medicationName, selectedPresentation);
+    const knowledgeEntry = resolveMedicationKnowledgeEntry(medicationName);
+    const notes = [
+      selectedPresentation ? `Presentacion: ${selectedPresentation}.` : "",
+      stockSnapshot ? `Stock ${stockSnapshot.status.toLowerCase()}: ${stockSnapshot.stock} en ${stockSnapshot.location}.` : "",
+      knowledgeEntry?.highAlert ? "Medicamento de alto riesgo: requiere doble chequeo clinico." : "",
+      medicationForm.notes.trim() || "Sin observaciones.",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
     const newMedication: MedicationRecord = {
       id: `med-local-${Date.now()}`,
-      name: medicationForm.name.trim(),
+      name: medicationName,
+      presentation: selectedPresentation || undefined,
       dose: medicationForm.dose.trim(),
       frequency: medicationForm.frequency.trim(),
       route: medicationForm.route.trim(),
@@ -1317,7 +1336,11 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
       prescriber: medicationForm.prescriber.trim() || currentProfessional.trim() || patient.assignedProfessional,
       adherence: medicationForm.adherence.trim() || "En seguimiento",
       administrationStatus: medicationForm.administrationStatus,
-      notes: medicationForm.notes.trim() || "Sin observaciones.",
+      stockStatus: stockSnapshot?.status,
+      stockCount: stockSnapshot?.stock,
+      stockLocation: stockSnapshot?.location,
+      inventoryUpdatedAt: stockSnapshot?.updatedAt,
+      notes,
     };
 
     setAddedMedicationRecords((prev) => [newMedication, ...prev]);
@@ -1329,6 +1352,7 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
     setMedicationForm((prev) => ({
       ...prev,
       name: "",
+      presentation: "",
       dose: "",
       frequency: "",
       schedule: "",
@@ -2446,6 +2470,14 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
             </button>
           </div>
 
+          <div className="mb-3">
+            <PatientMedicationCatalogAssistant
+              patient={patient}
+              form={medicationForm}
+              onChange={(patch) => setMedicationForm((prev) => ({ ...prev, ...patch }))}
+            />
+          </div>
+
           <div className="rounded-xl border border-slate-200 bg-white p-3">
             <p className="text-xs font-semibold text-slate-800">Registrar medicamento</p>
             <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
@@ -2454,6 +2486,12 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                 value={medicationForm.name}
                 onChange={(value) => setMedicationForm((prev) => ({ ...prev, name: value }))}
                 placeholder="Metformina"
+              />
+              <InputText
+                label="Presentacion"
+                value={medicationForm.presentation}
+                onChange={(value) => setMedicationForm((prev) => ({ ...prev, presentation: value }))}
+                placeholder="850 mg tableta"
               />
               <InputText
                 label="Dosis"
@@ -2539,31 +2577,68 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                 No hay medicamentos registrados en esta ficha.
               </p>
             ) : (
-              effectiveMedicationRecords.map((record) => (
-                <article
-                  key={record.id}
-                  className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"
-                >
+              effectiveMedicationRecords.map((record) => {
+                const stockSnapshot =
+                  record.stockStatus && record.stockLocation
+                    ? {
+                        status: record.stockStatus,
+                        stock: record.stockCount ?? 0,
+                        location: record.stockLocation,
+                        updatedAt: record.inventoryUpdatedAt ?? "Sin hora",
+                      }
+                    : getMedicationStockSnapshot(record.name, record.presentation);
+
+                return (
+                  <article
+                    key={record.id}
+                    className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"
+                  >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-semibold text-slate-900">
-                      {record.name} · {record.dose}
-                    </p>
-                    <span
-                      className={[
-                        "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                        record.administrationStatus === "Pendiente"
-                          ? "border-amber-200 bg-amber-50 text-amber-700"
-                          : record.administrationStatus === "Administrado"
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "border-rose-200 bg-rose-50 text-rose-700",
-                      ].join(" ")}
-                    >
-                      {record.administrationStatus}
-                    </span>
+                    <div className="space-y-1">
+                      <p className="font-semibold text-slate-900">
+                        {record.name} · {record.dose}
+                      </p>
+                      {record.presentation ? (
+                        <p className="text-[11px] text-slate-500">Presentacion: {record.presentation}</p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {stockSnapshot ? (
+                        <span
+                          className={[
+                            "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                            stockSnapshot.status === "Disponible"
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : stockSnapshot.status === "Baja disponibilidad"
+                                ? "border-amber-200 bg-amber-50 text-amber-700"
+                                : "border-rose-200 bg-rose-50 text-rose-700",
+                          ].join(" ")}
+                        >
+                          Stock {stockSnapshot.status.toLowerCase()}
+                        </span>
+                      ) : null}
+                      <span
+                        className={[
+                          "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                          record.administrationStatus === "Pendiente"
+                            ? "border-amber-200 bg-amber-50 text-amber-700"
+                            : record.administrationStatus === "Administrado"
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border-rose-200 bg-rose-50 text-rose-700",
+                        ].join(" ")}
+                      >
+                        {record.administrationStatus}
+                      </span>
+                    </div>
                   </div>
                   <p className="mt-1 text-[11px] text-slate-600">
                     {record.frequency} · Via {record.route} · Horario {record.schedule}
                   </p>
+                  {stockSnapshot ? (
+                    <p className="text-[11px] text-slate-500">
+                      Inventario: {stockSnapshot.stock} unidades · {stockSnapshot.location} · {stockSnapshot.updatedAt}
+                    </p>
+                  ) : null}
                   <p className="text-[11px] text-slate-500">Indicacion: {record.indication}</p>
                   <p className="text-[11px] text-slate-500">
                     Prescribe: {record.prescriber} · Adherencia: {record.adherence}
@@ -2615,8 +2690,9 @@ export default function PatientClinicalRecord({ patient }: { patient: PatientRec
                       Marcar omitido
                     </button>
                   </div>
-                </article>
-              ))
+                  </article>
+                );
+              })
             )}
           </div>
         </Panel>

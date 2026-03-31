@@ -98,6 +98,7 @@ export interface VitalSignRecord {
 export interface MedicationRecord {
   id: string;
   name: string;
+  presentation?: string;
   dose: string;
   frequency: string;
   route: string;
@@ -108,6 +109,10 @@ export interface MedicationRecord {
   prescriber: string;
   adherence: string;
   administrationStatus: "Pendiente" | "Administrado" | "Omitido";
+  stockStatus?: "Disponible" | "Baja disponibilidad" | "Agotado";
+  stockCount?: number;
+  stockLocation?: string;
+  inventoryUpdatedAt?: string;
   notes: string;
 }
 

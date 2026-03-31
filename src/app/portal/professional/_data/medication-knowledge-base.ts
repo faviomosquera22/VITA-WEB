@@ -982,7 +982,18 @@ export const medicationKnowledgeGroups = Array.from(
 export function resolveMedicationKnowledgeEntry(name: string) {
   const normalized = normalizeName(name);
   const alias = medicationAliases.get(normalized);
-  return medicationKnowledgeByName.get(normalized) ?? (alias ? medicationKnowledgeByName.get(normalizeName(alias)) : undefined);
+  const baseName = extractBaseMedicationName(name);
+
+  return (
+    medicationKnowledgeByName.get(normalized) ??
+    (alias ? medicationKnowledgeByName.get(normalizeName(alias)) : undefined) ??
+    (baseName ? medicationKnowledgeByName.get(normalizeName(baseName)) : undefined)
+  );
+}
+
+function extractBaseMedicationName(value: string) {
+  const [baseName] = value.split("·");
+  return baseName?.trim() || value.trim();
 }
 
 function createFallbackKnowledgeEntry(item: MedicationCatalogItem): MedicationKnowledgeEntry {

@@ -4,7 +4,7 @@ export interface MedicationCatalogItem {
   therapeuticGroup: string;
 }
 
-const medicationCatalogSeed: MedicationCatalogItem[] = [
+const baseMedicationCatalogSeed: MedicationCatalogItem[] = [
   { name: "Paracetamol", presentations: ["500 mg tableta", "120 mg/5 mL suspension"], therapeuticGroup: "analgesicos" },
   { name: "Ibuprofeno", presentations: ["400 mg tableta", "100 mg/5 mL suspension"], therapeuticGroup: "analgesicos" },
   { name: "Naproxeno", presentations: ["500 mg tableta"], therapeuticGroup: "analgesicos" },
@@ -348,5 +348,20 @@ const medicationCatalogSeed: MedicationCatalogItem[] = [
   { name: "Sirolimus", presentations: ["1 mg tableta"], therapeuticGroup: "inmunologicos" },
 ];
 
+const medicationCatalogSeed = [
+  ...baseMedicationCatalogSeed,
+  ...buildPresentationCatalogRows(baseMedicationCatalogSeed),
+];
+
 export const medicationCatalogBase = medicationCatalogSeed;
 export const medicationCatalogTotal = medicationCatalogSeed.length;
+
+function buildPresentationCatalogRows(items: MedicationCatalogItem[]) {
+  return items.flatMap((item) =>
+    item.presentations.map((presentation) => ({
+      name: `${item.name} · ${presentation}`,
+      presentations: [presentation],
+      therapeuticGroup: item.therapeuticGroup,
+    }))
+  );
+}
