@@ -4,7 +4,7 @@ import { getRequestSession, unauthorizedResponse } from "@/lib/auth";
 import { appendAuditEvent, listAlerts } from "@/lib/clinical-store";
 
 export async function GET(request: NextRequest) {
-  const session = getRequestSession(request);
+  const session = await getRequestSession(request);
 
   if (!session) {
     return unauthorizedResponse("Debe iniciar sesion");

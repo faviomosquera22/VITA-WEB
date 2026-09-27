@@ -7,7 +7,7 @@ import { runTriageEngine } from "@/lib/triage/engine/triageEngine";
 import type { TriageFormData } from "@/lib/triage/triageTypes";
 
 export async function POST(request: NextRequest) {
-  const session = getRequestSession(request);
+  const session = await getRequestSession(request);
 
   if (!session) {
     return unauthorizedResponse("Debe iniciar sesion");

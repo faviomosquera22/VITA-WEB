@@ -10,7 +10,7 @@ interface RouteContext {
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
-  const session = getRequestSession(request);
+  const session = await getRequestSession(request);
   if (!session) {
     return unauthorizedResponse("Debe iniciar sesion");
   }

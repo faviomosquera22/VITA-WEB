@@ -2,11 +2,11 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { getRequestSession, unauthorizedResponse } from "@/lib/auth";
 import {
-  appendAuditEvent,
   createCase,
   listCases,
   type TriageKey,
-} from "@/lib/clinical-store";
+} from "@/lib/repositories/case-repository";
+import { recordAuditEvent } from "@/lib/repositories/audit-repository";
 
 interface NewCasePayload {
   triage: TriageKey;
@@ -14,6 +14,7 @@ interface NewCasePayload {
   age: number;
   reason: string;
   origin?: "app" | "web";
+  idempotencyKey?: string;
 }
 
 function isValidTriage(value: string): value is TriageKey {
@@ -21,17 +22,15 @@ function isValidTriage(value: string): value is TriageKey {
 }
 
 export async function GET(request: NextRequest) {
-  const session = getRequestSession(request);
+  const session = await getRequestSession(request);
 
   if (!session) {
     return unauthorizedResponse("Debe iniciar sesion");
   }
 
-  const items = listCases();
+  const items = await listCases(session);
 
-  appendAuditEvent({
-    actorName: session.name,
-    actorRole: session.role,
+  await recordAuditEvent(session, {
     action: "CASES_READ",
     targetType: "case",
     targetId: "list",
@@ -42,7 +41,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = getRequestSession(request);
+  const session = await getRequestSession(request);
 
   if (!session) {
     return unauthorizedResponse("Debe iniciar sesion");
@@ -60,13 +59,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Campos obligatorios incompletos" }, { status: 400 });
   }
 
-  const newCase = createCase(
+  const newCase = await createCase(
     {
       triage: body.triage,
       patientName: body.patientName,
       age: Number(body.age) || 0,
       reason: body.reason,
       origin: body.origin ?? "web",
+      idempotencyKey: body.idempotencyKey,
     },
     session
   );

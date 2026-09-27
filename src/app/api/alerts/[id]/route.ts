@@ -16,7 +16,7 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const session = getRequestSession(request);
+  const session = await getRequestSession(request);
 
   if (!session) {
     return unauthorizedResponse("Debe iniciar sesion");

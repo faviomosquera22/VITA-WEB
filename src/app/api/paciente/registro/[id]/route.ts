@@ -8,7 +8,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = getRequestSession(request);
+  const session = await getRequestSession(request);
   if (!session) {
     return unauthorizedResponse("Debe iniciar sesion");
   }

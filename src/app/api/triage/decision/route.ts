@@ -14,7 +14,7 @@ import type {
 } from "@/lib/triage/triageTypes";
 
 export async function GET(request: NextRequest) {
-  const session = getRequestSession(request);
+  const session = await getRequestSession(request);
   if (!session) {
     return unauthorizedResponse("Debe iniciar sesion");
   }
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = getRequestSession(request);
+  const session = await getRequestSession(request);
   if (!session) {
     return unauthorizedResponse("Debe iniciar sesion");
   }

@@ -1,20 +1,23 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { clearSessionCookie, getServerSession } from "@/lib/auth";
-import { appendAuditEvent } from "@/lib/clinical-store";
+import {
+  clearSessionCookie,
+  getRequestSession,
+  revokeRequestSession,
+} from "@/lib/auth";
+import { recordAuditEvent } from "@/lib/repositories/audit-repository";
 
-export async function POST() {
-  const session = await getServerSession();
+export async function POST(request: NextRequest) {
+  const session = await getRequestSession(request);
 
   if (session) {
-    appendAuditEvent({
-      actorName: session.name,
-      actorRole: session.role,
+    await recordAuditEvent(session, {
       action: "LOGOUT",
       targetType: "auth",
       targetId: session.id,
       detail: "Cierre de sesion manual.",
     });
+    await revokeRequestSession(request);
   }
 
   const response = NextResponse.json({ ok: true });

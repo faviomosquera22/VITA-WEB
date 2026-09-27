@@ -25,8 +25,8 @@ function PortalLoginContent() {
   const searchParams = useSearchParams();
   const roleParam = searchParams.get("role");
   const role = roleParam === "institution" ? "institution" : "professional";
-  const [email, setEmail] = useState(role === "institution" ? "institucion@vita.local" : "profesional@vita.local");
-  const [password, setPassword] = useState("VitaDemo2026!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -48,6 +48,7 @@ function PortalLoginContent() {
           email,
           password,
           role,
+          client: "web",
         }),
       });
 
@@ -81,7 +82,7 @@ function PortalLoginContent() {
             Ingresar como {roleLabel}
           </h1>
           <p className="text-sm text-slate-500">
-            Login demo con control de rol y sesion segura para visualizar el flujo profesional.
+            Acceso seguro para personal autorizado de instituciones vinculadas a VITA.
           </p>
         </div>
 
@@ -129,24 +130,11 @@ function PortalLoginContent() {
           </button>
         </form>
 
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Credenciales demo</p>
-          <p className="mt-1 text-xs text-slate-600">
-            Profesional: <span className="font-medium">profesional@vita.local</span>
-          </p>
-          <p className="text-xs text-slate-600">
-            Institucion: <span className="font-medium">institucion@vita.local</span>
-          </p>
-          <p className="text-xs text-slate-600">
-            Contrasena: <span className="font-medium">VitaDemo2026!</span>
-          </p>
-        </div>
-
         <div className="flex justify-between items-center text-xs text-slate-500">
           <Link href="/portal" className="hover:underline">
             ← Volver al portal
           </Link>
-          <span>Estado: sesion autenticada.</span>
+          <span>Acceso protegido.</span>
         </div>
       </div>
     </main>
