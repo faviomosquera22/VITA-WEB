@@ -118,7 +118,7 @@ export default function ProfessionalCaseDetailPage() {
                   Vita · Caso del profesional
                 </p>
                 <p className="text-xs text-slate-500">
-                  No se encontró este caso en el demo.
+                  No se encontró este caso.
                 </p>
               </div>
             </div>
@@ -136,8 +136,8 @@ export default function ProfessionalCaseDetailPage() {
             No se encontró este caso.
           </p>
           <p className="mt-1 text-xs text-slate-600 max-w-md">
-            Es posible que el demo se haya reiniciado. Vuelve al portal y
-            selecciona un caso reciente desde la lista.
+            Puede que el registro haya sido eliminado o no esté disponible para
+            tu cuenta. Vuelve al portal y selecciona otro caso.
           </p>
         </section>
       </main>
@@ -220,38 +220,34 @@ export default function ProfessionalCaseDetailPage() {
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl bg-white p-4 shadow-sm border border-slate-200 space-y-2">
             <p className="text-xs font-semibold text-slate-600">
-              Resumen clínico del caso (demo)
+              Datos registrados del caso
             </p>
             <p className="text-[13px] text-slate-700 leading-relaxed">
-              Esta pantalla representa cómo el profesional podría revisar
-              rápidamente la información clave del caso: motivo principal,
-              color de triaje, estado y origen (si llegó desde la app del
-              paciente o se creó en el portal).
+              Motivo principal: {caseItem.reason}. Clasificación registrada:{" "}
+              {triageLabel[caseItem.triage].toLowerCase()}. Estado actual:{" "}
+              {statusLabel[status].toLowerCase()}.
             </p>
             <p className="text-[11px] text-slate-500">
-              En una versión real, aquí se integrarían signos vitales,
-              resultados de exámenes y evolución del paciente.
+              Origen: {originLabel}. Fecha de registro: {caseItem.date}.
             </p>
           </div>
 
           <div className="rounded-2xl bg-white p-4 shadow-sm border border-slate-200 space-y-2">
             <p className="text-xs font-semibold text-slate-600">
-              Plan / notas clínicas (demo)
+              Notas clínicas
             </p>
-            <ul className="mt-1 space-y-1.5 text-[13px] text-slate-700">
-              <li>• Confirmar estabilidad hemodinámica y saturación de O₂.</li>
-              <li>• Priorizar atención según color de triaje y comorbilidades.</li>
-              <li>• Registrar intervenciones realizadas y respuesta clínica.</li>
-            </ul>
+            <p className="text-[13px] text-slate-700 leading-relaxed">
+              No hay notas clínicas registradas para este caso.
+            </p>
             <p className="text-[11px] text-slate-500 mt-2">
-              Este bloque ilustra cómo Vita sirve de apoyo a la continuidad de
-              la atención, dejando un registro estructurado para el equipo.
+              Las notas aparecerán aquí cuando sean guardadas por un profesional
+              autorizado.
             </p>
           </div>
         </div>
 
         <p className="text-[11px] text-slate-500">
-          Caso demo de Vita · Datos simulados para fines académicos.
+          Caso registrado en VITA · EcotecClinic.
         </p>
       </section>
     </main>

@@ -20,9 +20,9 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Vita · Portal",
+  title: "VITA · EcotecClinic",
   description:
-    "Portal web de Vita para instituciones y profesionales de la salud (demo).",
+    "Sistema de triaje y continuidad asistencial de EcotecClinic.",
 };
 
 export default function RootLayout({
@@ -33,7 +33,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body
-        className={`${plusJakarta.variable} ${ibmPlexMono.variable} min-h-screen bg-slate-100 text-slate-900 antialiased`}
+        className={`${plusJakarta.variable} ${ibmPlexMono.variable} min-h-screen bg-[#f4f7f7] text-slate-900 antialiased`}
       >
         <QueryProvider>{children}</QueryProvider>
       </body>

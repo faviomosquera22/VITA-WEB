@@ -120,7 +120,7 @@ export default function PatientMedicationCatalogAssistant({
             Catalogo asistido y stock
           </p>
           <p className="mt-1 text-sm text-slate-700">
-            Selecciona desde lista, aplica un regimen sugerido y revisa disponibilidad antes de guardar.
+            Selecciona desde el catálogo y revisa la información antes de guardar.
           </p>
         </div>
         <Link
@@ -266,7 +266,8 @@ export default function PatientMedicationCatalogAssistant({
               </div>
 
               <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-3 text-[11px] text-slate-500">
-                La disponibilidad mostrada es referencial y la estructura queda lista para integrarse con inventario real de farmacia.
+                Inventario de farmacia no conectado. Confirma la disponibilidad
+                por el canal institucional antes de dispensar.
               </div>
             </>
           ) : (

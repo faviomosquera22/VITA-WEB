@@ -73,145 +73,11 @@ const triageBadge: Record<TriageKey, string> = {
 };
 
 const defaultPatientClinicalDetail: PatientClinicalDetail = {
-  summary:
-    "Paciente en seguimiento de medicina general. Se recomienda control de signos vitales y reevaluación clínica al cierre de turno.",
-  medicalHistory: [
-    "Antecedentes clínicos en proceso de carga.",
-    "Completar historia estructurada y factores de riesgo.",
-  ],
-  nursingHistory: [
-    {
-      time: "Hoy · 08:20",
-      note: "Control inicial realizado sin novedades clínicas mayores.",
-      nurse: "Lic. Enfermería",
-    },
-  ],
-  medications: [
-    "Sin medicación activa registrada.",
-    "Pendiente conciliación farmacológica.",
-  ],
-  alerts: [
-    "Sin alertas críticas registradas.",
-    "Actualizar alergias medicamentosas en la próxima consulta.",
-  ],
-};
-
-const patientClinicalDetails: Record<string, PatientClinicalDetail> = {
-  c1: {
-    summary:
-      "Paciente de alto riesgo cardiovascular, en monitorización continua y con prioridad clínica inmediata.",
-    medicalHistory: [
-      "Hipertensión arterial crónica.",
-      "Diabetes mellitus tipo 2 en control ambulatorio.",
-      "Antecedente de angina estable.",
-    ],
-    nursingHistory: [
-      {
-        time: "Hoy · 10:05",
-        note: "Paciente hemodinámicamente estable. Dolor torácico disminuyó tras manejo inicial.",
-        nurse: "Lic. Andrade",
-      },
-      {
-        time: "Hoy · 08:10",
-        note: "Ingreso a sala de reanimación. Se inicia protocolo de vigilancia estrecha.",
-        nurse: "Lic. Mendoza",
-      },
-    ],
-    medications: [
-      "AAS 100 mg VO cada 24 h.",
-      "Enalapril 10 mg VO cada 12 h.",
-      "Metformina 850 mg VO cada 12 h.",
-    ],
-    alerts: [
-      "Riesgo cardiovascular alto.",
-      "Vigilar glucemia capilar y dolor torácico recurrente.",
-    ],
-  },
-  c2: {
-    summary:
-      "Paciente con cuadro respiratorio febril en seguimiento evolutivo y control de signos de alarma.",
-    medicalHistory: [
-      "Antecedente de asma intermitente en infancia.",
-      "Sin cirugías previas reportadas.",
-      "Sin comorbilidades mayores conocidas.",
-    ],
-    nursingHistory: [
-      {
-        time: "Hoy · 11:30",
-        note: "Persisten episodios febriles leves. Se mantiene hidratación oral.",
-        nurse: "Lic. Luna",
-      },
-      {
-        time: "Ayer · 18:40",
-        note: "Se educa sobre signos de alarma respiratoria y plan de reconsulta.",
-        nurse: "Lic. Paredes",
-      },
-    ],
-    medications: [
-      "Paracetamol 500 mg VO según fiebre.",
-      "Salbutamol inhalado según necesidad.",
-    ],
-    alerts: [
-      "Controlar saturación de O2 durante episodio febril.",
-      "Acudir de inmediato si presenta disnea progresiva.",
-    ],
-  },
-  c3: {
-    summary:
-      "Paciente con disnea moderada en observación, pendiente de respuesta a broncodilatadores.",
-    medicalHistory: [
-      "EPOC leve-moderado.",
-      "Exposición tabáquica previa importante.",
-    ],
-    nursingHistory: [
-      {
-        time: "Hoy · 09:25",
-        note: "Disnea leve al esfuerzo. Se refuerzan técnicas respiratorias.",
-        nurse: "Lic. Salazar",
-      },
-      {
-        time: "Hoy · 07:45",
-        note: "Ingreso a observación con saturación conservada en reposo.",
-        nurse: "Lic. Torres",
-      },
-    ],
-    medications: [
-      "Budesonida/formoterol inhalado cada 12 h.",
-      "Ipratropio inhalado PRN.",
-    ],
-    alerts: [
-      "Evaluar necesidad de ajuste de terapia inhalada.",
-      "Control de frecuencia respiratoria cada 4 h.",
-    ],
-  },
-  c4: {
-    summary:
-      "Paciente con cefalea tensional en manejo ambulatorio con evolución favorable.",
-    medicalHistory: [
-      "Antecedente de migraña episódica sin aura.",
-      "Sin enfermedad cardiovascular documentada.",
-    ],
-    nursingHistory: [
-      {
-        time: "Hoy · 12:00",
-        note: "Refiere mejoría parcial del dolor. Sin nuevos síntomas neurológicos.",
-        nurse: "Lic. Vera",
-      },
-      {
-        time: "Hoy · 09:05",
-        note: "Se indica ambiente de baja estimulación y control de dolor.",
-        nurse: "Lic. Cabrera",
-      },
-    ],
-    medications: [
-      "Ibuprofeno 400 mg VO cada 8 h con alimentos.",
-      "Omeprazol 20 mg VO cada 24 h.",
-    ],
-    alerts: [
-      "Consultar de inmediato ante cefalea súbita intensa.",
-      "Seguimiento en consulta externa en 72 h.",
-    ],
-  },
+  summary: "No hay un resumen clínico registrado para este paciente.",
+  medicalHistory: [],
+  nursingHistory: [],
+  medications: [],
+  alerts: [],
 };
 
 export default function ProfessionalPatientDetailPage() {
@@ -271,7 +137,7 @@ export default function ProfessionalPatientDetailPage() {
     if (!patient) {
       return defaultPatientClinicalDetail;
     }
-    return patientClinicalDetails[patient.id] ?? defaultPatientClinicalDetail;
+    return defaultPatientClinicalDetail;
   }, [patient]);
 
   if (loading) {
@@ -322,7 +188,7 @@ export default function ProfessionalPatientDetailPage() {
                   Vita · Paciente del profesional
                 </p>
                 <p className="text-xs text-slate-500">
-                  No se encontró este paciente en el demo.
+                  No se encontró este paciente.
                 </p>
               </div>
             </div>
@@ -340,8 +206,8 @@ export default function ProfessionalPatientDetailPage() {
             No se encontró este paciente.
           </p>
           <p className="mt-1 text-xs text-slate-600 max-w-md">
-            Es posible que el demo se haya reiniciado. Vuelve al portal y
-            selecciona un paciente desde la lista.
+            Puede que el registro haya sido eliminado o no esté disponible para
+            tu cuenta. Vuelve al portal y selecciona otro paciente.
           </p>
         </section>
       </main>
@@ -501,7 +367,7 @@ export default function ProfessionalPatientDetailPage() {
                       Estado de seguimiento
                     </p>
                     <p className="mt-1 text-xs text-slate-700">
-                      Vigilancia clínica activa
+                      Sin seguimiento registrado
                     </p>
                   </div>
                 </div>
@@ -513,6 +379,11 @@ export default function ProfessionalPatientDetailPage() {
                 <h2 className="text-sm font-semibold text-slate-900">
                   Historial médico
                 </h2>
+                {clinicalDetail.medicalHistory.length === 0 && (
+                  <p className="text-xs text-slate-500">
+                    No hay antecedentes médicos registrados.
+                  </p>
+                )}
                 <ul className="space-y-2 text-xs text-slate-700">
                   {clinicalDetail.medicalHistory.map((entry) => (
                     <li
@@ -531,6 +402,11 @@ export default function ProfessionalPatientDetailPage() {
                 <h2 className="text-sm font-semibold text-slate-900">
                   Historial de enfermería
                 </h2>
+                {clinicalDetail.nursingHistory.length === 0 && (
+                  <p className="text-xs text-slate-500">
+                    No hay notas de enfermería registradas.
+                  </p>
+                )}
                 <ul className="space-y-2 text-xs text-slate-700">
                   {clinicalDetail.nursingHistory.map((entry) => (
                     <li
@@ -552,6 +428,11 @@ export default function ProfessionalPatientDetailPage() {
                 <h2 className="text-sm font-semibold text-slate-900">
                   Medicación activa
                 </h2>
+                {clinicalDetail.medications.length === 0 && (
+                  <p className="text-xs text-slate-500">
+                    No hay medicación activa registrada.
+                  </p>
+                )}
                 <ul className="space-y-2 text-xs text-slate-700">
                   {clinicalDetail.medications.map((entry) => (
                     <li
@@ -570,6 +451,11 @@ export default function ProfessionalPatientDetailPage() {
                 <h2 className="text-sm font-semibold text-slate-900">
                   Alertas y seguridad
                 </h2>
+                {clinicalDetail.alerts.length === 0 && (
+                  <p className="text-xs text-slate-500">
+                    No hay alertas clínicas registradas.
+                  </p>
+                )}
                 <ul className="space-y-2 text-xs text-amber-800">
                   {clinicalDetail.alerts.map((entry) => (
                     <li
@@ -586,7 +472,7 @@ export default function ProfessionalPatientDetailPage() {
         </div>
 
         <p className="text-[11px] text-slate-500">
-          Panel clínico demo de Vita · Datos ficticios para diseño y validación de UX.
+          Información clínica registrada en VITA · EcotecClinic.
         </p>
       </section>
     </main>

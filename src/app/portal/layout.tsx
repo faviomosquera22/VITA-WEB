@@ -3,25 +3,13 @@ import type { ReactNode } from "react";
 
 export default function PortalLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col bg-slate-100">
-      {/* Contenido principal (lo que ya tienes en cada page.tsx) */}
+    <div className="flex min-h-screen flex-col bg-[#f4f7f7]">
       <div className="flex-1">{children}</div>
 
-      {/* Footer común del portal */}
-      <footer className="border-t border-slate-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto max-w-6xl px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <div className="h-6 w-6 rounded-xl bg-sky-600 text-white flex items-center justify-center text-[11px] font-semibold">
-              V
-            </div>
-            <span>
-              Vita · Portal demo para instituciones y profesionales de salud.
-            </span>
-          </div>
-          <div className="text-[11px] text-slate-400 text-center sm:text-right">
-            Datos simulados desde API interna · Versión académica, sin uso
-            clínico real.
-          </div>
+      <footer className="border-t border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-4 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+          <span className="font-semibold text-slate-700">VITA · EcotecClinic</span>
+          <span>Acceso restringido a usuarios autorizados.</span>
         </div>
       </footer>
     </div>

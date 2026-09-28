@@ -139,9 +139,9 @@ const totalCases = cases.length;
               V
             </div>
             <div>
-              <p className="text-sm font-semibold">Vita · Portal institucional</p>
+              <p className="text-sm font-semibold">VITA · EcotecClinic</p>
               <p className="text-xs text-slate-500">
-                Vista demo para supervisar pacientes y triajes desde la institución.
+                Supervisión institucional de pacientes y triajes registrados.
               </p>
             </div>
           </div>
@@ -185,7 +185,7 @@ const totalCases = cases.length;
                   Casos recientes
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Últimos casos triados en la institución (demo).
+                  Casos registrados en EcotecClinic.
                 </p>
               </div>
               <span className="text-xs text-slate-500">
@@ -301,7 +301,7 @@ const totalCases = cases.length;
 
             {!loading && cases.length === 0 && (
               <p className="text-xs text-slate-500">
-                No hay casos en este demo.
+                No hay casos registrados.
               </p>
             )}
 
@@ -329,7 +329,7 @@ const totalCases = cases.length;
                       </p>
                     )}
                     <p className="text-[11px] text-slate-400 mt-1">
-                      {c.date} · Origen: {c.origin ?? "demo"}
+                      {c.date} · Origen: {c.origin ?? "no especificado"}
                     </p>
                   </div>
                 </Link>
@@ -344,7 +344,7 @@ const totalCases = cases.length;
                   Pacientes recientes
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Últimos pacientes con actividad registrada en Vita (demo).
+                  Pacientes con actividad reciente en VITA.
                 </p>
               </div>
               <span className="text-xs text-slate-500">
@@ -436,7 +436,7 @@ const totalCases = cases.length;
 
             {!loading && patients.length === 0 && (
               <p className="text-xs text-slate-500">
-                No hay pacientes cargados en este demo.
+                No hay pacientes registrados.
               </p>
             )}
 
@@ -472,9 +472,7 @@ const totalCases = cases.length;
         </div>
 
         <p className="text-[11px] text-slate-500">
-          Portal institucional demo de Vita · Datos ficticios para mostrar cómo
-          la institución puede revisar rápidamente los pacientes triados desde
-          la app móvil y el portal profesional.
+          Información operativa registrada en VITA para EcotecClinic.
         </p>
       </section>
     </main>

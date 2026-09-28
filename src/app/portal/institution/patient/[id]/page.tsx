@@ -134,7 +134,7 @@ export default function InstitutionPatientDetailPage() {
                   Vita · Paciente institucional
                 </p>
                 <p className="text-xs text-slate-500">
-                  No se encontró este paciente en el demo.
+                  No se encontró este paciente.
                 </p>
               </div>
             </div>
@@ -152,8 +152,8 @@ export default function InstitutionPatientDetailPage() {
             No se encontró este paciente.
           </p>
           <p className="mt-1 text-xs text-slate-600 max-w-md">
-            Es posible que el demo se haya reiniciado. Vuelve al portal y
-            selecciona un paciente desde la lista.
+            Puede que el registro haya sido eliminado o no pertenezca a esta
+            institución. Vuelve al portal y selecciona otro paciente.
           </p>
         </section>
       </main>
@@ -224,26 +224,26 @@ export default function InstitutionPatientDetailPage() {
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl bg-white p-4 shadow-sm border border-slate-200 space-y-2">
             <p className="text-xs font-semibold text-slate-600">
-              Uso institucional del paciente (demo)
+              Resumen institucional
             </p>
             <p className="text-[13px] text-slate-700 leading-relaxed">
-              Desde el portal institucional, este paciente forma parte de la
-              población atendida en la guardia. Su triaje y motivos de consulta
-              contribuyen a entender la demanda y priorizar recursos.
+              Este paciente registra {cases.length}{" "}
+              {cases.length === 1 ? "caso asociado" : "casos asociados"}. Su
+              último triaje fue {triageLabel[triage].toLowerCase()}.
             </p>
             <p className="text-[11px] text-slate-500">
-              En una implementación real, aquí se podrían vincular episodios
-              de atención, reingresos y derivaciones.
+              La vista muestra únicamente información almacenada para
+              EcotecClinic.
             </p>
           </div>
 
           <div className="rounded-2xl bg-white p-4 shadow-sm border border-slate-200 space-y-2">
             <p className="text-xs font-semibold text-slate-600">
-              Casos asociados a este paciente (demo)
+              Casos asociados a este paciente
             </p>
             {cases.length === 0 ? (
               <p className="text-[11px] text-slate-500">
-                Este paciente aún no tiene casos registrados en el demo.
+                Este paciente aún no tiene casos registrados.
               </p>
             ) : (
               <ul className="mt-1 space-y-1.5 text-[13px] text-slate-700">
@@ -296,8 +296,7 @@ export default function InstitutionPatientDetailPage() {
         </div>
 
         <p className="text-[11px] text-slate-500">
-          Paciente institucional demo de Vita · Datos ficticios para fines
-          académicos.
+          Registro institucional de VITA · EcotecClinic.
         </p>
       </section>
     </main>

@@ -117,7 +117,7 @@ export default function InstitutionCaseDetailPage() {
                   Vita · Caso institucional
                 </p>
                 <p className="text-xs text-slate-500">
-                  No se encontró este caso en el demo.
+                  No se encontró este caso.
                 </p>
               </div>
             </div>
@@ -135,8 +135,8 @@ export default function InstitutionCaseDetailPage() {
             No se encontró este caso.
           </p>
           <p className="mt-1 text-xs text-slate-600 max-w-md">
-            Es posible que el demo se haya reiniciado. Vuelve al portal y
-            selecciona un caso reciente desde la lista.
+            Puede que el registro haya sido eliminado o no pertenezca a esta
+            institución. Vuelve al portal y selecciona otro caso.
           </p>
         </section>
       </main>
@@ -227,39 +227,34 @@ export default function InstitutionCaseDetailPage() {
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl bg-white p-4 shadow-sm border border-slate-200 space-y-2">
             <p className="text-xs font-semibold text-slate-600">
-              Uso institucional del caso (demo)
+              Datos operativos del caso
             </p>
             <p className="text-[13px] text-slate-700 leading-relaxed">
-              Desde el portal institucional, este caso se integra a la carga
-              global de la guardia: cuántos rojos, naranjas y amarillos hay,
-              quiénes ya están siendo atendidos y en qué salas se encuentran.
+              Clasificación: {triageLabel[caseItem.triage]}. Estado:{" "}
+              {statusLabel[status].toLowerCase()}.
             </p>
             <p className="text-[11px] text-slate-500">
-              Esto permite gestionar recursos (camillas, personal, salas)
-              alineados con la prioridad clínica y los objetivos de seguridad
-              del paciente.
+              Origen: {originLabel}. Fecha de registro: {caseItem.date}.
             </p>
           </div>
 
           <div className="rounded-2xl bg-white p-4 shadow-sm border border-slate-200 space-y-2">
             <p className="text-xs font-semibold text-slate-600">
-              Indicadores y calidad asistencial (demo)
+              Seguimiento institucional
             </p>
-            <ul className="mt-1 space-y-1.5 text-[13px] text-slate-700">
-              <li>• Seguimiento de tiempos de respuesta a rojos y naranjas.</li>
-              <li>• Detección de picos de demanda en urgencias.</li>
-              <li>• Análisis de motivos de consulta más frecuentes.</li>
-            </ul>
+            <p className="text-[13px] text-slate-700 leading-relaxed">
+              Este caso forma parte de los indicadores consolidados de triaje y
+              carga asistencial de EcotecClinic.
+            </p>
             <p className="text-[11px] text-slate-500 mt-2">
-              En una implementación real, desde esta vista se podrían exportar
-              reportes, dashboards y datos para comités de calidad y ODS 3.
+              Los indicadores se calculan únicamente con casos registrados en
+              la institución.
             </p>
           </div>
         </div>
 
         <p className="text-[11px] text-slate-500">
-          Caso institucional demo de Vita · Datos ficticios para fines
-          académicos.
+          Caso institucional registrado en VITA · EcotecClinic.
         </p>
       </section>
     </main>
