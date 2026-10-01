@@ -45,6 +45,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Credenciales incompletas" }, { status: 400 });
   }
 
+  if (body.role === "patient" && body.client !== "ios") {
+    return NextResponse.json({ error: "El acceso de pacientes está disponible en la aplicación móvil." }, { status: 403 });
+  }
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json(
       { error: "El servicio de identidad VITA aun no esta configurado." },

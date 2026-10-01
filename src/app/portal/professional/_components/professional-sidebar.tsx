@@ -5,7 +5,6 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type JSX } from "react";
 
 import {
-  getDashboardMetrics,
   professionalSidebarModules,
   type ProfessionalModuleId,
   type SidebarSectionId,
@@ -26,8 +25,8 @@ const sectionOrder: SidebarSectionId[] = [
 
 const sectionMeta: Record<SidebarSectionId, { title: string }> = {
   main: { title: "Principal" },
-  clinical: { title: "Clinica" },
-  support: { title: "Gestion y apoyo" },
+  clinical: { title: "Clínica" },
+  support: { title: "Gestión y apoyo" },
   system: { title: "Sistema" },
 };
 
@@ -184,7 +183,6 @@ export default function ProfessionalSidebar({ role }: { role: UserRole }) {
     system: true,
   });
 
-  const metrics = useMemo(() => getDashboardMetrics(), []);
 
   useEffect(() => {
     window.localStorage.setItem("vita-prof-sidebar-collapsed", isCollapsed ? "1" : "0");
@@ -229,20 +227,20 @@ export default function ProfessionalSidebar({ role }: { role: UserRole }) {
       className={[
         "sticky top-0 hidden h-screen border-r border-slate-200 bg-white lg:block",
         "transition-[width] duration-200",
-        isCollapsed ? "w-[84px]" : "w-[320px]",
+        isCollapsed ? "w-[84px]" : "w-[264px]",
       ].join(" ")}
     >
       <div className="flex h-full flex-col">
         <div className="border-b border-slate-200 px-3 pb-3 pt-4">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-600 text-sm font-semibold text-white">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-700 text-sm font-semibold text-white">
                 V
               </div>
               {!isCollapsed && (
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-slate-900">Vita</p>
-                  <p className="text-[11px] text-slate-500">Rol: Profesional</p>
+                  <p className="text-[11px] text-slate-500">Espacio profesional</p>
                 </div>
               )}
             </div>
@@ -257,13 +255,7 @@ export default function ProfessionalSidebar({ role }: { role: UserRole }) {
             </button>
           </div>
 
-          {!isCollapsed && (
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              <MetricCard label="Activos" value={metrics.activePatients} />
-              <MetricCard label="Alertas" value={metrics.activeAlerts} />
-              <MetricCard label="Pendientes" value={metrics.dayPending} />
-            </div>
-          )}
+
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-3">
@@ -309,7 +301,7 @@ export default function ProfessionalSidebar({ role }: { role: UserRole }) {
                               className={[
                                 "group flex items-center gap-2 rounded-lg border px-2 py-2 text-xs transition",
                                 isActive
-                                  ? "border-sky-200 bg-sky-50 text-sky-700"
+                                  ? "border-teal-200 bg-teal-50 text-teal-800"
                                   : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900",
                                 isCollapsed ? "justify-center" : "",
                               ].join(" ")}
@@ -375,15 +367,6 @@ export default function ProfessionalSidebar({ role }: { role: UserRole }) {
         </div>
       </div>
     </aside>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
-      <p className="text-[10px] text-slate-500">{label}</p>
-      <p className="text-sm font-semibold text-slate-900">{value}</p>
-    </div>
   );
 }
 

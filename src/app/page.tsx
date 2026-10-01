@@ -3,22 +3,11 @@ import Link from "next/link";
 import {
   ArrowRight,
   Building2,
-  CheckCircle2,
-  ClipboardPlus,
   ShieldCheck,
   Stethoscope,
 } from "lucide-react";
 
 const accessRoutes = [
-  {
-    title: "Paciente",
-    description: "Inicia una evaluación de triaje y registra el motivo de consulta.",
-    action: "Iniciar triaje",
-    href: "/triage",
-    icon: ClipboardPlus,
-    accent: "border-l-[#d24b4b]",
-    iconTone: "bg-red-50 text-red-700",
-  },
   {
     title: "Profesional de salud",
     description: "Consulta casos, pacientes y seguimiento clínico autorizado.",
@@ -30,8 +19,8 @@ const accessRoutes = [
   },
   {
     title: "Institución",
-    description: "Supervisa la operación de triaje y la atención de EcotecClinic.",
-    action: "Acceso institucional",
+    description: "Proyecta emergencias, nuevos casos y el estado de atención en un panel que se actualiza automáticamente.",
+    action: "Abrir panel institucional",
     href: "/portal/login?role=institution",
     icon: Building2,
     accent: "border-l-[#294f73]",
@@ -60,8 +49,8 @@ export default function HomePage() {
           </div>
 
           <div className="hidden items-center gap-2 text-xs font-semibold text-emerald-700 sm:flex">
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-            Sistema disponible
+            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            Entorno clínico
           </div>
         </div>
       </header>
@@ -70,14 +59,13 @@ export default function HomePage() {
         <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end lg:py-14">
           <div className="max-w-3xl">
             <p className="mb-3 text-xs font-bold uppercase text-teal-700">
-              Triaje y continuidad asistencial
+              VITA · Sistema clínico
             </p>
             <h1 className="text-4xl font-bold leading-tight text-slate-950 sm:text-5xl">
-              Atención organizada desde el primer contacto
+              Un espacio para coordinar cada atención
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-              Selecciona el acceso correspondiente para iniciar una evaluación o ingresar al
-              entorno clínico autorizado.
+              Gestiona la atención desde el portal profesional o sigue la actividad del centro en la pantalla institucional.
             </p>
           </div>
 
@@ -102,7 +90,7 @@ export default function HomePage() {
           <p className="mt-1 text-sm text-slate-500">Cada acceso muestra únicamente las funciones autorizadas.</p>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           {accessRoutes.map((route) => {
             const Icon = route.icon;
             return (
@@ -129,7 +117,7 @@ export default function HomePage() {
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-5 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <span>VITA · EcotecClinic</span>
-          <span>La orientación digital no reemplaza la valoración clínica ni la atención de emergencia.</span>
+          <span>Uso profesional e institucional · Los pacientes acceden desde la aplicación móvil.</span>
         </div>
       </footer>
     </main>

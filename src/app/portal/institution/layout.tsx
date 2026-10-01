@@ -17,7 +17,7 @@ export default async function InstitutionLayout({
   }
 
   if (session.role !== "institution") {
-    redirect("/portal/professional");
+    redirect(session.role === "patient" ? "/portal/login?role=institution" : "/portal/professional");
   }
 
   return (

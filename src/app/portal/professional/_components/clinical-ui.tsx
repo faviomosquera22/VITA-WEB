@@ -14,20 +14,20 @@ export function ModulePage({
   actions?: ReactNode;
 }) {
   return (
-    <main className="min-h-screen bg-slate-100">
+    <main className="min-h-screen bg-[#f4f7f7]">
       <header className="border-b border-slate-200 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-5">
           <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold text-slate-900">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
               {title}
             </h1>
-            <p className="text-xs text-slate-500">{subtitle}</p>
+            <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
           </div>
           {actions ? <div className="shrink-0">{actions}</div> : null}
         </div>
       </header>
 
-      <section className="mx-auto max-w-7xl space-y-4 px-4 py-5">{children}</section>
+      <section className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">{children}</section>
     </main>
   );
 }
@@ -42,7 +42,7 @@ export function StatCard({
   hint: string;
 }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4">
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <p className="text-xs font-medium text-slate-500">{label}</p>
       <p className="mt-2 text-2xl font-semibold text-slate-900">{value}</p>
       <p className="mt-1 text-[11px] text-slate-500">{hint}</p>
@@ -60,10 +60,10 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4">
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-3">
         <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-        {subtitle ? <p className="text-xs text-slate-500">{subtitle}</p> : null}
+        {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
       </div>
       {children}
     </article>

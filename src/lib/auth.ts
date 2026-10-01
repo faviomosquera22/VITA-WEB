@@ -176,7 +176,12 @@ export async function getRequestSession(request: NextRequest) {
     return null;
   }
   try {
-    return await verifySessionToken(token);
+    const session = await verifySessionToken(token);
+    const institutionRoutes = ["/api/institution/monitor", "/api/auth/session", "/api/auth/logout"];
+    if (session?.role === "institution" && !institutionRoutes.includes(request.nextUrl.pathname)) {
+      return null;
+    }
+    return session;
   } catch {
     return null;
   }

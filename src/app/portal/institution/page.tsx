@@ -1,480 +1,300 @@
 "use client";
-
-import Link from "next/link";
-import { useEffect, useState } from "react";
-
-type TriageColor = "rojo" | "naranja" | "amarillo" | "verde" | "azul";
-
-interface PatientItem {
-  id: string;
-  name: string;
-  age: number;
-  lastTriage: TriageColor;
-  lastReason: string;
-}
-interface CaseItem {
-  id: string;
-  triage: TriageColor;
-  patientName: string;
-  age: number;
-  reason: string;
-  date: string;
-  origin?: "app" | "web" | "otro";
-  status?: "pendiente" | "en_atencion" | "finalizado";
-  room?: string;
-}
-const triageDot: Record<TriageColor, string> = {
-  rojo: "bg-red-500",
-  naranja: "bg-orange-500",
-  amarillo: "bg-amber-400",
-  verde: "bg-emerald-500",
-  azul: "bg-sky-500",
+import { useEffect, useRef, useState } from "react";
+import {
+  Activity,
+  Maximize,
+  Minimize,
+  Settings2,
+  Wifi,
+  WifiOff,
+  HeartPulse,
+  Clock3,
+  Stethoscope,
+  BedDouble,
+  CircleCheck,
+} from "lucide-react";
+import {
+  monitorGroups,
+  type MonitorGroup,
+  type MonitorSnapshot,
+} from "@/lib/case-flow";
+const icons = {
+  emergency: HeartPulse,
+  new: Clock3,
+  attention: Stethoscope,
+  hospital: BedDouble,
+  completed: CircleCheck,
 };
-
+const tones = {
+  emergency: "border-red-400/40 bg-red-400/10 text-red-300",
+  new: "border-amber-400/40 bg-amber-400/10 text-amber-200",
+  attention: "border-teal-400/40 bg-teal-400/10 text-teal-200",
+  hospital: "border-sky-400/40 bg-sky-400/10 text-sky-200",
+  completed: "border-slate-500 bg-slate-400/10 text-slate-200",
+};
+const dots = {
+  rojo: "bg-red-400",
+  naranja: "bg-orange-400",
+  amarillo: "bg-amber-300",
+  verde: "bg-emerald-400",
+  azul: "bg-sky-400",
+};
 export default function InstitutionHomePage() {
-  const [patients, setPatients] = useState<PatientItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [cases, setCases] = useState<CaseItem[]>([]);
-  const [triageFilter, setTriageFilter] = useState<TriageColor | "todos">(
-    "todos"
+  const root = useRef<HTMLElement>(null);
+  const [snapshot, setSnapshot] = useState<MonitorSnapshot | null>(null);
+  const [error, setError] = useState("");
+  const [now, setNow] = useState<Date | null>(null);
+  const [full, setFull] = useState(false);
+  const [settings, setSettings] = useState(false);
+  const [selected, setSelected] = useState<MonitorGroup[]>(
+    monitorGroups.map((g) => g.id),
   );
-  const [priorityMode, setPriorityMode] = useState(false);
-  const [patientQuery, setPatientQuery] = useState("");
-  const [patientTriageFilter, setPatientTriageFilter] = useState<
-    TriageColor | "todos"
-  >("todos");
-
-  const filteredCases =
-    triageFilter === "todos"
-      ? cases
-      : cases.filter((c) => c.triage === triageFilter);
-
-  // Orden de prioridad de colores: rojo > naranja > amarillo > verde > azul
-  const triagePriority: Record<TriageColor, number> = {
-    rojo: 5,
-    naranja: 4,
-    amarillo: 3,
-    verde: 2,
-    azul: 1,
-  };
-
-  const visibleCases = priorityMode
-    ? [...cases].sort(
-        (a, b) => triagePriority[b.triage] - triagePriority[a.triage]
-      )
-    : filteredCases;
-
-  const triageStats = cases.reduce(
-    (acc, c) => {
-      acc[c.triage] = (acc[c.triage] ?? 0) + 1;
-      return acc;
-    },
-    {
-      rojo: 0,
-      naranja: 0,
-      amarillo: 0,
-      verde: 0,
-      azul: 0,
-    } as Record<TriageColor, number>
-  );
-  const statusStats = cases.reduce(
-  (acc, c) => {
-    const status = c.status ?? "pendiente";
-    acc[status] = (acc[status] ?? 0) + 1;
-    return acc;
-  },
-  {
-    pendiente: 0,
-    en_atencion: 0,
-    finalizado: 0,
-  } as Record<"pendiente" | "en_atencion" | "finalizado", number>
-);
-
-const totalCases = cases.length;
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [patientsRes, casesRes] = await Promise.all([
-          fetch("/api/patients"),
-          fetch("/api/cases"),
-        ]);
-
-        const patientsData: PatientItem[] = await patientsRes.json();
-        const casesData: CaseItem[] = await casesRes.json();
-
-        setPatients(patientsData);
-        setCases(casesData);
-      } catch (error) {
-        console.error("Error cargando datos institucionales:", error);
-      } finally {
-        setLoading(false);
+    try {
+      const saved: unknown = JSON.parse(
+        localStorage.getItem("vita-monitor-groups") ?? "null",
+      );
+      if (Array.isArray(saved)) {
+        const valid = monitorGroups
+          .filter((g) => saved.includes(g.id))
+          .map((g) => g.id);
+        if (valid.length >= 1) setSelected(valid);
       }
-    };
-
-    load();
-  }, []);
-  const filteredPatientsByTriage =
-    patientTriageFilter === "todos"
-      ? patients
-      : patients.filter((p) => p.lastTriage === patientTriageFilter);
-
-  const visiblePatients =
-    patientQuery.trim().length === 0
-      ? filteredPatientsByTriage
-      : filteredPatientsByTriage.filter((p) => {
-          const q = patientQuery.toLowerCase();
-          return (
-            p.name.toLowerCase().includes(q) ||
-            p.lastReason.toLowerCase().includes(q)
-          );
+    } catch {
+      /* Invalid preferences use defaults. */
+    }
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const controller = new AbortController();
+    async function poll() {
+      try {
+        const response = await fetch("/api/institution/monitor", {
+          cache: "no-store",
+          signal: AbortSignal.any([
+            controller.signal,
+            AbortSignal.timeout(12000),
+          ]),
         });
-
+        if (response.status === 401) {
+          if (active) {
+            setSnapshot(null);
+            setError("Sesión finalizada. Vuelve a ingresar al panel.");
+          }
+          return;
+        }
+        if (!response.ok)
+          throw new Error(
+            "Conexión interrumpida. Los datos pueden estar desactualizados.",
+          );
+        const data: MonitorSnapshot = await response.json();
+        if (active) {
+          setSnapshot(data);
+          setError("");
+        }
+      } catch {
+        if (active)
+          setError(
+            "Conexión interrumpida. Los datos pueden estar desactualizados.",
+          );
+      } finally {
+        if (active) timer = setTimeout(poll, 10000);
+      }
+    }
+    void poll();
+    const clock = setInterval(() => setNow(new Date()), 1000);
+    const onFullscreen = () => setFull(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onFullscreen);
+    return () => {
+      active = false;
+      controller.abort();
+      clearTimeout(timer);
+      clearInterval(clock);
+      document.removeEventListener("fullscreenchange", onFullscreen);
+    };
+  }, []);
+  const stale =
+    snapshot && now
+      ? now.getTime() - new Date(snapshot.generatedAt).getTime() > 30000
+      : false;
+  async function toggleFull() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await root.current?.requestFullscreen();
+    } catch {
+      setError("No se pudo activar pantalla completa en este navegador.");
+    }
+  }
+  function toggleGroup(id: MonitorGroup) {
+    const next = selected.includes(id)
+      ? selected.filter((g) => g !== id)
+      : [...selected, id];
+    if (!next.length) return;
+    setSelected(next);
+    localStorage.setItem("vita-monitor-groups", JSON.stringify(next));
+  }
   return (
-    <main className="min-h-screen bg-slate-50">
-      {/* Barra superior */}
-      <header className="border-b bg-white/80 backdrop-blur">
-        <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-full bg-sky-600 text-white flex items-center justify-center text-xs font-semibold">
-              V
-            </div>
-            <div>
-              <p className="text-sm font-semibold">VITA · EcotecClinic</p>
-              <p className="text-xs text-slate-500">
-                Supervisión institucional de pacientes y triajes registrados.
-              </p>
-            </div>
+    <main
+      ref={root}
+      className="monitor-screen min-h-screen overflow-auto bg-[#101f30] p-5 text-white sm:p-8"
+    >
+      <header className="mb-7 flex flex-wrap items-center justify-between gap-5 border-b border-white/10 pb-6">
+        <div className="flex items-center gap-4">
+          <div className="rounded-2xl bg-teal-400/10 p-3 text-teal-300">
+            <Activity size={30} />
           </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.22em] text-teal-300">
+              VITA · Monitor institucional
+            </p>
+            <h1 className="mt-1 text-2xl font-semibold sm:text-3xl">
+              {snapshot?.centerName ?? "Actividad asistencial"}
+            </h1>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="mr-3 text-right">
+            <p className="font-mono text-2xl tabular-nums">
+              {now?.toLocaleTimeString("es-EC", {
+                timeZone: "America/Guayaquil",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              }) ?? "—"}
+            </p>
+            <p className="text-xs text-slate-400">Hora de Ecuador</p>
+          </div>
+          <button
+            onClick={() => setSettings(!settings)}
+            aria-expanded={settings}
+            className="rounded-xl border border-white/20 p-3 hover:bg-white/10"
+            aria-label="Seleccionar cuadrantes"
+          >
+            <Settings2 size={20} />
+          </button>
+          <button
+            onClick={toggleFull}
+            className="rounded-xl border border-white/20 p-3 hover:bg-white/10"
+            aria-label={
+              full ? "Salir de pantalla completa" : "Pantalla completa"
+            }
+          >
+            {full ? <Minimize size={20} /> : <Maximize size={20} />}
+          </button>
         </div>
       </header>
-
-      {/* Resumen institucional rápido */}
-      <section className="mx-auto max-w-5xl px-4 pt-3">
-        <div className="flex flex-wrap gap-2 text-[11px]">
-          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1">
-            <span className="h-2 w-2 rounded-full bg-slate-400" />
-            <span className="font-semibold">{totalCases}</span>
-            <span className="text-slate-600">casos totales</span>
-          </div>
-          <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            <span className="font-semibold">{statusStats.en_atencion}</span>
-            <span>en atención</span>
-          </div>
-          <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-700">
-            <span className="h-2 w-2 rounded-full bg-amber-400" />
-            <span className="font-semibold">{statusStats.pendiente}</span>
-            <span>pendientes</span>
-          </div>
-          <div className="flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sky-700">
-            <span className="h-2 w-2 rounded-full bg-sky-500" />
-            <span className="font-semibold">{statusStats.finalizado}</span>
-            <span>finalizados</span>
-          </div>
-        </div>
-      </section>
-
-      {/* Contenido */}
-      <section className="mx-auto max-w-5xl px-4 py-6 space-y-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Casos recientes */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900">
-                  Casos recientes
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Casos registrados en EcotecClinic.
-                </p>
-              </div>
-              <span className="text-xs text-slate-500">
-                {cases.length} {cases.length === 1 ? "caso" : "casos"}
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 text-[11px] mt-1">
-              <button
-                type="button"
-                onClick={() => setTriageFilter("todos")}
-                className={`rounded-full border px-2 py-0.5 ${
-                  triageFilter === "todos"
-                    ? "bg-slate-900 text-white border-slate-900"
-                    : "bg-white text-slate-600 border-slate-200"
-                }`}
+      {settings && (
+        <fieldset className="mb-6 flex flex-wrap gap-4 rounded-xl border border-white/15 p-4">
+          <legend className="px-2 text-sm text-slate-300">
+            Cuadrantes visibles
+          </legend>
+          {monitorGroups.map((g) => (
+            <label key={g.id} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={selected.includes(g.id)}
+                disabled={selected.length === 1 && selected.includes(g.id)}
+                onChange={() => toggleGroup(g.id)}
+                className="accent-teal-400"
+              />
+              {g.label}
+            </label>
+          ))}
+        </fieldset>
+      )}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-slate-300">
+          <strong className="mr-2 text-3xl font-semibold text-white">
+            {snapshot?.totalActive ?? "—"}
+          </strong>
+          casos activos
+        </p>
+        <p
+          role="status"
+          className={`flex items-center gap-2 text-sm ${error || stale ? "text-amber-300" : "text-teal-300"}`}
+        >
+          {error || stale ? <WifiOff size={17} /> : <Wifi size={17} />}{" "}
+          {error ||
+            (stale
+              ? "Datos desactualizados"
+              : snapshot
+                ? "Conectado · actualización cada 10 s"
+                : "Conectando con el centro…")}
+        </p>
+      </div>
+      <section
+        className={`grid gap-4 md:grid-cols-2 ${selected.length === 5 ? "xl:grid-cols-6" : "xl:grid-cols-2"}`}
+      >
+        {monitorGroups
+          .filter((g) => selected.includes(g.id))
+          .map((group, index) => {
+            const data = snapshot?.groups.find((g) => g.id === group.id);
+            const Icon = icons[group.id];
+            return (
+              <article
+                key={group.id}
+                className={`min-h-64 rounded-2xl border p-5 ${tones[group.id]} ${selected.length === 5 ? (index < 2 ? "xl:col-span-3" : "xl:col-span-2") : ""}`}
               >
-                Todos
-              </button>
-              <button
-                type="button"
-                onClick={() => setTriageFilter("rojo")}
-                className={`rounded-full border px-2 py-0.5 ${
-                  triageFilter === "rojo"
-                    ? "bg-red-600 text-white border-red-600"
-                    : "bg-white text-slate-600 border-slate-200"
-                }`}
-              >
-                Rojo
-              </button>
-              <button
-                type="button"
-                onClick={() => setTriageFilter("naranja")}
-                className={`rounded-full border px-2 py-0.5 ${
-                  triageFilter === "naranja"
-                    ? "bg-orange-500 text-white border-orange-500"
-                    : "bg-white text-slate-600 border-slate-200"
-                }`}
-              >
-                Naranja
-              </button>
-              <button
-                type="button"
-                onClick={() => setTriageFilter("amarillo")}
-                className={`rounded-full border px-2 py-0.5 ${
-                  triageFilter === "amarillo"
-                    ? "bg-amber-400 text-white border-amber-400"
-                    : "bg-white text-slate-600 border-slate-200"
-                }`}
-              >
-                Amarillo
-              </button>
-              <button
-                type="button"
-                onClick={() => setTriageFilter("verde")}
-                className={`rounded-full border px-2 py-0.5 ${
-                  triageFilter === "verde"
-                    ? "bg-emerald-500 text-white border-emerald-500"
-                    : "bg-white text-slate-600 border-slate-200"
-                }`}
-              >
-                Verde
-              </button>
-              <button
-                type="button"
-                onClick={() => setTriageFilter("azul")}
-                className={`rounded-full border px-2 py-0.5 ${
-                  triageFilter === "azul"
-                    ? "bg-sky-500 text-white border-sky-500"
-                    : "bg-white text-slate-600 border-slate-200"
-                }`}
-              >
-                Azul
-              </button>
-            </div>
-            <div className="flex justify-end mt-1">
-              <button
-                type="button"
-                onClick={() => setPriorityMode((prev) => !prev)}
-                className={`rounded-full border px-3 py-0.5 text-[11px] ${
-                  priorityMode
-                    ? "bg-slate-900 text-white border-slate-900"
-                    : "bg-white text-slate-600 border-slate-200"
-                }`}
-              >
-                {priorityMode ? "Prioridad activada" : "Ver por prioridad"}
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-1.5 text-[11px] mt-2">
-              <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-red-700">
-                <span className="h-2 w-2 rounded-full bg-red-500" />
-                Rojo: {triageStats.rojo}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-orange-700">
-                <span className="h-2 w-2 rounded-full bg-orange-500" />
-                Naranja: {triageStats.naranja}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-700">
-                <span className="h-2 w-2 rounded-full bg-amber-400" />
-                Amarillo: {triageStats.amarillo}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Verde: {triageStats.verde}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-sky-700">
-                <span className="h-2 w-2 rounded-full bg-sky-500" />
-                Azul: {triageStats.azul}
-              </span>
-            </div>
-            {loading && (
-              <p className="text-xs text-slate-500">Cargando casos…</p>
-            )}
-
-            {!loading && cases.length === 0 && (
-              <p className="text-xs text-slate-500">
-                No hay casos registrados.
-              </p>
-            )}
-
-            <div className="space-y-2">
-              {visibleCases.map((c) => (
-                <Link
-                  key={c.id}
-                  href={`/portal/institution/case/${c.id}`}
-                  className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5 hover:bg-slate-100"
-                >
-                  <span
-                    className={`mt-1 h-2.5 w-2.5 rounded-full ${
-                      triageDot[c.triage]
-                    }`}
-                  />
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold text-slate-900">
-                      {c.patientName} · {c.age} años
-                    </p>
-                    <p className="text-[11px] text-slate-500">{c.reason}</p>
-                    {c.status === "en_atencion" && (
-                      <p className="mt-1 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                        En atención · Sala {c.room ?? "—"}
-                      </p>
-                    )}
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      {c.date} · Origen: {c.origin ?? "no especificado"}
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Icon size={21} />
+                      <h2 className="text-lg font-semibold">{group.label}</h2>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-300">
+                      {group.detail}
                     </p>
                   </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-          {/* Pacientes recientes */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900">
-                  Pacientes recientes
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Pacientes con actividad reciente en VITA.
-                </p>
-              </div>
-              <span className="text-xs text-slate-500">
-                {patients.length}{" "}
-                {patients.length === 1 ? "paciente" : "pacientes"}
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 text-[11px] mt-1">
-              <button
-                type="button"
-                onClick={() => setPatientTriageFilter("todos")}
-                className={`rounded-full border px-2 py-0.5 ${
-                  patientTriageFilter === "todos"
-                    ? "bg-slate-900 text-white border-slate-900"
-                    : "bg-white text-slate-600 border-slate-200"
-                }`}
-              >
-                Todos
-              </button>
-              <button
-                type="button"
-                onClick={() => setPatientTriageFilter("rojo")}
-                className={`rounded-full border px-2 py-0.5 ${
-                  patientTriageFilter === "rojo"
-                    ? "bg-red-600 text-white border-red-600"
-                    : "bg-white text-slate-600 border-slate-200"
-                }`}
-              >
-                Rojo
-              </button>
-              <button
-                type="button"
-                onClick={() => setPatientTriageFilter("naranja")}
-                className={`rounded-full border px-2 py-0.5 ${
-                  patientTriageFilter === "naranja"
-                    ? "bg-orange-500 text-white border-orange-500"
-                    : "bg-white text-slate-600 border-slate-200"
-                }`}
-              >
-                Naranja
-              </button>
-              <button
-                type="button"
-                onClick={() => setPatientTriageFilter("amarillo")}
-                className={`rounded-full border px-2 py-0.5 ${
-                  patientTriageFilter === "amarillo"
-                    ? "bg-amber-400 text-white border-amber-400"
-                    : "bg-white text-slate-600 border-slate-200"
-                }`}
-              >
-                Amarillo
-              </button>
-              <button
-                type="button"
-                onClick={() => setPatientTriageFilter("verde")}
-                className={`rounded-full border px-2 py-0.5 ${
-                  patientTriageFilter === "verde"
-                    ? "bg-emerald-500 text-white border-emerald-500"
-                    : "bg-white text-slate-600 border-slate-200"
-                }`}
-              >
-                Verde
-              </button>
-              <button
-                type="button"
-                onClick={() => setPatientTriageFilter("azul")}
-                className={`rounded-full border px-2 py-0.5 ${
-                  patientTriageFilter === "azul"
-                    ? "bg-sky-500 text-white border-sky-500"
-                    : "bg-white text-slate-600 border-slate-200"
-                }`}
-              >
-                Azul
-              </button>
-            </div>
-            <div className="mt-1">
-              <input
-                type="text"
-                value={patientQuery}
-                onChange={(e) => setPatientQuery(e.target.value)}
-                placeholder="Buscar por nombre o motivo…"
-                className="w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
-              />
-            </div>
-
-            {loading && (
-              <p className="text-xs text-slate-500">Cargando pacientes…</p>
-            )}
-
-            {!loading && patients.length === 0 && (
-              <p className="text-xs text-slate-500">
-                No hay pacientes registrados.
-              </p>
-            )}
-
-            <div className="divide-y divide-slate-100">
-            {visiblePatients.map((p) => (
-            <Link
-           key={p.id}
-           href={`/portal/institution/patient/${p.id}`}
-            className="flex items-center justify-between gap-3 px-3 py-3 hover:bg-slate-50"
-           >
-            <div className="flex items-center gap-3">
-            <span
-           className={`h-2.5 w-2.5 rounded-full ${
-            triageDot[p.lastTriage]
-           }`}
-            />
-           <div>
-           <p className="text-xs font-semibold text-slate-900">
-              {p.name} · {p.age} años
-            </p>
-           <p className="text-[11px] text-slate-500">
-              Último motivo: {p.lastReason}
-          </p>
-         </div>
-            </div>
-             <span className="text-[11px] text-slate-400 underline-offset-2">
-           Ver ficha institucional
-           </span>
-           </Link>
-           ))}
-        </div>
-          </div>
-        </div>
-
-        <p className="text-[11px] text-slate-500">
-          Información operativa registrada en VITA para EcotecClinic.
-        </p>
+                  <p className="font-mono text-5xl font-semibold tabular-nums">
+                    {data?.count ?? "—"}
+                  </p>
+                </div>
+                <div className="mt-5 border-t border-white/10 pt-2">
+                  {data?.cases.length ? (
+                    data.cases.map((c) => (
+                      <div
+                        key={c.code}
+                        className="flex items-center justify-between gap-3 py-2 text-sm text-slate-100"
+                      >
+                        <span className="font-mono font-medium">{c.code}</span>
+                        <span className="flex items-center gap-2 capitalize text-slate-300">
+                          <span
+                            className={`h-2.5 w-2.5 rounded-full ${dots[c.triage]}`}
+                          />
+                          {c.triage}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="py-6 text-sm text-slate-400">
+                      {snapshot
+                        ? "Sin casos en este grupo"
+                        : "Esperando datos…"}
+                    </p>
+                  )}
+                  {data && data.count > 5 && (
+                    <p className="mt-2 text-xs text-slate-300">
+                      + {data.count - 5} casos adicionales
+                    </p>
+                  )}
+                </div>
+              </article>
+            );
+          })}
       </section>
+      <footer className="mt-6 flex flex-wrap justify-between gap-3 text-xs leading-5 text-slate-400">
+        <p>
+          Vista de solo lectura · Identidades protegidas · Emergencias también
+          se incluyen en su estado de atención.
+        </p>
+        <p>
+          Última actualización:{" "}
+          {snapshot
+            ? new Date(snapshot.generatedAt).toLocaleTimeString("es-EC", {
+                timeZone: "America/Guayaquil",
+              })
+            : "pendiente"}
+        </p>
+      </footer>
     </main>
   );
 }

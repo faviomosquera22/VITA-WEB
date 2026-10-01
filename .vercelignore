@@ -1,0 +1,5 @@
+repo vita web/
+.venv_pdf/
+.vita-data/
+.env*
+!.env.example

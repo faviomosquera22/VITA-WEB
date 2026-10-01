@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth";
 import SessionBar from "@/app/portal/_components/session-bar";
 
+import WorkspaceNotice from "./_components/workspace-notice";
 import ProfessionalSidebar from "./_components/professional-sidebar";
 
 export default async function ProfessionalLayout({
@@ -19,7 +20,7 @@ export default async function ProfessionalLayout({
   }
 
   if (session.role !== "professional") {
-    redirect("/portal/institution");
+    redirect(session.role === "patient" ? "/portal/login?role=professional" : "/portal/institution");
   }
 
   return (
@@ -27,6 +28,7 @@ export default async function ProfessionalLayout({
       <ProfessionalSidebar role="professional" />
       <div className="min-w-0 flex-1">
         <SessionBar user={session} />
+        <WorkspaceNotice />
         {children}
       </div>
     </div>
